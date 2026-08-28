@@ -73,6 +73,7 @@ window.__ModuleLoader__.load({
 		}
 		// User-selected sound file (set by the settings card). Precedence:
 		// user pick (localStorage) > SOUND_SRC (compile-time) > Web Audio beep.
+		// The file is stored as a data: URI so it needs no server hosting.
 		function play() {
 			var src = "";
 			var user = null;

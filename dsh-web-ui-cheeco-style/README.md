@@ -1,4 +1,4 @@
-# @cheeco/dsh-web-ui-cheeco-style · Cheeco的小功能
+# dsh-web-ui-cheeco-style · Cheeco的小功能
 
 一个 DSH 客户端插件：在 **设置 → Cheeco的小功能** 里提供一个设置页。
 
@@ -14,10 +14,3 @@
 - 两者通过 `localStorage["dsh-msg-sound-enabled"]` 联动。
 
 > 只装本插件 = 有开关界面，但没有声音；只装声音插件 = 有声（默认开）但没开关界面。
-
-## 安装
-```
-dsh plugin --profile <profile> add <本仓库git地址>
-```
-或粘贴 git 地址到 **设置 → 插件 → 用户插件** 的安装框。
-
