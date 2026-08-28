@@ -104,12 +104,16 @@ window.__ModuleLoader__.load({
 		}
 
 		/** "面板改名" card: user renames the sidebar entry for this settings panel. */
-		function RenameCard() {
+		function RenameCard({ onSaved }) {
 			const [name, setName] = react.useState(() => { try { return localStorage.getItem(RENAME_KEY) || ""; } catch (e) { return ""; } });
 			const save = () => {
 				const next = name.trim();
 				try { localStorage.setItem(RENAME_KEY, next); } catch (e) {}
-				alert("已保存「" + (next || "Cheeco的小功能") + "」；下次打开设置生效");
+				// Nudge DSH's locale revision so the settings panel re-reads the
+				// section label right now (live rename) — our own mechanism, not
+				// the official settings system.
+				if (onSaved) { try { onSaved(); } catch (e) {} }
+				alert("已保存「" + (next || "Cheeco的小功能") + "」");
 			};
 			return react_jsx_runtime.jsx("div", {
 				className: "dsh-web-ui-cheeco-style-section",
@@ -126,10 +130,10 @@ window.__ModuleLoader__.load({
 		}
 
 		/** The section renders the sound card + rename card. */
-		function Section() {
+		function Section({ onSaved }) {
 			return react_jsx_runtime.jsx("div", { className: "dsh-web-ui-cheeco-style", children: [
 				react_jsx_runtime.jsx(SoundCard, {}),
-				react_jsx_runtime.jsx(RenameCard, {})
+				react_jsx_runtime.jsx(RenameCard, { onSaved })
 			] });
 		}
 
@@ -140,13 +144,25 @@ window.__ModuleLoader__.load({
 		function apply(ctx) {
 			const t = ctx.locale.bind(NS);
 			ctx.effect(() => ctx.locale.register(NS, { zh, en: zh }), "dsh-web-ui-cheeco-style: dictionaries");
+			// Our own live-refresh nudge: DSH's settings panel only re-reads a
+			// section's label when the section slot version OR the locale revision
+			// changes. We can't re-register the same section id (the list slot
+			// throws on duplicates), so we bump the locale revision by registering
+			// a throwaway plugin-owned namespace. Everything stays in our own
+			// plugin; official settings are untouched.
+			let live = 0;
+			const refresh = () => {
+				live++;
+				try { ctx.locale.register("dsh-web-ui-cheeco-style:live:" + live, { zh: {}, en: {} }); } catch (e) {}
+			};
+			const SectionWithRefresh = () => react_jsx_runtime.jsx(Section, { onSaved: refresh });
 			ctx.slots.inject("settings.section", () => ctx.slots.register({
 				name: "settings.section",
 				id: "cheeco-style",
 				order: -1,
 				label: () => { try { return localStorage.getItem(RENAME_KEY) || t("nav"); } catch (e) { return t("nav"); } },
 				locale: NS
-			}, Section));
+			}, SectionWithRefresh));
 		}
 
 		exports.apply = apply;
