@@ -39,6 +39,7 @@ window.__ModuleLoader__.load({
 			};
 			const reset = () => { try { localStorage.removeItem(SOUND_SRC_KEY); } catch (e) {} setSound("默认提示音(叮咚)"); };
 			const preview = () => {
+				if (!on) { alert("声音已关闭，请先开启声音"); return; }
 				try {
 					const src = localStorage.getItem(SOUND_SRC_KEY);
 					if (src) { const a = new Audio(src); a.volume = 0.6; a.play(); return; }
