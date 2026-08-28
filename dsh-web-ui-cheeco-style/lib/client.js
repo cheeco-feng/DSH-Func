@@ -140,7 +140,7 @@ window.__ModuleLoader__.load({
 			ctx.slots.inject("settings.section", () => ctx.slots.register({
 				name: "settings.section",
 				id: "cheeco-style",
-				order: 100,
+				order: -1,
 				label: () => { try { return localStorage.getItem(RENAME_KEY) || t("nav"); } catch (e) { return t("nav"); } },
 				locale: NS
 			}, Section));
