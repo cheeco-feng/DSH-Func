@@ -31,4 +31,4 @@ dsh plugin --profile <profile> add ./dsh-web-ui-cheeco-style
 ## 说明
 - 两个插件通过 `localStorage["dsh-msg-sound-enabled"]` 联动。
 - 只装声音插件 = 有声（默认开）但没设置开关；只装界面 = 有开关但无声；装两个 = 最完整。
-- 其它功能（AbortSignal polyfill / CSS 覆盖 / 隐藏关机按钮等）由独立的 `CheecoStyleTool` 工具完成，不在本仓库。
+

@@ -19,5 +19,3 @@ dsh plugin --profile <profile> add <本仓库git地址>
 ```
 或粘贴 git 地址到 **设置 → 插件 → 用户插件** 的安装框。
 
-## 说明
-- 其它的功能（AbortSignal polyfill / CSS 覆盖 / 隐藏关机按钮等）由独立的 `CheecoStyleTool` 工具完成，不在本插件内。
