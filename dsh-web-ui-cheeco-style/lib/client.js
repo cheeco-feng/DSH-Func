@@ -9,6 +9,25 @@ window.__ModuleLoader__.load({
 		let slots = require("@deepseek-ai/dsh-client-ui-slots");
 		let locale = require("@deepseek-ai/dsh-client-locale");
 
+		// Inject card styles (idempotent) so the settings cards look consistent across themes.
+		(function () {
+			if (typeof document === "undefined" || document.querySelector('style[data-plugin="dsh-web-ui-cheeco-style"]')) return;
+			var css = ".dsh-web-ui-cheeco-style{display:flex;flex-direction:column;gap:16px;}"
+				+ ".dsh-web-ui-cheeco-style-section{box-sizing:border-box;background:var(--dsw-alias-bg-layer-2,#fff);border:1px solid var(--dsw-alias-border-l1,#e5e5e5);border-radius:12px;padding:16px 18px;box-shadow:0 1px 2px rgba(0,0,0,.04);}"
+				+ ".dsh-web-ui-cheeco-style-section h3{margin:0 0 10px;font-size:16px;font-weight:600;color:var(--dsw-alias-label-primary,#1a1a1a);}"
+				+ ".dsh-web-ui-cheeco-style-state{margin:0 0 10px;font-size:13px;line-height:20px;color:var(--dsw-alias-label-secondary,#666);}"
+				+ ".dsh-web-ui-cheeco-style-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:4px;}"
+				+ ".dsh-web-ui-cheeco-style-action{box-sizing:border-box;cursor:pointer;border:1px solid var(--dsw-alias-border-l2,#d9d9d9);background:var(--dsw-alias-bg-layer-3,#fff);color:var(--dsw-alias-label-primary,#1a1a1a);font-family:inherit;font-size:13px;line-height:20px;border-radius:8px;padding:6px 14px;transition:background .15s,border-color .15s,box-shadow .15s;}"
+				+ ".dsh-web-ui-cheeco-style-action:hover{background:var(--dsw-alias-interactive-bg-hover,#f5f5f5);border-color:var(--dsw-alias-state-business-primary,#3498db);}"
+				+ ".dsh-web-ui-cheeco-style-action:active{background:var(--dsw-alias-interactive-bg-active,#ececec);}"
+				+ ".dsh-web-ui-cheeco-style-actions input{box-sizing:border-box;flex:1;min-width:180px;border:1px solid var(--dsw-alias-border-l2,#d9d9d9);border-radius:8px;padding:6px 12px;font-family:inherit;font-size:13px;line-height:20px;color:var(--dsw-alias-label-primary,#1a1a1a);background:var(--dsw-alias-bg-base,#fff);outline:none;}"
+				+ ".dsh-web-ui-cheeco-style-actions input:focus{border-color:var(--dsw-alias-state-business-primary,#3498db);box-shadow:0 0 0 2px rgba(52,152,219,.15);}";
+			var tag = document.createElement("style");
+			tag.dataset.plugin = "dsh-web-ui-cheeco-style";
+			tag.textContent = css;
+			document.head.appendChild(tag);
+		})();
+
 		/** Dictionary namespace owned by this plugin. */
 		const NS = "dsh-web-ui-cheeco-style";
 		const zh = {
