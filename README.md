@@ -33,18 +33,24 @@ dsh plugin --profile <profile> add ./dsh-web-ui-cheeco-style
 - 装好后，打开 **设置 → Cheeco的小功能 → 声音提示音**。
 - **开/关**：点「关闭声音 / 开启声音」。
 - **换声音**：点「选择声音文件」选一个音频（存为 data URI，无需服务器）。
-- **试听**：点「试听」立即播当前声音。
+- **试听**：点「试听」立即播当前声音；声音关闭时试听不响。
 - **恢复默认**：点「恢复默认」回到默认"叮咚"。
+- **面板改名**：输入新名字点「保存」，改这个面板在侧边栏的名字（下次打开生效）。
+- **面板位置**：默认排在设置**第一位**（`order: -1`）；想改位置改 `lib/client.js` 的 `order` 值。
 - AI 回复**结束时响一声**（回合收尾才响，过程中不响）。
 
 ## 说明
 - 两个插件通过 `localStorage["dsh-msg-sound-enabled"]` 联动。
 - 只装声音插件 = 有声（默认开）但没设置开关；只装界面 = 有开关但无声；装两个 = 最完整。
 
+## 开发指南
+想写自己的 DSH 插件？看 **`[PLUGIN-GUIDE.md](PLUGIN-GUIDE.md)`**（结构、注册、设置页、安装、BOM 等常见坑，基于实战整理）。
+
 ## 常见问题 / 经验
 - **卡启动 / 92% / `SyntaxError`**：常见原因是**编辑了 profile 的 `package.json` 或 `desktop-plugins.lock.json` 时，文件开头带了 UTF-8 BOM**（字节 EF BB BF）。DSH 用严格 JSON 解析，**BOM 会直接导致 `SyntaxError`、全量启动失败**。
   - 正确做法：用 **不带 BOM 的 UTF-8** 写这些 JSON（例如 PowerShell 用 `[System.Text.UTF8Encoding]::new($false)`），或用文本编辑器保存为"UTF-8 无 BOM"。
   - 这条经验也适用于任何往 DSH profile 里加配置 / 记插件清单的场景。
 - **卸载后重装**：从本仓库装回，`dsh plugin add ./子目录` 即可；配置文件保持"无 BOM"就不会崩。
+
 
 
