@@ -1,0 +1,57 @@
+{
+  "name": "@cheeco/dsh-web-ui-cheeco-style",
+  "version": "0.1.1",
+  "description": "Cheeco的小功能：DSH 小功能集合（目前含「AI 回复提示音」开关卡片）。",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json",
+    "./client": {
+      "types": "./lib/types/client/index.d.ts",
+      "default": "./lib/client.js"
+    }
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "compatibility": {
+      "desktop": {
+        "range": ">=2.0.0",
+        "api": "^1.0.0"
+      },
+      "runtime": {
+        "range": ">=0.1.0",
+        "evidence": {
+          "providerId": "dsh-cli-provider-v1",
+          "runtime": "0.1.0",
+          "desktop": "2.0.0",
+          "verifiedAt": "2026-08-28",
+          "matrixArtifact": "runtime-support/supported-runtimes.json"
+        }
+      },
+      "surfaces": [
+        "main"
+      ]
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-connection",
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-settings"
+      ],
+      "platform": "web"
+    }
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "license": "MIT"
+}

@@ -1,0 +1,6 @@
+# dsh-client-ui-message-sound — browser plugin roster row.
+# Composed as an overlay bundle patch (the package is listed in
+# dsh.profile.bundles), so this only ADDS a row and never touches existing ones.
+- insert:
+    - id: ui-message-sound
+      name: '@cheeco/dsh-client-ui-message-sound'
