@@ -1,7 +1,7 @@
 {
     "name":  "@cheeco/dsh-web-ui-cheeco-style",
     "version":  "0.2.0",
-    "description":  "Cheeco的小功能：DSH 小功能集合（目前含「AI 回复提示音」开关卡片）。",
+    "description": "Cheeco的小功能：DSH 小功能集合（目前含「AI 回复提示音」开关卡片）。",
     "type":  "module",
     "main":  "lib/index.js",
     "exports":  {
