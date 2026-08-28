@@ -38,6 +38,8 @@ window.__ModuleLoader__.load({
 		const SOUND_KEY = "dsh-msg-sound-enabled";
 		const SOUND_SRC_KEY = "dsh-msg-sound-src";
 		const RENAME_KEY = "dsh-web-ui-cheeco-style:label";
+		/** Bump this in sync with package.json version so the UI reflects the build. */
+		const PLUGIN_VERSION = "0.2.0";
 		function soundEnabled() { try { return localStorage.getItem(SOUND_KEY) !== "0"; } catch (e) { return true; } }
 		function soundName() { try { return localStorage.getItem(SOUND_SRC_KEY) ? "已选" : "默认提示音(叮咚)"; } catch (e) { return "默认提示音(叮咚)"; } }
 
@@ -117,7 +119,8 @@ window.__ModuleLoader__.load({
 					react_jsx_runtime.jsx("div", { className: "dsh-web-ui-cheeco-style-actions", children: [
 						react_jsx_runtime.jsx("input", { type: "text", value: name, placeholder: "输入面板名称", onChange: (e) => setName(e.target.value), style: { flex: "1", minWidth: "160px", padding: "6px 10px" } }),
 						react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: save, children: "保存" })
-					] })
+					] }),
+					react_jsx_runtime.jsx("p", { className: "dsh-web-ui-cheeco-style-state", children: "插件版本 " + PLUGIN_VERSION })
 				]
 			});
 		}
