@@ -6,7 +6,7 @@
 - 监听会话**收尾节点**（`turn-tail`），回合结束时播放一声"叮咚"。
 - 每回合只响一次；工具运行、段落停顿、加载旧消息**都不响**。
 - 默认开启；可配合「Cheeco的小功能」开关卡片（或 `localStorage["dsh-msg-sound-enabled"]`）关闭。
-- 声音可换成自己的音频（`lib/client.js` 里 `SOUND_SRC`）。
+- **可自定义声音**：在 **设置 → Cheeco的小功能** 里点「选择声音文件」选一个音频即可；也可在 `lib/client.js` 里设 `SOUND_SRC` 作为兜底。
 
 ## 需要配合
 - 若要在 **设置 → Cheeco的小功能** 里显示开关卡片，需同时安装 `@cheeco/dsh-web-ui-cheeco-style`。

@@ -14,6 +14,8 @@ window.__ModuleLoader__.load({
 		* After editing, restart DSH (or reload the page) for it to take effect.
 		*/
 		var SOUND_SRC = "";
+		/** localStorage key holding a user-picked sound file (data: URI). */
+		var SOUND_SRC_KEY = "dsh-msg-sound-src";
 		/** Volume 0..1. */
 		var VOLUME = 0.6;
 		/** Diagnostic logging to the browser console (DevTools). */
@@ -60,17 +62,24 @@ window.__ModuleLoader__.load({
 			var b = playTone(1318.5, 0.12, 0.30);
 			log("web-audio beep ok=", a, b);
 		}
-		function playFile() {
+		function playFile(src) {
 			try {
-				var a = new Audio(SOUND_SRC);
+				var a = new Audio(src);
 				a.volume = VOLUME;
 				var p = a.play();
-				if (p && p.then) p.then(function(){ log("file audio playing"); }).catch(function(err){ log("file audio play rejected:", err && err.message); });
-				else log("file audio play() called");
-			} catch (e) { log("file audio error:", e); }
+				if (p && p.then) p.then(function(){ log("custom sound playing"); }).catch(function(err){ log("custom sound play rejected:", err && err.message); });
+				else log("custom sound play() called");
+			} catch (e) { log("custom sound error:", e); }
 		}
+		// User-selected sound file (set by the settings card). Precedence:
+		// user pick (localStorage) > SOUND_SRC (compile-time) > Web Audio beep.
 		function play() {
-			if (SOUND_SRC) playFile(); else playBeep();
+			var src = "";
+			var user = null;
+			try { user = localStorage.getItem(SOUND_SRC_KEY); } catch (e) {}
+			if (user) src = user;
+			else if (SOUND_SRC) src = SOUND_SRC;
+			if (src) playFile(src); else playBeep();
 		}
 		window.__dshMsgSoundTest = function () { log("manual test invoked"); play(); return "played"; };
 		//#endregion

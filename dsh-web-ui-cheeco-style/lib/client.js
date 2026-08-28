@@ -15,18 +15,28 @@ window.__ModuleLoader__.load({
 			"nav": "Cheeco的小功能"
 		};
 
-		/** Shared on/off key for the message sound (read by @deepseek-ai/dsh-client-ui-message-sound). */
+		/** Shared on/off + sound-file keys (read by @cheeco/dsh-client-ui-message-sound). */
 		const SOUND_KEY = "dsh-msg-sound-enabled";
+		const SOUND_SRC_KEY = "dsh-msg-sound-src";
 		function soundEnabled() { try { return localStorage.getItem(SOUND_KEY) !== "0"; } catch (e) { return true; } }
+		function soundName() { try { return localStorage.getItem(SOUND_SRC_KEY) ? "已选" : "默认提示音(叮咚)"; } catch (e) { return "默认提示音(叮咚)"; } }
 
-		/** "声音提示音" card: toggles the AI-reply notification sound. */
+		/** "声音提示音" card: on/off toggle + pick a custom sound file. */
 		function SoundCard() {
 			const [on, setOn] = react.useState(soundEnabled);
-			const toggle = () => {
-				const next = !on;
-				try { localStorage.setItem(SOUND_KEY, next ? "1" : "0"); } catch (e) {}
-				setOn(next);
+			const [sound, setSound] = react.useState(soundName);
+			const fileRef = react.useRef(null);
+			const toggle = () => { const next = !on; try { localStorage.setItem(SOUND_KEY, next ? "1" : "0"); } catch (e) {} setOn(next); };
+			const choose = () => { if (fileRef.current) fileRef.current.click(); };
+			const onFile = (e) => {
+				const f = e.target.files && e.target.files[0];
+				if (!f) return;
+				const r = new FileReader();
+				r.onload = () => { try { localStorage.setItem(SOUND_SRC_KEY, String(r.result)); } catch (err) {} setSound(f.name); };
+				r.readAsDataURL(f);
+				e.target.value = "";
 			};
+			const reset = () => { try { localStorage.removeItem(SOUND_SRC_KEY); } catch (e) {} setSound("默认提示音(叮咚)"); };
 			return react_jsx_runtime.jsx("div", {
 				className: "dsh-web-ui-cheeco-style-section",
 				children: [
@@ -35,12 +45,13 @@ window.__ModuleLoader__.load({
 						className: "dsh-web-ui-cheeco-style-state",
 						children: on ? "已开启：AI 回复结束时播放提示音。" : "已关闭：AI 回复时不再播放提示音。"
 					}),
-					react_jsx_runtime.jsx("button", {
-						type: "button",
-						className: "dsh-web-ui-cheeco-style-action",
-						onClick: toggle,
-						children: on ? "关闭声音" : "开启声音"
-					})
+					react_jsx_runtime.jsx("p", { className: "dsh-web-ui-cheeco-style-state", children: "当前声音：" + sound }),
+					react_jsx_runtime.jsx("div", { className: "dsh-web-ui-cheeco-style-actions", children: [
+						react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: toggle, children: on ? "关闭声音" : "开启声音" }),
+						react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: choose, children: "选择声音文件" }),
+						react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: reset, children: "恢复默认" })
+					] }),
+					react_jsx_runtime.jsx("input", { type: "file", accept: "audio/*", ref: fileRef, style: { display: "none" }, onChange: onFile })
 				]
 			});
 		}
