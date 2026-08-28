@@ -37,6 +37,29 @@ window.__ModuleLoader__.load({
 				e.target.value = "";
 			};
 			const reset = () => { try { localStorage.removeItem(SOUND_SRC_KEY); } catch (e) {} setSound("默认提示音(叮咚)"); };
+			const preview = () => {
+				try {
+					const src = localStorage.getItem(SOUND_SRC_KEY);
+					if (src) { const a = new Audio(src); a.volume = 0.6; a.play(); return; }
+				} catch (e) {}
+				try {
+					const Ctx = window.AudioContext || window.webkitAudioContext;
+					if (!Ctx) return;
+					const ctx = new Ctx();
+					if (ctx.state === "suspended" && ctx.resume) ctx.resume();
+					const tone = (freq, off, dur) => {
+						const osc = ctx.createOscillator(), g = ctx.createGain(), t0 = ctx.currentTime + off;
+						osc.type = "sine"; osc.frequency.setValueAtTime(freq, t0);
+						g.gain.setValueAtTime(0.0001, t0);
+						g.gain.exponentialRampToValueAtTime(0.6, t0 + 0.02);
+						g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+						osc.connect(g); g.connect(ctx.destination);
+						osc.start(t0); osc.stop(t0 + dur + 0.05);
+					};
+					tone(880, 0, 0.18); tone(1318.5, 0.12, 0.30);
+					setTimeout(function () { try { ctx.close(); } catch (e) {} }, 700);
+				} catch (e) {}
+			};
 			return react_jsx_runtime.jsx("div", {
 				className: "dsh-web-ui-cheeco-style-section",
 				children: [
@@ -49,6 +72,7 @@ window.__ModuleLoader__.load({
 					react_jsx_runtime.jsx("div", { className: "dsh-web-ui-cheeco-style-actions", children: [
 						react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: toggle, children: on ? "关闭声音" : "开启声音" }),
 						react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: choose, children: "选择声音文件" }),
+						react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: preview, children: "试听" }),
 						react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: reset, children: "恢复默认" })
 					] }),
 					react_jsx_runtime.jsx("input", { type: "file", accept: "audio/*", ref: fileRef, style: { display: "none" }, onChange: onFile })
