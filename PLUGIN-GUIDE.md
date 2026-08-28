@@ -132,9 +132,21 @@ dsh plugin --profile <profile> add ./my-plugin        # 或 git 地址
 - 想让你的排最前 → 设 `order: -1`；想靠后 → 设更大值。
 
 ## 八、读写用户状态
-- **简单**：`localStorage`（存 on/off、自定义声音等）。**缺点**：绑定源（host:port），且不在 settings.yaml。
-- **正规**：DSH 设置系统（`ctx.settingsScope.bind({ namespace })` + `getSnapshot()/set()/subscribe()`），
-  写入 `settings.yaml`、类型化、可管理。但要在宿主侧 `settings.register` 注册命名空间。
+> 这里如实说明：**只有 `localStorage` 是实测跑通的**；DSH 设置系统那套我**试过但没成功**，下方如实标注。
+
+- **`localStorage`（推荐，实测可靠）**：存 on/off、自定义声音等简单开关。**缺点**：绑定源（host:port），且不在 `settings.yaml`。
+  - 例：`localStorage.getItem("dsh-msg-sound-enabled")` / `.setItem(...)`。本项目的开关+声音都是这么存的。
+- **DSH 设置系统（`settings.yaml`）——⚠️ 实验性，未完全跑通**：
+  - 思路：宿主侧 `settings.register(namespace, schema)` 注册命名空间；客户端用 `ctx.settingsScope.bind({ namespace })` 读/写。
+  - **踩过的坑（务必注意）**：
+    1. **宿主导入依赖失败**：宿主 `lib/index.js` 里 `import ... from "@deepseek-ai/schemastery"` / `"dsh-settings"`
+       在 **patches 目录的插件包**里会 **`ERR_MODULE_NOT_FOUND`**（这些包没装在插件目录下）。要能解析，得把这些依赖
+       安装/链接进插件包目录，或确保插件放在能解析到它们的 node_modules 下。
+    2. **客户端 API 要说准**：`settingsScope.bind(...)` 返回 scope 的读法是 **`getSnapshot().value.<字段>`**，
+       写是 **`set("字段", 值)`**，订阅是 **`subscribe(cb)`**（**不是** `.get()` / `.update()`，我之前写错过）。
+  - **建议**：简单开关就用 `localStorage`（省事、已验证）；真要写 `settings.yaml`，先确保插件能解析到
+    `@deepseek-ai/schemastery` 等依赖，再按上面 API 实现并**实测**。
+
 
 ## 九、⚠️ 最重要的坑：**BOM**
 DSH 用**严格 JSON 解析**。**只要 `package.json` 或 `desktop-plugins.lock.json` 开头带 UTF-8 BOM**，
