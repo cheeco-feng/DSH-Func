@@ -18,6 +18,7 @@ window.__ModuleLoader__.load({
 		/** Shared on/off + sound-file keys (read by @cheeco/dsh-client-ui-message-sound). */
 		const SOUND_KEY = "dsh-msg-sound-enabled";
 		const SOUND_SRC_KEY = "dsh-msg-sound-src";
+		const RENAME_KEY = "dsh-web-ui-cheeco-style:label";
 		function soundEnabled() { try { return localStorage.getItem(SOUND_KEY) !== "0"; } catch (e) { return true; } }
 		function soundName() { try { return localStorage.getItem(SOUND_SRC_KEY) ? "已选" : "默认提示音(叮咚)"; } catch (e) { return "默认提示音(叮咚)"; } }
 
@@ -80,6 +81,35 @@ window.__ModuleLoader__.load({
 			});
 		}
 
+		/** "面板改名" card: user renames the sidebar entry for this settings panel. */
+		function RenameCard() {
+			const [name, setName] = react.useState(() => { try { return localStorage.getItem(RENAME_KEY) || ""; } catch (e) { return ""; } });
+			const save = () => {
+				const next = name.trim();
+				try { localStorage.setItem(RENAME_KEY, next); } catch (e) {}
+				alert("已保存「" + (next || "Cheeco的小功能") + "」；下次打开设置生效");
+			};
+			return react_jsx_runtime.jsx("div", {
+				className: "dsh-web-ui-cheeco-style-section",
+				children: [
+					react_jsx_runtime.jsx("h3", { children: "面板改名" }),
+					react_jsx_runtime.jsx("p", { className: "dsh-web-ui-cheeco-style-state", children: "给这个设置页在侧边栏的名字改名。" }),
+					react_jsx_runtime.jsx("div", { className: "dsh-web-ui-cheeco-style-actions", children: [
+						react_jsx_runtime.jsx("input", { type: "text", value: name, placeholder: "输入面板名称", onChange: (e) => setName(e.target.value), style: { flex: "1", minWidth: "160px", padding: "6px 10px" } }),
+						react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: save, children: "保存" })
+					] })
+				]
+			});
+		}
+
+		/** The section renders the sound card + rename card. */
+		function Section() {
+			return react_jsx_runtime.jsx("div", { className: "dsh-web-ui-cheeco-style", children: [
+				react_jsx_runtime.jsx(SoundCard, {}),
+				react_jsx_runtime.jsx(RenameCard, {})
+			] });
+		}
+
 		/** Required services (cordis fiber inject): the slot system and locale. */
 		const inject = ["slots", "locale"];
 
@@ -91,9 +121,9 @@ window.__ModuleLoader__.load({
 				name: "settings.section",
 				id: "cheeco-style",
 				order: 100,
-				label: () => t("nav"),
+				label: () => { try { return localStorage.getItem(RENAME_KEY) || t("nav"); } catch (e) { return t("nav"); } },
 				locale: NS
-			}, SoundCard));
+			}, Section));
 		}
 
 		exports.apply = apply;
