@@ -1,5 +1,5 @@
 window.__ModuleLoader__.load({
-	id: "dsh-client-ui-session-search",
+	id: "@cheeco/dsh-client-ui-session-search",
 	factory: (require) => {
 		var module = { exports: {} };
 		var exports = module.exports;
@@ -18,7 +18,7 @@ window.__ModuleLoader__.load({
 		//#endregion
 		//#region src/client/index.ts
 		/**
-		* dsh-client-ui-session-search client half: a `sidebar.footer.action` entry that opens a
+		* @cheeco/dsh-client-ui-session-search client half: a `sidebar.footer.action` entry that opens a
 		* floating search panel over the sidebar. The panel has two modes:
 		*
 		* - 标题搜索 — lists every session (title + cwd) from the host route and
@@ -123,7 +123,7 @@ window.__ModuleLoader__.load({
 			if (typeof document === "undefined") return () => {};
 			if (document.querySelector("style[data-plugin-css=\"dsw-switch-search/styles\"]") !== null) return () => {};
 			const tag = document.createElement("style");
-			tag.dataset.plugin = "dsh-client-ui-session-search";
+			tag.dataset.plugin = "@cheeco/dsh-client-ui-session-search";
 			tag.dataset.pluginCss = "dsw-switch-search/styles";
 			tag.textContent = CSS;
 			document.head.appendChild(tag);
@@ -584,7 +584,7 @@ window.__ModuleLoader__.load({
 		* @param ctx - client plugin context (slots, sessions, settingsScope).
 		*/
 		function apply(ctx) {
-			ctx.effect(() => injectStyles(), "dsh-client-ui-session-search: stylesheet");
+			ctx.effect(() => injectStyles(), "@cheeco/dsh-client-ui-session-search: stylesheet");
 			const slots = ctx.get("slots");
 			if (slots === void 0) return;
 			const sessions = ctx.get("sessions");
@@ -593,7 +593,7 @@ window.__ModuleLoader__.load({
 			};
 			slots.inject("sidebar.footer.action", () => slots.register({
 				name: "sidebar.footer.action",
-				id: "dsh-client-ui-session-search",
+				id: "@cheeco/dsh-client-ui-session-search",
 				order: 10
 			}, (props) => (0, react.createElement)(SwitchFooter, {
 				...props,
@@ -608,7 +608,7 @@ window.__ModuleLoader__.load({
 				};
 				slots.inject("settings.general.item", () => slots.register({
 					name: "settings.general.item",
-					id: "dsh-client-ui-session-search",
+					id: "@cheeco/dsh-client-ui-session-search",
 					key: SWITCH_SEARCH_SETTINGS_NAMESPACE,
 					order: 100,
 					store: switchSearchStore,
@@ -620,8 +620,8 @@ window.__ModuleLoader__.load({
 							setDefaultMode: (value) => void scope.set("defaultMode", value)
 						};
 					}
-				}, SwitchSettingsRow), "dsh-client-ui-session-search: general settings row");
-				ctx.effect(() => scope.subscribe(() => push(scope.getSnapshot())), "dsh-client-ui-session-search: settings watch");
+				}, SwitchSettingsRow), "@cheeco/dsh-client-ui-session-search: general settings row");
+				ctx.effect(() => scope.subscribe(() => push(scope.getSnapshot())), "@cheeco/dsh-client-ui-session-search: settings watch");
 			}
 		}
 		//#endregion
