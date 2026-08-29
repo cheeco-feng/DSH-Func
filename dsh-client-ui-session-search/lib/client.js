@@ -74,7 +74,7 @@ window.__ModuleLoader__.load({
 .dsws_button{box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;gap:6px;height:28px;border:none;border-radius:8px;background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer;padding:0 10px;font-size:12px;line-height:18px;white-space:nowrap}
 .dsws_button:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
 .dsws_button svg{flex:none}
-.dsws_trigger{position:fixed;z-index:2147483000;width:380px;max-width:calc(100vw - 16px);box-sizing:border-box;background:var(--dsw-specific-tip);border:1px solid var(--dsw-alias-border-l1);border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.16);overflow:hidden;display:flex;flex-direction:column;font-family:Inter,var(--dsw-font-family)}
+.dsws_trigger{position:fixed;z-index:2147483000;width:85vw;max-width:calc(100vw - 16px);height:85vh;box-sizing:border-box;background:var(--dsw-specific-tip);border:1px solid var(--dsw-alias-border-l1);border-radius:12px;box-shadow:0 8px 28px rgba(0,0,0,.16);overflow:hidden;display:flex;flex-direction:column;font-family:Inter,var(--dsw-font-family)}
 .dsws_toolrow{display:flex;align-items:center;gap:8px;padding:10px 10px 0}
 .dsws_mode{display:inline-flex;align-items:center;gap:2px;flex:none;background:var(--dsw-alias-interactive-bg-hover);border-radius:8px;padding:2px}
 .dsws_modeBtn{height:24px;border:none;background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer;border-radius:6px;padding:0 8px;font-size:12px;font-weight:500;line-height:20px}
@@ -87,7 +87,7 @@ window.__ModuleLoader__.load({
 .dsws_chip{height:24px;box-sizing:border-box;border:1px solid var(--dsw-alias-border-l2);background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer;border-radius:999px;padding:0 10px;font-size:12px;font-weight:500;line-height:22px;white-space:nowrap}
 .dsws_chip:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}
 .dsws_chipActive{background:var(--dsw-alias-state-business-primary);border-color:var(--dsw-alias-state-business-primary);color:var(--dsw-alias-label-primary)}
-.dsws_list{max-height:min(50vh,420px);overflow-y:auto;margin:8px 0 0;padding:0 6px 8px;list-style:none}
+.dsws_list{flex:1 1 auto;min-height:0;overflow-y:auto;margin:8px 0 0;padding:0 6px 8px;list-style:none}
 .dsws_row{box-sizing:border-box;border-radius:8px;width:100%;padding:7px 8px;cursor:pointer;text-align:left;border:none;background:transparent;color:var(--dsw-alias-label-primary);display:flex;flex-direction:column;gap:2px;min-width:0}
 .dsws_row:hover{background:var(--dsw-alias-interactive-bg-hover)}
 .dsws_rowTitle{display:flex;align-items:center;gap:8px;min-width:0}
@@ -98,7 +98,7 @@ window.__ModuleLoader__.load({
 .dsws_status{color:var(--dsw-alias-label-tertiary);padding:10px 8px 8px;font-size:12px;line-height:18px}
 .dsws_error{color:var(--dsw-alias-state-error-primary);padding:8px;font-size:12px;line-height:18px}
 .dsws_empty{color:var(--dsw-alias-label-tertiary);padding:10px 8px 8px;font-size:12px;line-height:18px}
-.dsws_backdrop{position:fixed;inset:0;z-index:2147482999;background:transparent}
+.dsws_backdrop{position:fixed;inset:0;z-index:2147482999;background:rgba(0,0,0,.4)}
 .dsws_setRoot{display:flex;flex-direction:column;width:100%}
 .dsws_setRow{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--dsw-alias-border-l2)}
 .dsws_setRow:last-child{border-bottom:none}
@@ -151,9 +151,7 @@ window.__ModuleLoader__.load({
 					items: record.items
 				};
 				return {
-					ok: false,
-					items: [],
-					error: record?.error ?? "请求失败"
+					ok: record?.ok === true, items: [], error: record?.error ?? "请求失败", record
 				};
 			}).catch((err) => ({
 				ok: false,
@@ -184,11 +182,7 @@ window.__ModuleLoader__.load({
 				let cancelled = false;
 				callHost("search-status", {}).then((res) => {
 					if (cancelled) return;
-					const item = res.ok ? res.items[0] : void 0;
-					setSearchStatus({
-						available: item?.available ?? false,
-						reason: item?.reason
-					});
+					const item = res.record ?? (res.ok ? res.items[0] : void 0); setSearchStatus({ available: item?.available ?? false, reason: item?.reason, error: item?.error });
 				});
 				return () => {
 					cancelled = true;
@@ -267,8 +261,7 @@ window.__ModuleLoader__.load({
 				return sessions.filter((item) => item.title.toLowerCase().includes(normalized) || item.cwd.toLowerCase().includes(normalized));
 			}, [sessions, normalized]);
 			const panelStyle = {
-				left: `${Math.max(8, Math.min(anchor.left, window.innerWidth - 388))}px`,
-				top: `${Math.max(8, anchor.top - 8)}px`
+				left: '50%', top: '50%', transform: 'translate(-50%, -50%)'
 			};
 			const children = [];
 			if (sessionsError !== null) children.push((0, react.createElement)("div", {
@@ -321,7 +314,7 @@ window.__ModuleLoader__.load({
 			} else if (searchStatus.available === false) children.push((0, react.createElement)("div", {
 				key: "unavailable",
 				className: "dsws_error"
-			}, searchStatus.reason === "disabled" ? "内容搜索未启用：当前 DSH 配置关闭了全文索引（openAt: never）。请在 profile 的 cordis.patch.yml 中将 session-query-sqlite 的 openAt 改为 first-search 后重启。" : "内容搜索暂不可用：Host 未提供 sessionQuery 服务。"));
+			}, searchStatus.reason === "disabled" ? "内容搜索未启用：当前 DSH 配置关闭了全文索引（openAt: never）。请在 profile 的 cordis.patch.yml 中将 session-query-sqlite 的 openAt 改为 first-search 后重启。" : "内容搜索暂不可用：" + (searchStatus.error || (searchStatus.reason ? ("reason=" + searchStatus.reason) : "未知原因"))));
 			else if (activeContent.status === "loading") children.push((0, react.createElement)("div", {
 				key: "loading",
 				className: "dsws_status"
