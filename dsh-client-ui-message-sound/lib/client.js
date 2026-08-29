@@ -35,15 +35,39 @@ window.__ModuleLoader__.load({
 		}
 
 		//#region sound playback
+		// Chrome/Edge suspend an AudioContext created outside a user gesture, so a
+		// fresh context created per beep can be silent. Reuse ONE persistent context
+		// and unlock it on the first pointer/key/touch input so the chime audibly plays.
+		var sharedCtx = null;
+		function ensureCtx() {
+			if (sharedCtx !== null) return sharedCtx;
+			var Ctx = window.AudioContext || window.webkitAudioContext;
+			if (!Ctx) { log("AudioContext not supported"); return null; }
+			try { sharedCtx = new Ctx(); } catch (e) { log("AudioContext create error:", e); return null; }
+			return sharedCtx;
+		}
+		function unlockAudio() {
+			var ctx = ensureCtx();
+			if (ctx && ctx.state === "suspended" && ctx.resume) {
+				try {
+					var p = ctx.resume();
+					if (p && p.then) p.then(function () { log("audio unlocked"); }).catch(function (err) { log("audio resume rejected:", err && err.message); });
+				} catch (e) {}
+			}
+		}
+		function armAudioUnlock() {
+			if (typeof document === "undefined" || !document.addEventListener) return;
+			var opts = { once: true, capture: true };
+			try { ["pointerdown", "mousedown", "keydown", "touchstart"].forEach(function (type) { document.addEventListener(type, unlockAudio, opts); }); } catch (e) { log("audio unlock arm error:", e); }
+		}
 		function playTone(freq, offset, dur) {
+			var ctx = ensureCtx();
+			if (!ctx) { log("AudioContext not available"); return false; }
 			try {
-				var Ctx = window.AudioContext || window.webkitAudioContext;
-				if (!Ctx) { log("AudioContext not supported"); return false; }
-				var ctx = new Ctx();
 				if (ctx.state === "suspended" && ctx.resume) { try { ctx.resume(); } catch (e) {} }
+				var t0 = ctx.currentTime + offset;
 				var osc = ctx.createOscillator();
 				var gain = ctx.createGain();
-				var t0 = ctx.currentTime + offset;
 				osc.type = "sine";
 				osc.frequency.setValueAtTime(freq, t0);
 				gain.gain.setValueAtTime(0.0001, t0);
@@ -53,8 +77,7 @@ window.__ModuleLoader__.load({
 				gain.connect(ctx.destination);
 				osc.start(t0);
 				osc.stop(t0 + dur + 0.05);
-				setTimeout(function () { try { ctx.close(); } catch (e) {} }, dur * 1000 + 400);
-				return true;
+				return ctx.state !== "suspended";
 			} catch (e) { log("playTone error:", e); return false; }
 		}
 		function playBeep() {
@@ -95,13 +118,30 @@ window.__ModuleLoader__.load({
 			try { return localStorage.getItem(ENABLED_KEY) !== "0"; } catch (e) { return true; }
 		}
 
+		// The turn-tail row carries data-turn-tail = the turn number, which is genuinely
+		// unique per turn. The app can reuse the same flow key (data-chat-flow-key) for the
+		// resident turn-tail row, so prefer the turn number for dedup to avoid suppressing
+		// later turns; fall back to the flow key otherwise.
+		function uniqueTurnKey(el) {
+			if (!el || !el.getAttribute) return "";
+			var direct = el.getAttribute("data-turn-tail");
+			if (direct) return direct;
+			var inner = el.querySelector ? el.querySelector("[data-turn-tail]") : null;
+			if (inner && inner.getAttribute) {
+				var turn = inner.getAttribute("data-turn-tail");
+				if (turn) return turn;
+			}
+			return el.getAttribute("data-chat-flow-key") || el.getAttribute("data-chat-anchor-key") || "";
+		}
+
 		// The turn-tail node is the closing footer appended at the end of a turn.
 		// Its appearance is exactly the "I finished sending everything" moment.
 		function watchTurnTail(el) {
 			if (!el || !el.getAttribute) return;
-			var key = el.getAttribute("data-chat-flow-key") || el.getAttribute("data-chat-anchor-key") || "";
-			if (key && seenKeys.has(key)) return;
-			if (key) seenKeys.add(key);
+			var key = uniqueTurnKey(el);
+			if (!key) return;
+			if (seenKeys.has(key)) return;
+			seenKeys.add(key);
 			setTimeout(function () {
 				if (soundEnabled() && Date.now() - lastPlay >= (PLAY_COOLDOWN_MS || 4000)) {
 					lastPlay = Date.now();
@@ -120,6 +160,16 @@ window.__ModuleLoader__.load({
 				for (var i = 0; i < all.length; i++) if (all[i].getAttribute("data-chat-flow-kind") === "turn-tail") watchTurnTail(all[i]);
 			}
 		}
+		// Reliable safety-net: the conversation UI can add or update the turn-tail row in
+		// ways the added-node observer misses (in-place React updates, virtualized lists).
+		// Re-scan every turn-tail row and ring any we have not yet seen; the per-row key
+		// dedup ensures each turn rings once, old rows never re-ring, and the cooldown
+		// stops any near-duplicate within the same turn.
+		function scanForTurnTail() {
+			if (typeof document === "undefined" || !document.querySelectorAll) return;
+			var all = document.querySelectorAll('[data-chat-flow-kind="turn-tail"]');
+			for (var i = 0; i < all.length; i++) watchTurnTail(all[i]);
+		}
 
 		function apply() {
 			if (mainObserver) return;
@@ -127,6 +177,9 @@ window.__ModuleLoader__.load({
 			if (window.__dshMsgSoundInstalled) return;
 			window.__dshMsgSoundInstalled = true;
 			log("apply() run; document.readyState=", document.readyState);
+			// Warm up the shared AudioContext on the first user gesture so browsers with
+			// an autoplay policy don't keep the chime silent.
+			armAudioUnlock();
 			// Wait for the conversation's initial render to settle before observing,
 			// so already-rendered (existing) messages never trigger a ring on load.
 			setTimeout(function () {
@@ -134,7 +187,7 @@ window.__ModuleLoader__.load({
 				// same message is treated as seen and does not ring.
 				var existing = document.querySelectorAll(FLOW_SELECTOR);
 				for (var i = 0; i < existing.length; i++) {
-					var k = existing[i].getAttribute("data-chat-flow-key") || existing[i].getAttribute("data-chat-anchor-key");
+					var k = uniqueTurnKey(existing[i]);
 					if (k) seenKeys.add(k);
 				}
 				// Watch only the conversation scrollport so pet/animation overlays elsewhere
@@ -151,6 +204,11 @@ window.__ModuleLoader__.load({
 					log("observer attached to", container.tagName + "." + (typeof container.className === "string" ? container.className : ""));
 				} catch (e) { log("observer attach error:", e); }
 				log("startup snapshot keys=", seenKeys.size);
+				// Safety-net scan: catch turn-tail rows the added-node observer misses.
+				if (window.__dshMsgSoundScan) clearInterval(window.__dshMsgSoundScan);
+				window.__dshMsgSoundScan = setInterval(function () {
+					try { scanForTurnTail(); } catch (e) { log("scan error:", e); }
+				}, 1200);
 			}, STARTUP_GRACE_MS);
 		}
 		//#endregion
