@@ -51,7 +51,7 @@ const ALL_CONTENT_TYPES = [
 	"tool/call",
 	"tool/result"
 ];
-/** Coarse filter 鈫?raw event types. */
+/** Coarse filter → raw event types. */
 const CONTENT_TYPE_GROUPS = {
 	user: ["user/message"],
 	reply: ["assistant/message"],
@@ -110,7 +110,7 @@ function isTrustedApiRequest(req, trustedHosts) {
 		return false;
 	}
 }
-/** Read and parse the JSON request body (bounded; malformed 鈫?null). */
+/** Read and parse the JSON request body (bounded; malformed → null). */
 async function readJsonBody(req) {
 	const chunks = [];
 	let total = 0;
@@ -137,7 +137,7 @@ function writeJson(res, status, body) {
 	});
 	res.end(text);
 }
-/** Fold titles for a set of sessions into a sessionId 鈫?title map. */
+/** Fold titles for a set of sessions into a sessionId → title map. */
 async function titleMap(sessionQuery, sessionIds) {
 	if (sessionIds.length === 0) return /* @__PURE__ */ new Map();
 	const observations = await sessionQuery.readTitleSnapshots([...new Set(sessionIds)]);
@@ -154,7 +154,7 @@ async function listSessions(ctx) {
 	const sessionQuery = ctx.get("sessionQuery");
 	if (sessionQuery === void 0) return {
 		ok: false,
-		error: "sessionQuery 鏈嶅姟涓嶅彲鐢?
+		error: "sessionQuery 服务不可用"
 	};
 	try {
 		const records = await sessionQuery.listSessions();
@@ -181,7 +181,7 @@ async function contentSearch(ctx, payload) {
 	const query = typeof record?.query === "string" ? record.query.trim() : "";
 	if (query === "") return {
 		ok: false,
-		error: "缂哄皯 query"
+		error: "缺少 query"
 	};
 	const requestedLimit = typeof record?.limit === "number" && Number.isSafeInteger(record.limit) ? record.limit : DEFAULT_LIMIT;
 	const limit = Math.min(Math.max(1, requestedLimit), 100);
@@ -195,7 +195,7 @@ async function contentSearch(ctx, payload) {
 	const sessionQuery = ctx.get("sessionQuery");
 	if (sessionQuery === void 0) return {
 		ok: false,
-		error: "sessionQuery 鏈嶅姟涓嶅彲鐢?
+		error: "sessionQuery 服务不可用"
 	};
 	try {
 		const page = await sessionQuery.searchSessions({
@@ -225,7 +225,7 @@ async function contentSearch(ctx, payload) {
 /**
 * search-status: probe whether the host full-text index is reachable. The
 * shipped DSH bundle ships `openAt: never` (content search disabled); this
-* tells the panel whether 鍐呭鎼滅储 can work so it can render a setup hint
+* tells the panel whether 内容搜索 can work so it can render a setup hint
 * instead of a bare failure.
 */
 async function searchStatus(ctx) {

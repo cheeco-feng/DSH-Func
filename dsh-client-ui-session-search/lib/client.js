@@ -21,9 +21,9 @@ window.__ModuleLoader__.load({
 		* dsh-client-ui-session-search client half: a `sidebar.footer.action` entry that opens a
 		* floating search panel over the sidebar. The panel has two modes:
 		*
-		* - 鏍囬鎼滅储 鈥?lists every session (title + cwd) from the host route and
+		* - 标题搜索 — lists every session (title + cwd) from the host route and
 		*   filters by title/cwd substring locally.
-		* - 鍐呭鎼滅储 鈥?FTS5 message-content search through the host route, grouped by
+		* - 内容搜索 — FTS5 message-content search through the host route, grouped by
 		*   session: each row shows the session title and its strongest snippet.
 		*
 		* The panel is portalled to document.body so it never fights the sidebar
@@ -34,19 +34,19 @@ window.__ModuleLoader__.load({
 		const CONTENT_TYPE_CHIPS = [
 			{
 				id: "all",
-				label: "鍏ㄩ儴"
+				label: "全部"
 			},
 			{
 				id: "user",
-				label: "鐢ㄦ埛"
+				label: "用户"
 			},
 			{
 				id: "reply",
-				label: "鍥炲"
+				label: "回复"
 			},
 			{
 				id: "tool",
-				label: "宸ュ叿"
+				label: "工具"
 			}
 		];
 		/** The settings store: mirror of the namespace section plus the write set. */
@@ -153,12 +153,12 @@ window.__ModuleLoader__.load({
 				return {
 					ok: false,
 					items: [],
-					error: record?.error ?? "璇锋眰澶辫触"
+					error: record?.error ?? "请求失败"
 				};
 			}).catch((err) => ({
 				ok: false,
 				items: [],
-				error: err instanceof DOMException && err.name === "AbortError" ? "璇锋眰瓒呮椂" : String(err instanceof Error ? err.message : err)
+				error: err instanceof DOMException && err.name === "AbortError" ? "请求超时" : String(err instanceof Error ? err.message : err)
 			})).finally(() => {
 				if (timer !== void 0) clearTimeout(timer);
 			});
@@ -202,7 +202,7 @@ window.__ModuleLoader__.load({
 					if (res.ok) {
 						setSessions(res.items);
 						setSessionsError(null);
-					} else setSessionsError(res.error ?? "璇诲彇浼氳瘽鍒楄〃澶辫触");
+					} else setSessionsError(res.error ?? "读取会话列表失败");
 				});
 				return () => {
 					cancelled = true;
@@ -236,7 +236,7 @@ window.__ModuleLoader__.load({
 							query: requestKey,
 							status: res.ok ? "ready" : "error",
 							items: res.ok ? res.items : [],
-							error: res.ok ? void 0 : res.error ?? "鎼滅储澶辫触"
+							error: res.ok ? void 0 : res.error ?? "搜索失败"
 						});
 					});
 				}, 250);
@@ -274,7 +274,7 @@ window.__ModuleLoader__.load({
 			if (sessionsError !== null) children.push((0, react.createElement)("div", {
 				key: "err",
 				className: "dsws_error"
-			}, `璇诲彇浼氳瘽鍒楄〃澶辫触锛?{sessionsError}`));
+			}, `读取会话列表失败：${sessionsError}`));
 			const contentRequestKey = `${normalized}\u0000${contentType}`;
 			const activeContent = content.query === contentRequestKey ? content : {
 				query: contentRequestKey,
@@ -285,17 +285,17 @@ window.__ModuleLoader__.load({
 				if (sessions === null) children.push((0, react.createElement)("div", {
 					key: "loading",
 					className: "dsws_status"
-				}, "姝ｅ湪璇诲彇浼氳瘽鍒楄〃鈥?));
+				}, "正在读取会话列表…"));
 				else if (titleRows.length === 0) children.push((0, react.createElement)("div", {
 					key: "empty",
 					className: "dsws_empty"
-				}, normalized === "" ? "鏆傛棤浼氳瘽" : "娌℃湁鍖归厤鐨勪細璇濄€?));
+				}, normalized === "" ? "暂无会话" : "没有匹配的会话。"));
 				else children.push((0, react.createElement)("ul", {
 					key: "list",
 					ref: listRef,
 					className: "dsws_list",
 					role: "listbox",
-					"aria-label": "浼氳瘽鍒楄〃"
+					"aria-label": "会话列表"
 				}, titleRows.slice(0, 200).map((item) => (0, react.createElement)("li", {
 					key: item.sessionId,
 					role: "option"
@@ -311,7 +311,7 @@ window.__ModuleLoader__.load({
 				}, [(0, react.createElement)("span", {
 					key: "x",
 					className: "dsws_titleText"
-				}, item.title || "(鏈懡鍚?"), (0, react.createElement)("span", {
+				}, item.title || "(未命名)"), (0, react.createElement)("span", {
 					key: "tag",
 					className: "dsws_tag"
 				}, fmtTime(item.updatedAt))]), item.cwd !== "" && (0, react.createElement)("span", {
@@ -321,25 +321,25 @@ window.__ModuleLoader__.load({
 			} else if (searchStatus.available === false) children.push((0, react.createElement)("div", {
 				key: "unavailable",
 				className: "dsws_error"
-			}, searchStatus.reason === "disabled" ? "鍐呭鎼滅储鏈惎鐢細褰撳墠 DSH 閰嶇疆鍏抽棴浜嗗叏鏂囩储寮曪紙openAt: never锛夈€傝鍦?profile 鐨?cordis.patch.yml 涓皢 session-query-sqlite 鐨?openAt 鏀逛负 first-search 鍚庨噸鍚€? : "鍐呭鎼滅储鏆備笉鍙敤锛欻ost 鏈彁渚?sessionQuery 鏈嶅姟銆?));
+			}, searchStatus.reason === "disabled" ? "内容搜索未启用：当前 DSH 配置关闭了全文索引（openAt: never）。请在 profile 的 cordis.patch.yml 中将 session-query-sqlite 的 openAt 改为 first-search 后重启。" : "内容搜索暂不可用：Host 未提供 sessionQuery 服务。"));
 			else if (activeContent.status === "loading") children.push((0, react.createElement)("div", {
 				key: "loading",
 				className: "dsws_status"
-			}, "姝ｅ湪鎼滅储浼氳瘽鍐呭鈥?));
+			}, "正在搜索会话内容…"));
 			else if (activeContent.status === "error") children.push((0, react.createElement)("div", {
 				key: "error",
 				className: "dsws_error"
-			}, `鍐呭鎼滅储澶辫触锛?{activeContent.error ?? "鏈煡閿欒"}`));
+			}, `内容搜索失败：${activeContent.error ?? "未知错误"}`));
 			else if (activeContent.items.length === 0) children.push((0, react.createElement)("div", {
 				key: "empty",
 				className: "dsws_empty"
-			}, normalized === "" ? "杈撳叆鍐呭鍏抽敭璇嶅紑濮嬫悳绱€? : "娌℃湁鍖归厤鐨勫唴瀹广€?));
+			}, normalized === "" ? "输入内容关键词开始搜索。" : "没有匹配的内容。"));
 			else children.push((0, react.createElement)("ul", {
 				key: "list",
 				ref: listRef,
 				className: "dsws_list",
 				role: "listbox",
-				"aria-label": "鍐呭鎼滅储缁撴灉"
+				"aria-label": "内容搜索结果"
 			}, activeContent.items.slice(0, 200).map((item) => (0, react.createElement)("li", {
 				key: item.sessionId,
 				role: "option"
@@ -355,13 +355,13 @@ window.__ModuleLoader__.load({
 			}, [(0, react.createElement)("span", {
 				key: "x",
 				className: "dsws_titleText"
-			}, item.title || "(鏈懡鍚?"), (0, react.createElement)("span", {
+			}, item.title || "(未命名)"), (0, react.createElement)("span", {
 				key: "tag",
 				className: "dsws_tag"
 			}, typeLabel(item.type))]), (0, react.createElement)("span", {
 				key: "s",
 				className: "dsws_snippet"
-			}, item.snippet || "(鏃犳枃鏈?")])))));
+			}, item.snippet || "(无文本)")])))));
 			return (0, react_dom.createPortal)((0, react.createElement)("div", { key: "switch-root" }, [(0, react.createElement)("div", {
 				key: "backdrop",
 				className: "dsws_backdrop",
@@ -371,7 +371,7 @@ window.__ModuleLoader__.load({
 				className: "dsws_trigger",
 				style: panelStyle,
 				role: "dialog",
-				"aria-label": "浼氳瘽鎼滅储"
+				"aria-label": "会话搜索"
 			}, [
 				(0, react.createElement)("div", {
 					key: "tools",
@@ -380,7 +380,7 @@ window.__ModuleLoader__.load({
 					key: "mode",
 					className: "dsws_mode",
 					role: "group",
-					"aria-label": "鎼滅储妯″紡"
+					"aria-label": "搜索模式"
 				}, [(0, react.createElement)("button", {
 					key: "title",
 					type: "button",
@@ -388,19 +388,19 @@ window.__ModuleLoader__.load({
 					onClick: () => {
 						setMode("title");
 					}
-				}, "鏍囬"), (0, react.createElement)("button", {
+				}, "标题"), (0, react.createElement)("button", {
 					key: "content",
 					type: "button",
 					className: `dsws_modeBtn${mode === "content" ? " dsws_modeBtnActive" : ""}`,
 					onClick: () => {
 						setMode("content");
 					}
-				}, "鍐呭")]), (0, react.createElement)("input", {
+				}, "内容")]), (0, react.createElement)("input", {
 					key: "search",
 					ref: inputRef,
 					className: "dsws_search",
 					type: "text",
-					placeholder: mode === "title" ? "鎼滅储浼氳瘽鏍囬鈥? : "鎼滅储浼氳瘽鍐呭鈥?,
+					placeholder: mode === "title" ? "搜索会话标题…" : "搜索会话内容…",
 					value: query,
 					onChange: (e) => setQuery(e.target.value)
 				})]),
@@ -408,7 +408,7 @@ window.__ModuleLoader__.load({
 					key: "chips",
 					className: "dsws_chips",
 					role: "group",
-					"aria-label": "鍐呭绫诲瀷绛涢€?
+					"aria-label": "内容类型筛选"
 				}, CONTENT_TYPE_CHIPS.map((chip) => (0, react.createElement)("button", {
 					key: chip.id,
 					type: "button",
@@ -431,8 +431,8 @@ window.__ModuleLoader__.load({
 				ref: buttonRef,
 				type: "button",
 				className: "dsws_button",
-				title: "浼氳瘽鎼滅储",
-				"aria-label": "浼氳瘽鎼滅储锛堟爣棰?/ 鍐呭鍒囨崲锛?,
+				title: "会话搜索",
+				"aria-label": "会话搜索（标题 / 内容切换）",
 				"aria-expanded": openPanel,
 				onClick: () => {
 					const rect = buttonRef.current?.getBoundingClientRect();
@@ -440,7 +440,7 @@ window.__ModuleLoader__.load({
 					setAnchor(rect);
 					setOpenPanel(true);
 				}
-			}, [searchIcon(), wide && (0, react.createElement)("span", { key: "label" }, "鎼滅储")]), openPanel && anchor !== null && (0, react.createElement)(SwitchPanel, {
+			}, [searchIcon(), wide && (0, react.createElement)("span", { key: "label" }, "搜索")]), openPanel && anchor !== null && (0, react.createElement)(SwitchPanel, {
 				key: "panel",
 				anchor,
 				onClose: () => {
@@ -453,7 +453,7 @@ window.__ModuleLoader__.load({
 			})]);
 		}
 		/** ------------------------------------------------------------------ helpers */
-		/** Format an epoch-ms timestamp: today 鈫?HH:mm, else YYYY-MM-DD HH:mm. */
+		/** Format an epoch-ms timestamp: today → HH:mm, else YYYY-MM-DD HH:mm. */
 		function fmtTime(ms) {
 			if (!ms || typeof ms !== "number") return "";
 			try {
@@ -471,10 +471,10 @@ window.__ModuleLoader__.load({
 		/** Short label for a content-hit event type. */
 		function typeLabel(type) {
 			switch (type) {
-				case "user/message": return "鐢ㄦ埛";
-				case "assistant/message": return "鍥炲";
-				case "tool/call": return "宸ュ叿璋冪敤";
-				case "tool/result": return "宸ュ叿缁撴灉";
+				case "user/message": return "用户";
+				case "assistant/message": return "回复";
+				case "tool/call": return "工具调用";
+				case "tool/result": return "工具结果";
 				default: return type;
 			}
 		}
@@ -515,7 +515,7 @@ window.__ModuleLoader__.load({
 				}, (0, react.createElement)("span", {
 					key: "t",
 					className: "dsws_setTitle"
-				}, "浼氳瘽鎼滅储璁剧疆涓嶅彲鐢細Host 鏈寕杞?settings 鍛藉悕绌洪棿銆?)));
+				}, "会话搜索设置不可用：Host 未挂载 settings 命名空间。")));
 				return (0, react.createElement)("div", { className: "dsws_setRoot" }, children);
 			}
 			children.push((0, react.createElement)("div", {
@@ -527,10 +527,10 @@ window.__ModuleLoader__.load({
 			}, [(0, react.createElement)("span", {
 				key: "t",
 				className: "dsws_setTitle"
-			}, "鍚敤浼氳瘽鎼滅储"), (0, react.createElement)("span", {
+			}, "启用会话搜索"), (0, react.createElement)("span", {
 				key: "d",
 				className: "dsws_setDesc"
-			}, "鍦ㄤ晶杈规爮搴曢儴鏄剧ず\"鎼滅储\"鍏ュ彛銆?)]), (0, react.createElement)("label", {
+			}, "在侧边栏底部显示\"搜索\"入口。")]), (0, react.createElement)("label", {
 				key: "sw",
 				className: "dsws_switch"
 			}, [(0, react.createElement)("input", {
@@ -551,14 +551,14 @@ window.__ModuleLoader__.load({
 			}, [(0, react.createElement)("span", {
 				key: "t",
 				className: "dsws_setTitle"
-			}, "榛樿鎼滅储妯″紡"), (0, react.createElement)("span", {
+			}, "默认搜索模式"), (0, react.createElement)("span", {
 				key: "d",
 				className: "dsws_setDesc"
-			}, "闈㈡澘鎵撳紑鏃堕粯璁よ繘鍏ユ爣棰樻悳绱㈣繕鏄唴瀹规悳绱€?)]), (0, react.createElement)("div", {
+			}, "面板打开时默认进入标题搜索还是内容搜索。")]), (0, react.createElement)("div", {
 				key: "seg",
 				className: "dsws_seg",
 				role: "group",
-				"aria-label": "榛樿鎼滅储妯″紡"
+				"aria-label": "默认搜索模式"
 			}, [["title", "content"].map((mode) => (0, react.createElement)("button", {
 				key: mode,
 				type: "button",
@@ -568,11 +568,11 @@ window.__ModuleLoader__.load({
 				onClick: () => {
 					props.setDefaultMode(mode);
 				}
-			}, mode === "title" ? "鏍囬" : "鍐呭"))])]));
+			}, mode === "title" ? "标题" : "内容"))])]));
 			if (!writable) children.push((0, react.createElement)("div", {
 				key: "ro",
 				className: "dsws_setDesc"
-			}, "褰撳墠涓哄彧璇伙紙Host 鏈帴鍙楀啓鍏ワ級銆?));
+			}, "当前为只读（Host 未接受写入）。"));
 			return (0, react.createElement)("div", { className: "dsws_setRoot" }, children);
 		}
 		/** ------------------------------------------------------------------ plugin */
