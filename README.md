@@ -1,6 +1,6 @@
 # cheeco-dsh-plugins
 
-Cheeco 的 DSH 插件集合。本仓库包含**两个独立插件**（各自是独立的 DSH 插件包）：装配时按需选择。
+Cheeco 的 DSH 插件集合。本仓库包含**三个独立插件**（各自是独立的 DSH 插件包）：装配时按需选择。
 
 ## 包含
 
@@ -8,6 +8,7 @@ Cheeco 的 DSH 插件集合。本仓库包含**两个独立插件**（各自是�
 |---|---|---|
 | `dsh-client-ui-message-sound` | `@cheeco/dsh-client-ui-message-sound` | **AI 回复提示音**（回合结束时响一声） |
 | `dsh-web-ui-cheeco-style` | `@cheeco/dsh-web-ui-cheeco-style` | **Cheeco的小功能** 设置页（含声音开关卡片） |
+| `dsh-client-ui-session-search` | `@cheeco/dsh-client-ui-session-search` | **会话内容检索**（标题/内容切换，按用户/回复/工具筛选） |
 
 ## 安装（先克隆，再按需添加子目录）
 

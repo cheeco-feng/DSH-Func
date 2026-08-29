@@ -1,0 +1,3 @@
+- insert:
+    - id: dsh-client-ui-session-search
+      name: '@cheeco/dsh-client-ui-session-search'
