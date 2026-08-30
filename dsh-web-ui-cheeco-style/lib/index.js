@@ -15,7 +15,7 @@
             POST /cheeco-style/assets?name=<file>  -> write assets/<file>
             GET  /cheeco-style/assets/<file>       -> serve it back (for <img>/<audio>)
       - All browser-UI work lives in the browser half (lib/client.js). */
-import { mkdirSync, readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
@@ -54,14 +54,15 @@ const UNINSTALL_PATH = "/cheeco-style/plugin/uninstall";
 const FEATURES_PATH = "/cheeco-style/features";
 const FEATURES_INSTALL_PATH = "/cheeco-style/features/install";
 const FEATURES_PLAN_PATH = "/cheeco-style/features/plan";
+const FEATURES_DOWNLOAD_PATH = "/cheeco-style/features/download";
 /** 功能推荐：手写的列表（以后有新插件/推荐插件直接加到这里）。
  *  `pkg` 用于判断是否已安装；`install` 为安装所需的包名/github 源；`url` 为“查看介绍”跳转。 */
 const CHEECO_FEATURES = [
-	{ id: "style", name: "界面/声音设置", url: "https://github.com/cheeco-feng/DSH-Func", pkg: "@cheeco/dsh-web-ui-cheeco-style", install: "@cheeco/dsh-web-ui-cheeco-style", folder: "dsh-web-ui-cheeco-style" },
-	{ id: "sound", name: "AI 回复提示音", url: "https://github.com/cheeco-feng/DSH-Func", pkg: "@cheeco/dsh-client-ui-message-sound", install: "@cheeco/dsh-client-ui-message-sound", folder: "dsh-client-ui-message-sound" },
-	{ id: "search", name: "会话内容检索", url: "https://github.com/cheeco-feng/DSH-Func", pkg: "@cheeco/dsh-client-ui-session-search", install: "@cheeco/dsh-client-ui-session-search", folder: "dsh-client-ui-session-search" },
-	{ id: "dshcmd", name: "DSH功能命令", url: "https://github.com/cheeco-feng/DSH-Func", pkg: "@cheeco/dsh-tool-dsh-plugin-exec", install: "@cheeco/dsh-tool-dsh-plugin-exec", folder: "dsh-tool-dsh-plugin-exec" },
-	{ id: "pmgr", name: "插件管理（dsh-plugin-manager）", url: "https://github.com/webkong/dsh-plugin-manager", pkg: "@webkong/dsh-plugin-manager", install: "github:webkong/dsh-plugin-manager" }
+	{ id: "style", name: "界面/声音设置", pkg: "@cheeco/dsh-web-ui-cheeco-style", install: "@cheeco/dsh-web-ui-cheeco-style", folder: "dsh-web-ui-cheeco-style", url: "https://github.com/cheeco-feng/DSH-Func", download: "https://github.com/cheeco-feng/DSH-Func" },
+	{ id: "sound", name: "AI 回复提示音", pkg: "@cheeco/dsh-client-ui-message-sound", install: "@cheeco/dsh-client-ui-message-sound", folder: "dsh-client-ui-message-sound", url: "https://github.com/cheeco-feng/DSH-Func", download: "https://github.com/cheeco-feng/DSH-Func" },
+	{ id: "search", name: "会话内容检索", pkg: "@cheeco/dsh-client-ui-session-search", install: "@cheeco/dsh-client-ui-session-search", folder: "dsh-client-ui-session-search", url: "https://github.com/cheeco-feng/DSH-Func", download: "https://github.com/cheeco-feng/DSH-Func" },
+	{ id: "dshcmd", name: "DSH功能命令", pkg: "@cheeco/dsh-tool-dsh-plugin-exec", install: "@cheeco/dsh-tool-dsh-plugin-exec", folder: "dsh-tool-dsh-plugin-exec", url: "https://github.com/cheeco-feng/DSH-Func", download: "https://github.com/cheeco-feng/DSH-Func" },
+	{ id: "pmgr", name: "插件管理（dsh-plugin-manager）", pkg: "@webkong/dsh-plugin-manager", install: "github:webkong/dsh-plugin-manager", url: "https://github.com/webkong/dsh-plugin-manager", download: "https://github.com/webkong/dsh-plugin-manager" }
 ];
 /** The `node_modules/@cheeco` dir — parent of this plugin's own folder. */
 const CHEECO_DIR = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
@@ -134,6 +135,46 @@ function pkgDir(pkg) {
 }
 /** The profile directory (…/profiles/<profile>) that owns this plugin. */
 function profileDir() { return dirname(dirname(CHEECO_DIR)); }
+/** Local download cache dir: ${DSH_HOME}/downloads (created on demand). */
+function downloadDir() { return join(process.env.DSH_HOME || "", "downloads"); }
+/** Download one feature's package to the cache and verify it exists. For @cheeco: fetch the recorded
+ *  `download` URL, fall back to the local release tgz; returns { ok, file, fileName, bytes }. */
+async function downloadFeature(target) {
+	try {
+		// github 等“非 tgz 源”插件：无预下载文件，pnpm add 时自己从源下载；这里仅返回计划
+		if (!target.folder) {
+			return { ok: true, kind: "github", spec: target.install, source: "GitHub 源（" + target.install + "，pnpm 负责下载）", file: "", fileName: "(从源拉取)" };
+		}
+		const dir = downloadDir();
+		mkdirSync(dir, { recursive: true });
+		// 目标文件名：优先用本机 release 的实际 tgz 名；否则从 download URL 取最后一段；否则 <folder>.tgz
+		const local = latestCheecoTgz(target.folder);
+		let fileName = local
+			? basename(local.replace("file:", ""))
+			: (target.download ? (basename(new URL(target.download).pathname) || `${target.folder}.tgz`) : `${target.folder}.tgz`);
+		const dest = join(dir, fileName);
+		// 1) 本机已有同名文件 -> 跳过下载（但信息可见）
+		if (existsSync(dest) && statSync(dest).size > 0) {
+			return { ok: true, file: dest, fileName, bytes: statSync(dest).size, source: `本机已有同名文件（${fileName}），跳过下载`, skipped: true };
+		}
+		// 2) 本机 release 目录有该插件 tgz -> 复制到缓存
+		if (local) {
+			writeFileSync(dest, readFileSync(local.replace("file:", "")));
+			return { ok: true, file: dest, fileName, bytes: statSync(dest).size, source: "本机 release 目录（已复制到缓存）", skipped: false };
+		}
+		// 3) 从 download URL 下载
+		if (target.download) {
+			const r = await fetch(target.download);
+			if (r.ok) {
+				const buf = Buffer.from(await r.arrayBuffer());
+				writeFileSync(dest, buf);
+				return { ok: true, file: dest, fileName, bytes: buf.length, source: "已从 " + target.download + " 下载", skipped: false };
+			}
+			return { ok: false, file: dest, fileName, error: "下载失败（HTTP " + r.status + "）", source: target.download };
+		}
+		return { ok: false, file: dest, fileName, error: "无安装包：请在 download 字段配置真实下载地址" };
+	} catch (e) { return { ok: false, error: String(e && e.message || e) }; }
+}
 
 /** Guess a content-type from a file extension (images + common audio). */
 function contentTypeOf(name) {
@@ -226,7 +267,7 @@ function renderConfigFile(v) {
 }
 
 /** In sync with package.json so the config records which plugin version produced it. */
-const PLUGIN_VERSION = "0.7.3";
+const PLUGIN_VERSION = "0.7.4";
 /** Resolve the dsh CLI package version (from @deepseek-ai/dsh/package.json). */
 function dshVersion() {
 	try {
@@ -355,6 +396,13 @@ export default class DshWebUiPatches {
 					this.handleFeaturePlan(req, res).catch((err) => this.fail(ctx, res, err));
 				}
 			});
+			const disposeFeatureDownload = ctx.webServer.register({
+				kind: "exact",
+				path: FEATURES_DOWNLOAD_PATH,
+				handler: (req, res) => {
+					this.handleFeatureDownload(req, res).catch((err) => this.fail(ctx, res, err));
+				}
+			});
 			return () => {
 				disposeConfig();
 				disposeAssets();
@@ -363,6 +411,7 @@ export default class DshWebUiPatches {
 				disposeFeatures();
 				disposeFeatureInstall();
 				disposeFeaturePlan();
+				disposeFeatureDownload();
 			};
 		}, "cheeco-style: config + assets + plugin routes");
 	}
@@ -445,14 +494,20 @@ export default class DshWebUiPatches {
 		const target = CHEECO_FEATURES.find((f) => f.id === body.id);
 		if (!target) { this.json(res, 400, { ok: false, error: "未知的功能 id" }); return; }
 		if (isInstalled(target.pkg)) { this.json(res, 200, { ok: true, alreadyInstalled: true }); return; }
-		// @cheeco 插件未发布到 npm，用 release 目录的最新 tgz；其它（如 github:）用原文 install
-		const spec = target.folder ? latestCheecoTgz(target.folder) : target.install;
-		if (!spec) { this.json(res, 500, { ok: false, error: "找不到该插件的安装包（release 目录无对应 tgz）" }); return; }
+		// 有 folder（@cheeco/tgz）：先下载/校验到缓存，再从缓存装；无 folder（github）：pnpm add 源，自己下载
+		let spec, d = null;
+		if (target.folder) {
+			d = await downloadFeature(target);
+			if (!d.ok) { this.json(res, 500, { ok: false, error: d.error || "无法获取安装包" }); return; }
+			spec = `file:${d.file.replace(/\\/g, "/")}`;
+		} else {
+			spec = target.install;
+		}
 		const out = runDsh(["add", spec]);
 		if (out.exitCode === 0) syncRegistry();
 		this.json(res, 200, {
 			ok: out.exitCode === 0, exitCode: out.exitCode, stdout: out.stdout, stderr: out.stderr,
-			installPath: pkgDir(target.pkg), installed: isInstalled(target.pkg)
+			installPath: pkgDir(target.pkg), installed: isInstalled(target.pkg), source: d ? d.source : target.install, fileName: d ? d.fileName : "(从 " + target.install + " 拉取)"
 		});
 	}
 
@@ -463,15 +518,26 @@ export default class DshWebUiPatches {
 		const target = CHEECO_FEATURES.find((f) => f.id === body.id);
 		if (!target) { this.json(res, 400, { ok: false, error: "未知的功能 id" }); return; }
 		if (isInstalled(target.pkg)) { this.json(res, 200, { ok: true, alreadyInstalled: true, installPath: pkgDir(target.pkg) }); return; }
-		const base = { targetDir: profileDir(), installPath: pkgDir(target.pkg) };
+		const base = { targetDir: profileDir(), installPath: pkgDir(target.pkg), downloadUrl: target.download || "" };
 		if (target.folder) {
 			const tgz = latestCheecoTgz(target.folder);
-			if (!tgz) { this.json(res, 500, { ok: false, error: "release 目录没有该插件的安装包(tgz)，请先放置后重试" }); return; }
+			if (!tgz) { this.json(res, 200, { ok: true, kind: "tgz", downloadUrl: target.download, fileName: "(按下载地址)" , ...base, note: "本机无 release tgz，将从 download 地址下载" }); return; }
 			this.json(res, 200, { ok: true, kind: "tgz", spec: tgz, file: tgz.replace("file:", ""), source: "本机 release 目录", fileName: basename(tgz.replace("file:", "")), ...base });
 		} else {
 			// github 等：安装命令本身会下载；此处先给计划
 			this.json(res, 200, { ok: true, kind: "github", spec: target.install, source: "GitHub 仓库 " + target.url, fileName: "(从 " + target.install.split(":")[1] + " 拉取)", ...base });
 		}
+	}
+
+	/** 安装向导“下载/校验”：先查本机同名文件，无则下载到缓存，返回来源/文件名/字节。 */
+	async handleFeatureDownload(req, res) {
+		let body = {};
+		try { body = JSON.parse((await readBody(req)) || "{}"); } catch (e) { body = {}; }
+		const target = CHEECO_FEATURES.find((f) => f.id === body.id);
+		if (!target) { this.json(res, 400, { ok: false, error: "未知的功能 id" }); return; }
+		if (isInstalled(target.pkg)) { this.json(res, 200, { ok: true, alreadyInstalled: true }); return; }
+		const d = await downloadFeature(target);
+		this.json(res, 200, d);
 	}
 
 	async handleConfig(ctx, configFile, req, res) {
