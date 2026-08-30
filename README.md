@@ -56,6 +56,38 @@ dsh plugin --profile <profile> add ./dsh-tool-dsh-plugin-exec
 
 > `dsh plugin` 也可换成在 **设置 → 插件 → 用户插件** 的安装框里粘贴对应的本地/仓库路径。
 
+## 从零开始（新手向）
+
+**第 0 步：先装 DSH（官方源）**
+
+DSH（DeepSeek Harness）官方仓库：<https://github.com/deepseek-ai/deepseek-harness>
+- 官方支持 **npx 一条命令启动 Web UI**、**源码构建**、**桌面版** 几种方式，具体以**官方 README** 为准（新手优先照官方 README 装）。
+- 装好后能跑起 `dsh web`（或桌面应用），即可继续。（本机 DSH 仓库本身在官方仓库目录。）
+
+**第 1 步：拿到本插件仓库**
+
+```bash
+git clone https://github.com/cheeco-feng/DSH-Func.git
+cd DSH-Func
+```
+> 仓库地址确认：`https://github.com/cheeco-feng/DSH-Func.git`
+
+**第 2 步：安装本仓库插件**
+
+按上面「安装」一节的 **4合1** 一键装齐；若你的 `dsh` 不在 PATH，按上面 ⚠️ 提示**先装 `dsh-tool-dsh-plugin-exec`**，再装其余。
+
+**或者：直接让 AI 帮你装（推荐新手）**
+
+在 DSH 里让 AI 执行（AI 自己 clone + 安装）：
+
+```bash
+git clone https://github.com/cheeco-feng/DSH-Func.git
+cd DSH-Func
+dsh plugin --profile <profile> add ./dsh-client-ui-message-sound ./dsh-client-ui-session-search ./dsh-web-ui-cheeco-style ./dsh-tool-dsh-plugin-exec
+```
+
+若 `dsh` 在当前环境不可用，让 AI 先把 `dsh-tool-dsh-plugin-exec` 装上（上面 ⚠️ 提示里有替代入口），再让 AI 用 `dsh_plugin_exec(profile="<profile>", command="add ...")` 装其余插件。
+
 ## 使用
 
 - 装好后，打开 **设置 → Cheeco的小功能 → 声音提示音**。
