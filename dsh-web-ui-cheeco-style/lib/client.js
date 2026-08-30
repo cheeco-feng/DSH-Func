@@ -61,7 +61,7 @@ window.__ModuleLoader__.load({
 		/** Pre-filled logo URL for this instance (change or clear in the card; leave empty for the official brand). */
 		const DEFAULT_LOGO_URL = "https://yc1971.com/ico.png";
 		/** Bump this in sync with package.json version so the UI reflects the build. */
-		const PLUGIN_VERSION = "0.7.2";
+		const PLUGIN_VERSION = "0.7.3";
 
 		/** Host endpoints (same-origin, served by our own webServer):
 		 *    GET/POST /cheeco-style/config  -> read/write the config file
@@ -487,27 +487,46 @@ window.__ModuleLoader__.load({
 		/** 安装向导弹窗：确认 → 下载/检查 → 安装 → 成功(重启提示)。 */
 		function InstallWizard({ feature, onClose }) {
 			const [step, setStep] = react.useState(0);
-			const [result, setResult] = react.useState("");
+			const [plan, setPlan] = react.useState(null);
+			const [log, setLog] = react.useState([]);
 			const [busy, setBusy] = react.useState(false);
+			const [done, setDone] = react.useState("");
 			const steps = ["确认", "下载/检查", "安装", "完成"];
+			const addLog = (s) => setLog((l) => [...l, s]);
 			const run = async () => {
-				setStep(1); setBusy(true); setResult("");
+				setStep(1); setBusy(true); setLog([]); setDone("");
+				addLog("▶ 开始安装「" + feature.name + "」");
 				try {
 					const p = await (await fetch(FEATURES_PLAN_ENDPOINT, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: feature.id }) })).json();
-					if (!p.ok) { setResult(p.error || "未找到安装包"); setStep(3); setBusy(false); return; }
-					setResult(p.kind === "tgz" ? "① 已找到安装包：" + p.file.replace(/.+release\\?/, "") + (p.spec) : "② 将从 GitHub 下载：" + p.spec);
+					if (!p.ok) { addLog("✗ " + (p.error || "未找到安装包")); setDone("安装失败"); setStep(3); setBusy(false); return; }
+					setPlan(p);
+					addLog("● 步骤 1/3  检查安装计划：");
+					addLog("    来源：" + p.source);
+					addLog("    安装包：" + p.fileName);
+					addLog("    目标目录：" + (p.targetDir || "-"));
+					addLog("    安装路径：" + (p.installPath || "-"));
+					addLog("● 步骤 2/3  " + (p.kind === "tgz" ? "校验本机安装包…" : "从 GitHub 下载…"));
 					setStep(2);
 					const i = await (await fetch(FEATURES_INSTALL_ENDPOINT, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: feature.id }) })).json();
-					setResult(i.ok ? "✅ 安装成功（重启后生效）" : "❌ 安装失败：" + (i.stderr || i.error || "未知"));
-				} catch (e) { setResult("❌ 安装失败：" + e.message); }
+					addLog("● 步骤 3/3  安装（dsh plugin add）…");
+					if (i.stdout) addLog("—— 安装输出 ——\n" + i.stdout.trim());
+					if (i.stderr) addLog("—— 错误输出 ——\n" + i.stderr.trim());
+					addLog(i.ok ? ("✓ 安装成功，已安装到：" + (i.installPath || "")) : ("✗ 安装失败：" + (i.stderr || i.error || "")));
+					addLog(i.ok ? "✓ 完成：重启后生效" : "✗ 未完成，请查看上方错误");
+					setDone(i.ok ? "安装成功（重启后生效）" : "安装失败");
+				} catch (e) { addLog("✗ 安装失败：" + e.message); setDone("安装失败"); }
 				setBusy(false); setStep(3);
 			};
 			return react_jsx_runtime.jsx("div", { style: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }, children: [
-				react_jsx_runtime.jsx("div", { className: "dsh-web-ui-cheeco-style-section", style: { width: "min(460px, calc(100vw - 48px))" }, children: [
+				react_jsx_runtime.jsx("div", { className: "dsh-web-ui-cheeco-style-section", style: { width: "85vw", height: "85vh", maxWidth: "1080px", display: "flex", flexDirection: "column" }, children: [
 					react_jsx_runtime.jsx("h3", { children: "安装「" + feature.name + "」" }),
-					react_jsx_runtime.jsx("p", { className: "dsh-web-ui-cheeco-style-state", children: "步骤：确认 → 下载/检查 → 安装 → 完成（当前：" + steps[step] + "）" }),
-					react_jsx_runtime.jsx("p", { className: "dsh-web-ui-cheeco-style-state", children: result || (step === 0 ? "将下载并安装到当前 profile，完成后需重启 DSH 生效。" : busy ? "处理中…" : "") }),
-					react_jsx_runtime.jsx("div", { className: "dsh-web-ui-cheeco-style-actions", children: [
+					react_jsx_runtime.jsx("p", { className: "dsh-web-ui-cheeco-style-state", children: "流程：确认 → 下载/检查 → 安装 → 完成（当前：" + steps[step] + (done ? "　结果：" + done : "") + "）" }),
+					react_jsx_runtime.jsx("div", { style: { flex: 1, overflow: "auto", border: "1px solid var(--dsw-alias-border-l1,#e5e5e5)", borderRadius: "8px", background: "var(--dsw-alias-bg-layer-1,#fff)", padding: "10px 12px", fontFamily: "ui-monospace, monospace", fontSize: "12.5px", lineHeight: "1.6", whiteSpace: "pre-wrap", wordBreak: "break-all", color: "var(--dsw-alias-label-secondary,#555)" }, children: [
+						(step === 0 && log.length === 0)
+							? "将下载并安装到当前 profile，完成后需重启 DSH 生效。点击下方「开始安装」。"
+							: log.map((l, i) => react_jsx_runtime.jsx("div", { key: i, children: l }))
+					] }),
+					react_jsx_runtime.jsx("div", { className: "dsh-web-ui-cheeco-style-actions", style: { marginTop: "10px" }, children: [
 						step === 0
 							? react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: run, children: "开始安装" })
 							: null,

@@ -125,6 +125,15 @@ function latestCheecoTgz(folder) {
 		return `file:${join(dir, files[files.length - 1]).replace(/\\/g, "/")}`;
 	} catch (e) { return ""; }
 }
+/** node_modules 下某包的目录路径（如 @webkong/dsh-plugin-manager）。 */
+function pkgDir(pkg) {
+	const parts = String(pkg).split("/");
+	return parts.length > 1
+		? join(dirname(CHEECO_DIR), parts[0], parts[1])
+		: join(dirname(CHEECO_DIR), parts[0]);
+}
+/** The profile directory (…/profiles/<profile>) that owns this plugin. */
+function profileDir() { return dirname(dirname(CHEECO_DIR)); }
 
 /** Guess a content-type from a file extension (images + common audio). */
 function contentTypeOf(name) {
@@ -217,7 +226,7 @@ function renderConfigFile(v) {
 }
 
 /** In sync with package.json so the config records which plugin version produced it. */
-const PLUGIN_VERSION = "0.7.2";
+const PLUGIN_VERSION = "0.7.3";
 /** Resolve the dsh CLI package version (from @deepseek-ai/dsh/package.json). */
 function dshVersion() {
 	try {
@@ -441,23 +450,27 @@ export default class DshWebUiPatches {
 		if (!spec) { this.json(res, 500, { ok: false, error: "找不到该插件的安装包（release 目录无对应 tgz）" }); return; }
 		const out = runDsh(["add", spec]);
 		if (out.exitCode === 0) syncRegistry();
-		this.json(res, 200, { ok: out.exitCode === 0, exitCode: out.exitCode, stdout: out.stdout, stderr: out.stderr });
+		this.json(res, 200, {
+			ok: out.exitCode === 0, exitCode: out.exitCode, stdout: out.stdout, stderr: out.stderr,
+			installPath: pkgDir(target.pkg), installed: isInstalled(target.pkg)
+		});
 	}
 
-	/** 安装向导“下载/检查”：返回该功能的安装计划（tgz 是否存在 / github 源），并校验安装包。 */
+	/** 安装向导“下载/检查”：返回该功能的详细安装计划（来源/文件名/安装路径/安装目标目录）。 */
 	async handleFeaturePlan(req, res) {
 		let body = {};
 		try { body = JSON.parse((await readBody(req)) || "{}"); } catch (e) { body = {}; }
 		const target = CHEECO_FEATURES.find((f) => f.id === body.id);
 		if (!target) { this.json(res, 400, { ok: false, error: "未知的功能 id" }); return; }
-		if (isInstalled(target.pkg)) { this.json(res, 200, { ok: true, alreadyInstalled: true }); return; }
+		if (isInstalled(target.pkg)) { this.json(res, 200, { ok: true, alreadyInstalled: true, installPath: pkgDir(target.pkg) }); return; }
+		const base = { targetDir: profileDir(), installPath: pkgDir(target.pkg) };
 		if (target.folder) {
 			const tgz = latestCheecoTgz(target.folder);
 			if (!tgz) { this.json(res, 500, { ok: false, error: "release 目录没有该插件的安装包(tgz)，请先放置后重试" }); return; }
-			this.json(res, 200, { ok: true, kind: "tgz", spec: tgz, file: tgz.replace("file:", "") });
+			this.json(res, 200, { ok: true, kind: "tgz", spec: tgz, file: tgz.replace("file:", ""), source: "本机 release 目录", fileName: basename(tgz.replace("file:", "")), ...base });
 		} else {
 			// github 等：安装命令本身会下载；此处先给计划
-			this.json(res, 200, { ok: true, kind: "github", spec: target.install });
+			this.json(res, 200, { ok: true, kind: "github", spec: target.install, source: "GitHub 仓库 " + target.url, fileName: "(从 " + target.install.split(":")[1] + " 拉取)", ...base });
 		}
 	}
 
