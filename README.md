@@ -102,6 +102,34 @@ dsh plugin --profile <profile> add ./dsh-client-ui-message-sound ./dsh-client-ui
 
 若 `dsh` 在当前环境不可用，让 AI 先把 `dsh-tool-dsh-plugin-exec` 装上（上面 ⚠️ 提示里有替代入口），再让 AI 用 `dsh_plugin_exec(profile="<profile>", command="add ...")` 装其余插件。
 
+## 进阶：用多个 profile 安全测试/安装陌生插件
+
+**核心概念**：DSH 的一切都是"profile"（工作台）。一个 profile = `$DSH_HOME/profiles/<名字>` 目录，是一个**独立的 pnpm 工作区**，自带：
+
+- `package.json`（含 `dsh.profile.bundles` = 该工作台的插件列表）
+- `cordis.patch.yml`（用户补丁层）
+- `pnpm-workspace.yaml`、`node_modules`
+
+不同 profile 完全独立：各自插件、配置、node_modules 互不影响；同一台机器可**同时跑多个 profile**，各占一个端口。这就是"装陌生插件最稳"的沙盒。
+
+**怎么建多个 profile**
+
+1. profile 目录**首次使用会自动初始化**：跑 `dsh --profile <名字> ...` 或 `dsh plugin --profile <名字> add ...` 都会自动生成上面那些文件。
+   - 自定义名字（如 `test`/`mobile`）初始只有 `@deepseek-ai/dsh-base`；内置模板 `web`/`headless` 自带 `@deepseek-ai/dsh-web-app` / `@deepseek-ai/dsh-headless`。
+2. 启动指定 profile：`dsh --profile <名字> --port <端口>`（或 Web 面 `dsh web --port <端口>`）。
+3. 装插件：`dsh plugin --profile <名字> add <包|tgz>`（会自动写进该 profile 的 `dsh.profile.bundles`）。
+
+**用多 profile 测试陌生插件的技巧（安全隔离）**
+
+1. **别动主 profile**（如 `web`），先建/用**专用测试 profile**（如 `test`）。
+2. 在测试 profile 里装：`dsh plugin --profile test add <陌生插件>`。
+3. **先验证能否加载**：`dsh --profile test --dump-config` 看组合树是否报错、插件是否注册。
+4. **验证功能**：若插件是工具，先在 test 上跑通（如 `dsh_plugin_exec` 先 `list`/`why`）。
+5. 确认 OK 再装到主 profile；若陌生插件有问题，只影响 `test`、不影响 `web`/主环境，可随时 `dsh plugin --profile test remove <它>`。
+6. **多版本并存**：不同 profile 可用不同插件版本，互不干扰（每个工作台是独立真副本）。
+
+**注意**：改 profile 配置务必走 `pnpm` / `dsh plugin`（别手改 node_modules，防"package.json≠lockfile≠node_modules 三张皮不一致"）；不同 profile 用不同端口防冲突；`dsh` 不在 PATH 时，可用 `dsh-tool-dsh-plugin-exec`（`dsh_plugin_exec`）在某个 profile 里执行 `dsh plugin` 管理其它 profile。
+
 ## 使用
 
 - 装好后，打开 **设置 → Cheeco的小功能 → 声音提示音**。
