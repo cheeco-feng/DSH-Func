@@ -73,9 +73,22 @@ cd DSH-Func
 ```
 > 仓库地址确认：`https://github.com/cheeco-feng/DSH-Func.git`
 
-**第 2 步：安装本仓库插件**
+**第 2 步：安装环境检查（一次性自检，确认环境 OK 再继续）**
 
-按上面「安装」一节的 **4合1** 一键装齐；若你的 `dsh` 不在 PATH，按上面 ⚠️ 提示**先装 `dsh-tool-dsh-plugin-exec`**，再装其余。
+在终端依次跑下面几条，对照"预期结果"：
+
+| 检查项 | 命令 | 预期 | 若不通过 |
+|---|---|---|---|
+| Node.js | `node -v` | 打印出版本号 | 先装 Node.js（DSH 依赖它） |
+| git | `git --version` | 打印出版本号 | 先装 git |
+| dsh（DSH CLI） | `dsh --version` | 打印出版本号 | 🟡 见下方"dsh 不可用"兜底 |
+| pnpm | `pnpm -v` | 打印出版本号 | 先装 pnpm（部分安装用） |
+
+> **🟡 `dsh` 不在 PATH 时**：先 `where dsh`（cmd）或 `command -v dsh`（bash）确认确实找不到（防止 shell 没刷新/路径没配对）。若确认没有 → **先装 `dsh-tool-dsh-plugin-exec`**（它内部用 `require.resolve` 定位官方 `@deepseek-ai/dsh`，**无需 PATH**），再装其余插件。
+
+**第 3 步：安装本仓库插件**
+
+能直接用 `dsh` 就按上方「安装」一节的 **4合1** 一键装齐；若第 2 步确认 `dsh` 不可用，则**先装 `dsh-tool-dsh-plugin-exec`**、再用它执行 `dsh plugin` 装其余（见下）。
 
 **或者：直接让 AI 帮你装（推荐新手）**
 
