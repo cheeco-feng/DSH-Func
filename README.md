@@ -159,6 +159,29 @@ dsh plugin --profile <profile> add ./dsh-client-ui-message-sound ./dsh-client-ui
 ## 开发指南
 想写自己的 DSH 插件？看 **`[PLUGIN-GUIDE.md](PLUGIN-GUIDE.md)`**（结构、注册、设置页、安装、BOM 等常见坑，基于实战整理）。
 
+## 发布新版本（一键发布脚本）
+
+改完代码要发新版时，一条命令搞定「升版本 → `npm pack` → 建/更 GitHub release → 上传 tgz 资产 → 刷新功能推荐的 install URL → git commit + push」：
+
+```bash
+cd DSH-Func
+
+# 先看计划（不改任何文件、不发布）
+node publish.mjs <插件目录> <新版本> --dry-run
+
+# 正式发布（例：发布 cheeco-style 0.8.0）
+node publish.mjs dsh-web-ui-cheeco-style 0.8.0
+```
+
+- `<插件目录>` 目前支持：`dsh-web-ui-cheeco-style` / `dsh-client-ui-message-sound` / `dsh-client-ui-session-search` / `dsh-tool-dsh-plugin-exec`。
+- **安装源永远走 GitHub release 资产 URL，不走 npm**（产品「功能推荐」里每个功能的 `install` 就是 release 下载 URL）。
+- 功能列表 `CHEECO_FEATURES` 是**手写**的（在 `dsh-web-ui-cheeco-style/lib/index.js`），发布某插件后脚本会把该功能的 `install` 指向新 release 资产 URL。
+- 因为功能列表随 `dsh-web-ui-cheeco-style` 一起打包，**发布「非 style」插件时脚本默认会顺手把 `dsh-web-ui-cheeco-style` 升一个小 patch 并重发一次**（让新 install URL 真正送达用户）；不想要就加 `--no-ship-style`。
+- GitHub token 读取顺序：`--token` > 环境变量 `GITHUB_TOKEN` / `GH_TOKEN` > `git credential fill`。
+- `npm pack` 在 Windows 偶发假报退出码 1，脚本**以 tgz 是否落盘为准**，不必担心。
+
+> 日常改完代码想装到本机测试：直接 `dsh plugin --profile <profile> add ./子目录`，不一定要走发布脚本。
+
 ## 常见问题 / 经验
 - **卡启动 / 92% / `SyntaxError`**：常见原因是**编辑了 profile 的 `package.json` 或 `desktop-plugins.lock.json` 时，文件开头带了 UTF-8 BOM**（字节 EF BB BF）。DSH 用严格 JSON 解析，**BOM 会直接导致 `SyntaxError`、全量启动失败**。
   - 正确做法：用 **不带 BOM 的 UTF-8** 写这些 JSON（例如 PowerShell 用 `[System.Text.UTF8Encoding]::new($false)`），或用文本编辑器保存为"UTF-8 无 BOM"。
