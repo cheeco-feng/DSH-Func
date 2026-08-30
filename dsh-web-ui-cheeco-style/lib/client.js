@@ -61,7 +61,7 @@ window.__ModuleLoader__.load({
 		/** Pre-filled logo URL for this instance (change or clear in the card; leave empty for the official brand). */
 		const DEFAULT_LOGO_URL = "https://yc1971.com/ico.png";
 		/** Bump this in sync with package.json version so the UI reflects the build. */
-		const PLUGIN_VERSION = "0.7.6";
+		const PLUGIN_VERSION = "0.7.7";
 
 		/** Host endpoints (same-origin, served by our own webServer):
 		 *    GET/POST /cheeco-style/config  -> read/write the config file
@@ -78,6 +78,7 @@ window.__ModuleLoader__.load({
 		const FEATURES_INSTALL_ENDPOINT = "/cheeco-style/features/install";
 		const FEATURES_PLAN_ENDPOINT = "/cheeco-style/features/plan";
 		const FEATURES_DOWNLOAD_ENDPOINT = "/cheeco-style/features/download";
+		const RESTART_ENDPOINT = "/cheeco-style/plugin/restart";
 		/** The DSH-Func plugins this page can uninstall (labels shown in the multi-select). */
 		const PLUGINS = [
 			{ name: "@cheeco/dsh-web-ui-cheeco-style", label: "界面/声音设置（本页）" },
@@ -492,6 +493,22 @@ window.__ModuleLoader__.load({
 			const [log, setLog] = react.useState([]);
 			const [busy, setBusy] = react.useState(false);
 			const [done, setDone] = react.useState("");
+			// 打开向导即预取安装计划，确认页就能先看到来源/文件/目标目录/安装路径
+			react.useEffect(() => {
+				(async () => {
+					try {
+						const p = await (await fetch(FEATURES_PLAN_ENDPOINT, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: feature.id }) })).json();
+						if (p.ok) setPlan(p);
+					} catch (e) {}
+				})();
+			}, []);
+			const planLines = plan ? [
+				"● 安装计划：",
+				"    下载/来源：" + (plan.downloadUrl || plan.source || "-"),
+				"    安装包名：" + (plan.fileName || "-"),
+				"    目标目录：" + (plan.targetDir || "-"),
+				"    安装路径：" + (plan.installPath || "-")
+			] : ["正在加载安装计划…"];
 			const [autoRestart, setAutoRestart] = react.useState(true);
 			const steps = ["确认", "下载/检查", "安装", "完成"];
 			const addLog = (s) => setLog((l) => [...l, s]);
@@ -510,8 +527,8 @@ window.__ModuleLoader__.load({
 					addLog("● 步骤 2/2  安装（dsh plugin add，pnpm 负责下载）…");
 					setStep(2);
 					const i = await (await fetch(FEATURES_INSTALL_ENDPOINT, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: feature.id }) })).json();
-					if (i.stdout) addLog("—— 安装输出 ——\n" + i.stdout.trim());
-					if (i.stderr) addLog("—— 错误输出 ——\n" + i.stderr.trim());
+					if (i.stdout) addLog("—— pnpm 安装日志（英文为 pnpm 自身输出） ——\n" + i.stdout.trim());
+					if (i.stderr) addLog("—— 错误输出（英文为 pnpm 自身输出） ——\n" + i.stderr.trim());
 					addLog(i.ok ? ("✓ 安装成功，已安装到：" + (i.installPath || "")) : ("✗ 安装失败：" + (i.stderr || i.error || "")));
 					if (i.ok && autoRestart) {
 						addLog("● 正在自动重启当前 DSH…（约 10 秒后刷新页面生效）");
@@ -527,9 +544,10 @@ window.__ModuleLoader__.load({
 					react_jsx_runtime.jsx("h3", { children: "安装「" + feature.name + "」" }),
 					react_jsx_runtime.jsx("p", { className: "dsh-web-ui-cheeco-style-state", children: "流程：确认 → 下载/检查 → 安装 → 完成（当前：" + steps[step] + (done ? "　结果：" + done : "") + "）" }),
 					react_jsx_runtime.jsx("div", { style: { flex: 1, overflow: "auto", border: "1px solid var(--dsw-alias-border-l1,#e5e5e5)", borderRadius: "8px", background: "var(--dsw-alias-bg-layer-1,#fff)", padding: "10px 12px", fontFamily: "ui-monospace, monospace", fontSize: "12.5px", lineHeight: "1.6", whiteSpace: "pre-wrap", wordBreak: "break-all", color: "var(--dsw-alias-label-secondary,#555)" }, children: [
-						(step === 0 && log.length === 0)
-							? "将下载并安装到当前 profile，完成后需重启 DSH 生效。点击下方「开始安装」。"
-							: log.map((l, i) => react_jsx_runtime.jsx("div", { key: i, children: l }))
+						(step === 0
+							? [...planLines, "将下载并安装到当前 profile，完成后需重启 DSH 生效。点击下方「开始安装」。"]
+							: log
+						).map((l, i) => react_jsx_runtime.jsx("div", { key: i, children: l }))
 					] }),
 					react_jsx_runtime.jsx("label", { style: { display: "flex", alignItems: "center", gap: "8px", marginTop: "10px", fontSize: "13px", color: "var(--dsw-alias-label-secondary,#666)" }, children: [
 						react_jsx_runtime.jsx("input", { type: "checkbox", checked: autoRestart, onChange: (e) => setAutoRestart(e.target.checked) }),
