@@ -193,7 +193,7 @@ export default class DshWebUiPatches {
 				async execute(args, exec) {
 					if (!args.profile || !args.profile.trim()) throw new Error("profile is required");
 					if (!args.command || !args.command.trim()) throw new Error("command is required");
-					const shell = this.optService(ctx, "shell");
+					const shell = (() => { try { return ctx.shell; } catch (e) {} try { if (ctx.get) return ctx.get("shell"); } catch (e) {} return undefined; })();
 					if (!shell) throw new Error("dsh_plugin_exec: shell service unavailable");
 					const cmd = "dsh plugin --profile " + args.profile.trim() + " " + args.command.trim();
 					const result = await shell.run(shell.resolve({
