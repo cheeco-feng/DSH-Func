@@ -56,21 +56,32 @@ window.__ModuleLoader__.load({
 		/** Pre-filled logo URL for this instance (change or clear in the card; leave empty for the official brand). */
 		const DEFAULT_LOGO_URL = "https://yc1971.com/ico.png";
 		/** Bump this in sync with package.json version so the UI reflects the build. */
-		const PLUGIN_VERSION = "0.5.4";
+		const PLUGIN_VERSION = "0.5.5";
 
 		/** Host endpoints (same-origin, served by our own webServer):
 		 *    GET/POST /cheeco-style/config  -> read/write the config file
 		 *    POST     /cheeco-style/assets?name=<file> -> upload a picked image/audio to assets/
 		 *    GET      /cheeco-style/assets/<file>      -> serve it back (for <img>/<audio>)
+		 *    GET      /cheeco-style/plugin/update-check -> compare installed vs GitHub latest
+		 *    POST     /cheeco-style/plugin/uninstall { plugins:[...] } -> dsh plugin remove
 		 *  The title/logo/label/sound no longer live in localStorage. */
 		const CONFIG_ENDPOINT = "/cheeco-style/config";
 		const ASSETS_ENDPOINT = "/cheeco-style/assets";
+		const UPDATE_ENDPOINT = "/cheeco-style/plugin/update-check";
+		const UNINSTALL_ENDPOINT = "/cheeco-style/plugin/uninstall";
+		/** The DSH-Func plugins this page can uninstall (labels shown in the multi-select). */
+		const PLUGINS = [
+			{ name: "@cheeco/dsh-web-ui-cheeco-style", label: "界面/声音设置（本页）" },
+			{ name: "@cheeco/dsh-client-ui-message-sound", label: "AI 回复提示音" },
+			{ name: "@cheeco/dsh-client-ui-session-search", label: "会话内容检索" },
+			{ name: "@cheeco/dsh-tool-dsh-plugin-exec", label: "dsh_plugin_exec 工具" }
+		];
 
 		/** In-memory cache of the file-backed config (the browser's source of truth).
 		 *  Loaded once via GET, persisted via POST. */
 		let config = {
 			brandTitle: "", brandLogoUrl: "", brandLogoData: "", label: "",
-			soundEnabled: true, soundSrc: "", soundName: ""
+			soundEnabled: true, soundSrc: "", soundName: "", dsh: {}
 		};
 		let configLoad = null;
 		/** Fetch the host config once (shared promise); later calls reuse the result. */
@@ -88,7 +99,8 @@ window.__ModuleLoader__.load({
 							label: typeof data.label === "string" ? data.label : "",
 							soundEnabled: data.soundEnabled !== false,
 							soundSrc: typeof data.soundSrc === "string" ? data.soundSrc : "",
-							soundName: typeof data.soundName === "string" ? data.soundName : ""
+							soundName: typeof data.soundName === "string" ? data.soundName : "",
+							dsh: (typeof data.dsh === "object" && data.dsh) ? data.dsh : {}
 						};
 					}
 				} catch (e) {}
@@ -352,6 +364,64 @@ window.__ModuleLoader__.load({
 			});
 		}
 
+		/** "插件操作" card: check for updates + multi-select uninstall (via host routes). */
+		function PluginActions() {
+			const [busy, setBusy] = react.useState(false);
+			const [message, setMessage] = react.useState("");
+			const [open, setOpen] = react.useState(false);
+			const [checked, setChecked] = react.useState(() => PLUGINS.map(() => true));
+
+			const checkUpdate = async () => {
+				setBusy(true); setMessage("正在检查更新…");
+				try {
+					const r = await fetch(UPDATE_ENDPOINT, { cache: "no-store" });
+					const data = await r.json();
+					if (!data.results) throw new Error("响应异常");
+					const lines = data.results.map((it) =>
+						it.label + "：当前 " + (it.current || "(未装)") + " / 最新 " + (it.latest || "(未知)") + (it.hasUpdate ? "  ✔ 有更新" : "")
+					);
+					setMessage(data.results.some((it) => it.hasUpdate)
+						? "有可用更新：\n" + lines.join("\n")
+						: "全部已是最新：\n" + lines.join("\n"));
+				} catch (e) { setMessage("检查更新失败（可能无网络）：" + e.message); }
+				setBusy(false);
+			};
+
+			const uninstall = async () => {
+				const sel = PLUGINS.filter((_, i) => checked[i]).map((p) => p.name);
+				if (sel.length === 0) { setMessage("请至少勾选一个要卸载的插件"); return; }
+				if (!window.confirm("确定卸载选中的插件吗？卸载后需重启 DSH 生效。\n" + sel.join("\n"))) return;
+				setBusy(true); setMessage("正在卸载…");
+				try {
+					const r = await fetch(UNINSTALL_ENDPOINT, {
+						method: "POST",
+						headers: { "content-type": "application/json" },
+						body: JSON.stringify({ plugins: sel })
+					});
+					const data = await r.json();
+					setMessage(data.ok ? "卸载成功（重启后生效）" : "卸载失败：" + (data.stderr || data.error || "未知"));
+				} catch (e) { setMessage("卸载失败：" + e.message); }
+				setOpen(false); setBusy(false);
+			};
+
+			return react_jsx_runtime.jsx("div", { className: "dsh-web-ui-cheeco-style-actions", children: [
+				react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: checkUpdate, disabled: busy, children: "检查更新" }),
+				react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: () => setOpen((o) => !o), disabled: busy, children: open ? "收起卸载" : "卸载" }),
+				...open ? [react_jsx_runtime.jsx("div", { key: "panel", className: "dsh-web-ui-cheeco-style-section", children: [
+					react_jsx_runtime.jsx("p", { className: "dsh-web-ui-cheeco-style-state", children: "勾选要卸载的插件（默认全选）：" }),
+					react_jsx_runtime.jsx("div", { children: PLUGINS.map((p, i) => react_jsx_runtime.jsx("label", { key: p.name, style: { display: "block", padding: "3px 0" }, children: [
+						react_jsx_runtime.jsx("input", { type: "checkbox", checked: checked[i], onChange: (e) => setChecked((c) => { const n = c.slice(); n[i] = e.target.checked; return n; }) }),
+						" " + p.label
+					] })) }),
+					react_jsx_runtime.jsx("div", { className: "dsh-web-ui-cheeco-style-actions", children: [
+						react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: uninstall, disabled: busy, children: "确认卸载" }),
+						react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: () => setOpen(false), children: "取消" })
+					] })
+				] })] : [],
+				message ? react_jsx_runtime.jsx("pre", { key: "msg", className: "dsh-web-ui-cheeco-style-state", style: { whiteSpace: "pre-wrap", width: "100%" }, children: message }) : null
+			] });
+		}
+
 		/** "面板改名" card: user renames the sidebar entry for this settings panel. */
 		function RenameCard() {
 			const [name, setName] = react.useState(() => config.label || "");
@@ -378,7 +448,8 @@ window.__ModuleLoader__.load({
 						react_jsx_runtime.jsx("input", { type: "text", value: name, placeholder: "输入面板名称", onChange: (e) => setName(e.target.value), style: { flex: "1", minWidth: "160px", padding: "6px 10px" } }),
 						react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: save, children: "保存" })
 					] }),
-					react_jsx_runtime.jsx("p", { className: "dsh-web-ui-cheeco-style-state", children: "插件版本 " + PLUGIN_VERSION })
+					react_jsx_runtime.jsx("p", { className: "dsh-web-ui-cheeco-style-state", children: "插件版本 " + PLUGIN_VERSION }),
+					react_jsx_runtime.jsx(PluginActions, {})
 				]
 			});
 		}
