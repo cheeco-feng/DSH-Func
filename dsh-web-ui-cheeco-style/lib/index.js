@@ -154,60 +154,6 @@ export default class DshWebUiPatches {
 				disposeAssets();
 			};
 		}, "cheeco-style: config + assets routes");
-		// Register an agent tool that runs `dsh plugin` in the proper workbench
-		// context (best-effort; never break the plugin if the tool can't load).
-		this.setupTool(ctx);
-	}
-
-	/** Get an optional service without making it a required inject (never throws). */
-	optService(ctx, name) {
-		try { return ctx[name]; } catch (e) {}
-		try { if (ctx.get) return ctx.get(name); } catch (e) {}
-		return undefined;
-	}
-
-	/** Best-effort agent tool: run `dsh plugin --profile <p> <cmd>` and return output. */
-	async setupTool(ctx) {
-		try {
-			const tools = this.optService(ctx, "tools");
-			if (!tools) return;
-			const { defineTool } = await import("@deepseek-ai/dsh-tools");
-			tools.register(defineTool({
-				name: "dsh_plugin_exec",
-				description: "Run a `dsh plugin` command for a DSH workbench (profile) and return its stdout/stderr + exit code. Use to install/remove/list/enable plugins in a profile; `dsh plugin add <pkg|tgz>` installs the package AND auto-registers it into the profile's `dsh.profile.bundles`. Parameters: `profile` (the workbench, e.g. `web` / `test`), `command` (the args after `dsh plugin --profile <profile>`, e.g. `add file:F:/.../pkg.tgz`, `remove @cheeco/...`, `why @cheeco/...`).",
-				parameters: {
-					profile: { type: "string", required: true, description: "The DSH workbench/profile to target (e.g. web, test)." },
-					command: { type: "string", required: true, description: "The dsh plugin arguments after `--profile <profile>` (e.g. `add file:F:/.../pkg.tgz`, `why @cheeco/...`)." },
-					timeoutMs: { type: "number", description: "Max wait in ms. The executor applies its configured cap." }
-				},
-				output: {
-					schema: { type: "string" },
-					render: (_a, v) => [{ type: "text", text: typeof v === "string" ? v : String(v ?? "") }]
-				},
-				async execute(args, exec) {
-					if (!args.profile || !args.profile.trim()) throw new Error("profile is required");
-					if (!args.command || !args.command.trim()) throw new Error("command is required");
-					const shell = (() => { try { return ctx.get?.("shell"); } catch (e) {} return undefined; })();
-					const cmd = "dsh plugin --profile " + args.profile.trim() + " " + args.command.trim();
-					if (!shell) return "dsh_plugin_exec: shell service unavailable in this composition";
-					const result = await shell.run(shell.resolve({
-						command: cmd,
-						...args.timeoutMs ? { timeoutMs: args.timeoutMs } : {},
-						signal: exec.signal
-					}));
-					if (result.aborted) { const e = new Error("tool call aborted"); e.name = "AbortError"; throw e; }
-					let out = result.stdout?.text ?? "";
-					const err = result.stderr?.text ?? "";
-					if (err.length > 0) { if (out.length > 0 && !out.endsWith("\n")) out += "\n"; out += "[stderr]\n" + err; }
-					if (out.length === 0) out = "(no output)";
-					if (result.exitCode !== 0) out += "\n[exit code: " + result.exitCode + "]";
-					return out;
-				}
-			}));
-			ctx.logger.info("cheeco: registered agent tool dsh_plugin_exec");
-		} catch (e) {
-			ctx.logger.warn("cheeco: agent tool registration skipped: " + (e instanceof Error ? e.message : String(e)));
-		}
 	}
 
 	fail(ctx, res, err) {
