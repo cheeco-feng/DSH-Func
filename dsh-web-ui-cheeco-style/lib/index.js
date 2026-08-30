@@ -53,6 +53,7 @@ const UPDATE_PATH = "/cheeco-style/plugin/update-check";
 const UNINSTALL_PATH = "/cheeco-style/plugin/uninstall";
 const FEATURES_PATH = "/cheeco-style/features";
 const FEATURES_INSTALL_PATH = "/cheeco-style/features/install";
+const FEATURES_PLAN_PATH = "/cheeco-style/features/plan";
 /** 功能推荐：手写的列表（以后有新插件/推荐插件直接加到这里）。
  *  `pkg` 用于判断是否已安装；`install` 为安装所需的包名/github 源；`url` 为“查看介绍”跳转。 */
 const CHEECO_FEATURES = [
@@ -216,7 +217,7 @@ function renderConfigFile(v) {
 }
 
 /** In sync with package.json so the config records which plugin version produced it. */
-const PLUGIN_VERSION = "0.7.1";
+const PLUGIN_VERSION = "0.7.2";
 /** Resolve the dsh CLI package version (from @deepseek-ai/dsh/package.json). */
 function dshVersion() {
 	try {
@@ -338,6 +339,13 @@ export default class DshWebUiPatches {
 					this.handleFeatureInstall(req, res).catch((err) => this.fail(ctx, res, err));
 				}
 			});
+			const disposeFeaturePlan = ctx.webServer.register({
+				kind: "exact",
+				path: FEATURES_PLAN_PATH,
+				handler: (req, res) => {
+					this.handleFeaturePlan(req, res).catch((err) => this.fail(ctx, res, err));
+				}
+			});
 			return () => {
 				disposeConfig();
 				disposeAssets();
@@ -345,6 +353,7 @@ export default class DshWebUiPatches {
 				disposeUninstall();
 				disposeFeatures();
 				disposeFeatureInstall();
+				disposeFeaturePlan();
 			};
 		}, "cheeco-style: config + assets + plugin routes");
 	}
@@ -433,6 +442,23 @@ export default class DshWebUiPatches {
 		const out = runDsh(["add", spec]);
 		if (out.exitCode === 0) syncRegistry();
 		this.json(res, 200, { ok: out.exitCode === 0, exitCode: out.exitCode, stdout: out.stdout, stderr: out.stderr });
+	}
+
+	/** 安装向导“下载/检查”：返回该功能的安装计划（tgz 是否存在 / github 源），并校验安装包。 */
+	async handleFeaturePlan(req, res) {
+		let body = {};
+		try { body = JSON.parse((await readBody(req)) || "{}"); } catch (e) { body = {}; }
+		const target = CHEECO_FEATURES.find((f) => f.id === body.id);
+		if (!target) { this.json(res, 400, { ok: false, error: "未知的功能 id" }); return; }
+		if (isInstalled(target.pkg)) { this.json(res, 200, { ok: true, alreadyInstalled: true }); return; }
+		if (target.folder) {
+			const tgz = latestCheecoTgz(target.folder);
+			if (!tgz) { this.json(res, 500, { ok: false, error: "release 目录没有该插件的安装包(tgz)，请先放置后重试" }); return; }
+			this.json(res, 200, { ok: true, kind: "tgz", spec: tgz, file: tgz.replace("file:", "") });
+		} else {
+			// github 等：安装命令本身会下载；此处先给计划
+			this.json(res, 200, { ok: true, kind: "github", spec: target.install });
+		}
 	}
 
 	async handleConfig(ctx, configFile, req, res) {

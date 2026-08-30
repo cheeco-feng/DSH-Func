@@ -61,7 +61,7 @@ window.__ModuleLoader__.load({
 		/** Pre-filled logo URL for this instance (change or clear in the card; leave empty for the official brand). */
 		const DEFAULT_LOGO_URL = "https://yc1971.com/ico.png";
 		/** Bump this in sync with package.json version so the UI reflects the build. */
-		const PLUGIN_VERSION = "0.7.1";
+		const PLUGIN_VERSION = "0.7.2";
 
 		/** Host endpoints (same-origin, served by our own webServer):
 		 *    GET/POST /cheeco-style/config  -> read/write the config file
@@ -76,6 +76,7 @@ window.__ModuleLoader__.load({
 		const UNINSTALL_ENDPOINT = "/cheeco-style/plugin/uninstall";
 		const FEATURES_ENDPOINT = "/cheeco-style/features";
 		const FEATURES_INSTALL_ENDPOINT = "/cheeco-style/features/install";
+		const FEATURES_PLAN_ENDPOINT = "/cheeco-style/features/plan";
 		/** The DSH-Func plugins this page can uninstall (labels shown in the multi-select). */
 		const PLUGINS = [
 			{ name: "@cheeco/dsh-web-ui-cheeco-style", label: "界面/声音设置（本页）" },
@@ -483,10 +484,46 @@ window.__ModuleLoader__.load({
 			});
 		}
 
+		/** 安装向导弹窗：确认 → 下载/检查 → 安装 → 成功(重启提示)。 */
+		function InstallWizard({ feature, onClose }) {
+			const [step, setStep] = react.useState(0);
+			const [result, setResult] = react.useState("");
+			const [busy, setBusy] = react.useState(false);
+			const steps = ["确认", "下载/检查", "安装", "完成"];
+			const run = async () => {
+				setStep(1); setBusy(true); setResult("");
+				try {
+					const p = await (await fetch(FEATURES_PLAN_ENDPOINT, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: feature.id }) })).json();
+					if (!p.ok) { setResult(p.error || "未找到安装包"); setStep(3); setBusy(false); return; }
+					setResult(p.kind === "tgz" ? "① 已找到安装包：" + p.file.replace(/.+release\\?/, "") + (p.spec) : "② 将从 GitHub 下载：" + p.spec);
+					setStep(2);
+					const i = await (await fetch(FEATURES_INSTALL_ENDPOINT, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: feature.id }) })).json();
+					setResult(i.ok ? "✅ 安装成功（重启后生效）" : "❌ 安装失败：" + (i.stderr || i.error || "未知"));
+				} catch (e) { setResult("❌ 安装失败：" + e.message); }
+				setBusy(false); setStep(3);
+			};
+			return react_jsx_runtime.jsx("div", { style: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }, children: [
+				react_jsx_runtime.jsx("div", { className: "dsh-web-ui-cheeco-style-section", style: { width: "min(460px, calc(100vw - 48px))" }, children: [
+					react_jsx_runtime.jsx("h3", { children: "安装「" + feature.name + "」" }),
+					react_jsx_runtime.jsx("p", { className: "dsh-web-ui-cheeco-style-state", children: "步骤：确认 → 下载/检查 → 安装 → 完成（当前：" + steps[step] + "）" }),
+					react_jsx_runtime.jsx("p", { className: "dsh-web-ui-cheeco-style-state", children: result || (step === 0 ? "将下载并安装到当前 profile，完成后需重启 DSH 生效。" : busy ? "处理中…" : "") }),
+					react_jsx_runtime.jsx("div", { className: "dsh-web-ui-cheeco-style-actions", children: [
+						step === 0
+							? react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: run, children: "开始安装" })
+							: null,
+						step === 3
+							? react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: onClose, children: "完成" })
+							: react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: onClose, children: "取消" })
+					] })
+				] })
+			] });
+		}
+
 		/** "功能推荐" tab：展示宿主手写的功能列表（每项状态 已安装/我要安装 + 查看介绍）。 */
 		function FeaturesCard() {
 			const [items, setItems] = react.useState([]);
 			const [msg, setMsg] = react.useState("");
+			const [wizard, setWizard] = react.useState(null);
 			const load = async () => {
 				try {
 					const r = await fetch(FEATURES_ENDPOINT, { cache: "no-store" });
@@ -495,31 +532,20 @@ window.__ModuleLoader__.load({
 				} catch (e) { setMsg("加载失败：" + e.message); }
 			};
 			react.useEffect(() => { load(); }, []);
-			const install = async (f) => {
-				if (!window.confirm("要安装「" + f.name + "」吗？\n将下载并安装到当前 profile，完成后需重启 DSH 生效。")) return;
-				setMsg("正在安装「" + f.name + "」…");
-				try {
-					const r = await fetch(FEATURES_INSTALL_ENDPOINT, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: f.id }) });
-					const j = await r.json();
-					setMsg(j.ok
-						? (j.alreadyInstalled ? "「" + f.name + "」已安装" : "「" + f.name + "」安装成功，重启后生效。")
-						: "安装失败：" + (j.stderr || j.error || "未知"));
-				} catch (e) { setMsg("安装失败：" + e.message); }
-				load();
-			};
 			const row = (f) => react_jsx_runtime.jsx("div", { key: f.id, style: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid rgba(128,128,128,0.15)" }, children: [
 				react_jsx_runtime.jsx("span", { children: f.name }),
 				react_jsx_runtime.jsx("div", { style: { display: "flex", gap: "8px", alignItems: "center" }, children: [
 					f.installed
 						? react_jsx_runtime.jsx("span", { style: { color: "#2ecc71" }, children: "已安装" })
-						: react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: () => install(f), children: "我要安装" }),
+						: react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: () => setWizard(f), children: "我要安装" }),
 					react_jsx_runtime.jsx("a", { href: f.url, target: "_blank", rel: "noreferrer", className: "dsh-web-ui-cheeco-style-action", style: { textDecoration: "none" }, children: "查看介绍" })
 				] })
 			] });
 			return react_jsx_runtime.jsx("div", { className: "dsh-web-ui-cheeco-style-section", children: [
 				react_jsx_runtime.jsx("p", { className: "dsh-web-ui-cheeco-style-state", children: "功能推荐（手写列表：已安装 / 我要安装 / 查看介绍）" }),
 				items.map(row),
-				msg ? react_jsx_runtime.jsx("p", { className: "dsh-web-ui-cheeco-style-state", children: msg }) : null
+				msg ? react_jsx_runtime.jsx("p", { className: "dsh-web-ui-cheeco-style-state", children: msg }) : null,
+				wizard ? react_jsx_runtime.jsx(InstallWizard, { feature: wizard, onClose: () => { setWizard(null); load(); } }) : null
 			] });
 		}
 
