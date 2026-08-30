@@ -1,6 +1,6 @@
 # cheeco-dsh-plugins
 
-Cheeco 的 DSH 插件集合。本仓库包含**三个独立插件**（各自是独立的 DSH 插件包）：装配时按需选择。
+Cheeco 的 DSH 插件集合。本仓库包含**四个独立插件**（各自是独立的 DSH 插件包）：可整仓一键安装，也可按需单个装。
 
 ## 包含
 
@@ -9,22 +9,47 @@ Cheeco 的 DSH 插件集合。本仓库包含**三个独立插件**（各自是�
 | `dsh-client-ui-message-sound` | `@cheeco/dsh-client-ui-message-sound` | **AI 回复提示音**（回合结束时响一声） |
 | `dsh-web-ui-cheeco-style` | `@cheeco/dsh-web-ui-cheeco-style` | **Cheeco的小功能** 设置页（含声音开关卡片） |
 | `dsh-client-ui-session-search` | `@cheeco/dsh-client-ui-session-search` | **会话内容检索**（标题/内容切换，按用户/回复/工具筛选） |
+| `dsh-tool-dsh-plugin-exec` | `@cheeco/dsh-tool-dsh-plugin-exec` | **`dsh_plugin_exec` agent 工具**（执行 `dsh plugin` 管理命令：装/卸/列/查某 profile 的插件） |
 
 ## 安装（先克隆，再按需添加子目录）
+
+推荐：**一条命令装整个仓库的插件（4合1）**
 
 ```bash
 git clone <本仓库地址>
 cd <仓库目录>
 
+# 一条命令把 DSH-Func 的 4 个插件全部装进 <profile>
+dsh plugin --profile <profile> add \
+  ./dsh-client-ui-message-sound \
+  ./dsh-client-ui-session-search \
+  ./dsh-web-ui-cheeco-style \
+  ./dsh-tool-dsh-plugin-exec
+```
+
+或使用已打包的 `release/*.tgz`（各 profile 一路装齐）：
+
+```bash
+dsh plugin --profile <profile> add \
+  file:F:/DeepSeekHarnessDataOriginal/release/cheeco-dsh-client-ui-message-sound-0.3.0.tgz \
+  file:F:/DeepSeekHarnessDataOriginal/release/cheeco-dsh-client-ui-session-search-0.1.0.tgz \
+  file:F:/DeepSeekHarnessDataOriginal/release/cheeco-dsh-web-ui-cheeco-style-0.5.4.tgz \
+  file:F:/DeepSeekHarnessDataOriginal/release/cheeco-dsh-tool-dsh-plugin-exec-0.1.5.tgz
+```
+
+> `dsh plugin add` 会自动把每个带 `dsh.bundle.patch` 的插件写进该 profile 的 `dsh.profile.bundles`。
+
+按需单个装（参考）：
+
+```bash
 # 只装提示音（声音+默认开启，但无设置开关）
 dsh plugin --profile <profile> add ./dsh-client-ui-message-sound
 
 # 只装界面（有设置开关，但需配合声音插件才有声）
 dsh plugin --profile <profile> add ./dsh-web-ui-cheeco-style
 
-# 两个都要（推荐，声音 + 设置开关齐全）
-dsh plugin --profile <profile> add ./dsh-client-ui-message-sound
-dsh plugin --profile <profile> add ./dsh-web-ui-cheeco-style
+# 只装 dsh_plugin_exec 工具
+dsh plugin --profile <profile> add ./dsh-tool-dsh-plugin-exec
 ```
 
 > `dsh plugin` 也可换成在 **设置 → 插件 → 用户插件** 的安装框里粘贴对应的本地/仓库路径。
