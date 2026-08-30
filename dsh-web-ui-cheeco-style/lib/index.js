@@ -15,7 +15,7 @@
             POST /cheeco-style/assets?name=<file>  -> write assets/<file>
             GET  /cheeco-style/assets/<file>       -> serve it back (for <img>/<audio>)
       - All browser-UI work lives in the browser half (lib/client.js). */
-import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
 import { dirname, join, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
@@ -56,10 +56,10 @@ const FEATURES_INSTALL_PATH = "/cheeco-style/features/install";
 /** 功能推荐：手写的列表（以后有新插件/推荐插件直接加到这里）。
  *  `pkg` 用于判断是否已安装；`install` 为安装所需的包名/github 源；`url` 为“查看介绍”跳转。 */
 const CHEECO_FEATURES = [
-	{ id: "style", name: "界面/声音设置", url: "https://github.com/cheeco-feng/DSH-Func", pkg: "@cheeco/dsh-web-ui-cheeco-style", install: "@cheeco/dsh-web-ui-cheeco-style" },
-	{ id: "sound", name: "AI 回复提示音", url: "https://github.com/cheeco-feng/DSH-Func", pkg: "@cheeco/dsh-client-ui-message-sound", install: "@cheeco/dsh-client-ui-message-sound" },
-	{ id: "search", name: "会话内容检索", url: "https://github.com/cheeco-feng/DSH-Func", pkg: "@cheeco/dsh-client-ui-session-search", install: "@cheeco/dsh-client-ui-session-search" },
-	{ id: "dshcmd", name: "DSH功能命令", url: "https://github.com/cheeco-feng/DSH-Func", pkg: "@cheeco/dsh-tool-dsh-plugin-exec", install: "@cheeco/dsh-tool-dsh-plugin-exec" },
+	{ id: "style", name: "界面/声音设置", url: "https://github.com/cheeco-feng/DSH-Func", pkg: "@cheeco/dsh-web-ui-cheeco-style", install: "@cheeco/dsh-web-ui-cheeco-style", folder: "dsh-web-ui-cheeco-style" },
+	{ id: "sound", name: "AI 回复提示音", url: "https://github.com/cheeco-feng/DSH-Func", pkg: "@cheeco/dsh-client-ui-message-sound", install: "@cheeco/dsh-client-ui-message-sound", folder: "dsh-client-ui-message-sound" },
+	{ id: "search", name: "会话内容检索", url: "https://github.com/cheeco-feng/DSH-Func", pkg: "@cheeco/dsh-client-ui-session-search", install: "@cheeco/dsh-client-ui-session-search", folder: "dsh-client-ui-session-search" },
+	{ id: "dshcmd", name: "DSH功能命令", url: "https://github.com/cheeco-feng/DSH-Func", pkg: "@cheeco/dsh-tool-dsh-plugin-exec", install: "@cheeco/dsh-tool-dsh-plugin-exec", folder: "dsh-tool-dsh-plugin-exec" },
 	{ id: "pmgr", name: "插件管理（dsh-plugin-manager）", url: "https://github.com/webkong/dsh-plugin-manager", pkg: "@webkong/dsh-plugin-manager", install: "github:webkong/dsh-plugin-manager" }
 ];
 /** The `node_modules/@cheeco` dir — parent of this plugin's own folder. */
@@ -112,6 +112,17 @@ function isInstalled(pkg) {
 			: join(dirname(CHEECO_DIR), parts[0]);
 		return existsSync(join(p, "package.json"));
 	} catch (e) { return false; }
+}
+/** 找到 release 目录里某插件最新的 tgz（如 cheeco-<folder>-0.6.0.tgz），返回 file: 全路径；找不到返回 "". */
+function latestCheecoTgz(folder) {
+	try {
+		const dir = join(process.env.DSH_HOME || "", "release");
+		const files = readdirSync(dir)
+			.filter((f) => f.startsWith(`cheeco-${folder}-`) && f.endsWith(".tgz"))
+			.sort();
+		if (files.length === 0) return "";
+		return `file:${join(dir, files[files.length - 1]).replace(/\\/g, "/")}`;
+	} catch (e) { return ""; }
 }
 
 /** Guess a content-type from a file extension (images + common audio). */
@@ -205,7 +216,7 @@ function renderConfigFile(v) {
 }
 
 /** In sync with package.json so the config records which plugin version produced it. */
-const PLUGIN_VERSION = "0.7.0";
+const PLUGIN_VERSION = "0.7.1";
 /** Resolve the dsh CLI package version (from @deepseek-ai/dsh/package.json). */
 function dshVersion() {
 	try {
@@ -416,7 +427,11 @@ export default class DshWebUiPatches {
 		const target = CHEECO_FEATURES.find((f) => f.id === body.id);
 		if (!target) { this.json(res, 400, { ok: false, error: "未知的功能 id" }); return; }
 		if (isInstalled(target.pkg)) { this.json(res, 200, { ok: true, alreadyInstalled: true }); return; }
-		const out = runDsh(["add", target.install]);
+		// @cheeco 插件未发布到 npm，用 release 目录的最新 tgz；其它（如 github:）用原文 install
+		const spec = target.folder ? latestCheecoTgz(target.folder) : target.install;
+		if (!spec) { this.json(res, 500, { ok: false, error: "找不到该插件的安装包（release 目录无对应 tgz）" }); return; }
+		const out = runDsh(["add", spec]);
+		if (out.exitCode === 0) syncRegistry();
 		this.json(res, 200, { ok: out.exitCode === 0, exitCode: out.exitCode, stdout: out.stdout, stderr: out.stderr });
 	}
 

@@ -61,7 +61,7 @@ window.__ModuleLoader__.load({
 		/** Pre-filled logo URL for this instance (change or clear in the card; leave empty for the official brand). */
 		const DEFAULT_LOGO_URL = "https://yc1971.com/ico.png";
 		/** Bump this in sync with package.json version so the UI reflects the build. */
-		const PLUGIN_VERSION = "0.7.0";
+		const PLUGIN_VERSION = "0.7.1";
 
 		/** Host endpoints (same-origin, served by our own webServer):
 		 *    GET/POST /cheeco-style/config  -> read/write the config file
@@ -495,12 +495,15 @@ window.__ModuleLoader__.load({
 				} catch (e) { setMsg("加载失败：" + e.message); }
 			};
 			react.useEffect(() => { load(); }, []);
-			const install = async (id) => {
-				setMsg("正在安装…");
+			const install = async (f) => {
+				if (!window.confirm("要安装「" + f.name + "」吗？\n将下载并安装到当前 profile，完成后需重启 DSH 生效。")) return;
+				setMsg("正在安装「" + f.name + "」…");
 				try {
-					const r = await fetch(FEATURES_INSTALL_ENDPOINT, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id }) });
+					const r = await fetch(FEATURES_INSTALL_ENDPOINT, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: f.id }) });
 					const j = await r.json();
-					setMsg(j.ok ? (j.alreadyInstalled ? "已安装" : "安装成功（重启后生效）") : "安装失败：" + (j.stderr || j.error || "未知"));
+					setMsg(j.ok
+						? (j.alreadyInstalled ? "「" + f.name + "」已安装" : "「" + f.name + "」安装成功，重启后生效。")
+						: "安装失败：" + (j.stderr || j.error || "未知"));
 				} catch (e) { setMsg("安装失败：" + e.message); }
 				load();
 			};
@@ -509,7 +512,7 @@ window.__ModuleLoader__.load({
 				react_jsx_runtime.jsx("div", { style: { display: "flex", gap: "8px", alignItems: "center" }, children: [
 					f.installed
 						? react_jsx_runtime.jsx("span", { style: { color: "#2ecc71" }, children: "已安装" })
-						: react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: () => install(f.id), children: "我要安装" }),
+						: react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: () => install(f), children: "我要安装" }),
 					react_jsx_runtime.jsx("a", { href: f.url, target: "_blank", rel: "noreferrer", className: "dsh-web-ui-cheeco-style-action", style: { textDecoration: "none" }, children: "查看介绍" })
 				] })
 			] });
