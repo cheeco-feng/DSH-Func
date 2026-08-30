@@ -178,9 +178,9 @@ async function downloadFeature(target) {
 		let fileName = `${target.folder}.tgz`;
 		try { const pn = new URL(target.install).pathname; if (pn) fileName = basename(pn) || fileName; } catch (e) {}
 		const dest = join(dir, fileName);
-		// 1) 本机已有同名文件 -> 跳过下载（但信息可见）
+		// 1) 本机已有同名文件 -> 跳过下载（信息可见：完整路径）
 		if (existsSync(dest) && statSync(dest).size > 0) {
-			return { ok: true, file: dest, fileName, bytes: statSync(dest).size, downloadDir: dir, source: `本机已有同名文件（${fileName}），跳过下载`, skipped: true };
+			return { ok: true, file: dest, fileName, bytes: statSync(dest).size, downloadDir: dir, source: `本机已存在：${dest}，已跳过下载`, skipped: true };
 		}
 		// 2) 从 release URL 下载
 		if (target.install) {
@@ -287,7 +287,7 @@ function renderConfigFile(v) {
 }
 
 /** In sync with package.json so the config records which plugin version produced it. */
-const PLUGIN_VERSION = "0.7.8";
+const PLUGIN_VERSION = "0.7.9";
 /** Resolve the dsh CLI package version (from @deepseek-ai/dsh/package.json). */
 function dshVersion() {
 	try {
