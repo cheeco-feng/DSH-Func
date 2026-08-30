@@ -61,7 +61,7 @@ window.__ModuleLoader__.load({
 		/** Pre-filled logo URL for this instance (change or clear in the card; leave empty for the official brand). */
 		const DEFAULT_LOGO_URL = "https://yc1971.com/ico.png";
 		/** Bump this in sync with package.json version so the UI reflects the build. */
-		const PLUGIN_VERSION = "0.7.4";
+		const PLUGIN_VERSION = "0.7.5";
 
 		/** Host endpoints (same-origin, served by our own webServer):
 		 *    GET/POST /cheeco-style/config  -> read/write the config file
@@ -501,19 +501,13 @@ window.__ModuleLoader__.load({
 					const p = await (await fetch(FEATURES_PLAN_ENDPOINT, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: feature.id }) })).json();
 					if (!p.ok) { addLog("✗ " + (p.error || "未找到安装包")); setDone("安装失败"); setStep(3); setBusy(false); return; }
 					setPlan(p);
-					addLog("● 步骤 1/3  安装计划：");
-					addLog("    下载链接：" + (p.downloadUrl || p.source || "-"));
+					addLog("● 步骤 1/2  安装计划：");
+					addLog("    下载/来源：" + (p.downloadUrl || p.source || "-"));
 					addLog("    安装包名：" + p.fileName);
 					addLog("    目标目录：" + (p.targetDir || "-"));
 					addLog("    安装路径：" + (p.installPath || "-"));
-					addLog("● 步骤 2/3  下载/校验…");
+					addLog("● 步骤 2/2  安装（dsh plugin add，pnpm 负责下载）…");
 					setStep(2);
-					const dl = await (await fetch(FEATURES_DOWNLOAD_ENDPOINT, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: feature.id }) })).json();
-					addLog(dl.ok
-						? ("    " + (dl.source || "") + (dl.fileName ? "（" + dl.fileName + "，" + (dl.bytes || 0) + " 字节）" : ""))
-						: ("    ✗ 下载失败：" + (dl.error || "")));
-					if (!dl.ok) { addLog("✗ 无法获取安装包，流程中止"); setDone("安装失败"); setStep(3); setBusy(false); return; }
-					addLog("● 步骤 3/3  安装（dsh plugin add）…");
 					const i = await (await fetch(FEATURES_INSTALL_ENDPOINT, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: feature.id }) })).json();
 					if (i.stdout) addLog("—— 安装输出 ——\n" + i.stdout.trim());
 					if (i.stderr) addLog("—— 错误输出 ——\n" + i.stderr.trim());

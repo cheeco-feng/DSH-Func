@@ -267,7 +267,7 @@ function renderConfigFile(v) {
 }
 
 /** In sync with package.json so the config records which plugin version produced it. */
-const PLUGIN_VERSION = "0.7.4";
+const PLUGIN_VERSION = "0.7.5";
 /** Resolve the dsh CLI package version (from @deepseek-ai/dsh/package.json). */
 function dshVersion() {
 	try {
@@ -487,27 +487,21 @@ export default class DshWebUiPatches {
 		});
 	}
 
-	/** 功能推荐：“我要安装” —— 对未安装插件执行 `dsh plugin --profile <p> add <install>`。 */
+	/** 功能推荐：“我要安装” —— 参考 dsh-plugin-manager：直接把安装源交给 `dsh plugin add`（pnpm 下载+安装）。 */
 	async handleFeatureInstall(req, res) {
 		let body = {};
 		try { body = JSON.parse((await readBody(req)) || "{}"); } catch (e) { body = {}; }
 		const target = CHEECO_FEATURES.find((f) => f.id === body.id);
 		if (!target) { this.json(res, 400, { ok: false, error: "未知的功能 id" }); return; }
 		if (isInstalled(target.pkg)) { this.json(res, 200, { ok: true, alreadyInstalled: true }); return; }
-		// 有 folder（@cheeco/tgz）：先下载/校验到缓存，再从缓存装；无 folder（github）：pnpm add 源，自己下载
-		let spec, d = null;
-		if (target.folder) {
-			d = await downloadFeature(target);
-			if (!d.ok) { this.json(res, 500, { ok: false, error: d.error || "无法获取安装包" }); return; }
-			spec = `file:${d.file.replace(/\\/g, "/")}`;
-		} else {
-			spec = target.install;
-		}
+		// @cheeco 用本机 release tgz（开发可用），否则用 install 源（github: 等）；真实远程源由 download 字段给出
+		const spec = target.folder ? (latestCheecoTgz(target.folder) || target.install) : target.install;
+		if (!spec) { this.json(res, 500, { ok: false, error: "未配置安装源（download / install 字段）" }); return; }
 		const out = runDsh(["add", spec]);
 		if (out.exitCode === 0) syncRegistry();
 		this.json(res, 200, {
 			ok: out.exitCode === 0, exitCode: out.exitCode, stdout: out.stdout, stderr: out.stderr,
-			installPath: pkgDir(target.pkg), installed: isInstalled(target.pkg), source: d ? d.source : target.install, fileName: d ? d.fileName : "(从 " + target.install + " 拉取)"
+			installPath: pkgDir(target.pkg), installed: isInstalled(target.pkg), source: spec
 		});
 	}
 
