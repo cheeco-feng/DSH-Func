@@ -26,12 +26,10 @@ const CONFIG_PATH = "/cheeco-style/config";
 /** Prefix serving / receiving the plugin's uploaded assets (images + audio). */
 const ASSETS_PREFIX = "/cheeco-style/assets";
 
-/** Resolve config/cheeco-config.json relative to this plugin's install root.
-    lib/index.js -> plugin root (one level up) -> config/cheeco-config.json. */
+/** Resolve the runtime config file. It lives in the `@cheeco` install dir (alongside
+ *  the registry) so it survives plugin re-installs/upgrades: <home>/profiles/<p>/node_modules/@cheeco/cheeco-config.json */
 function resolveConfigFile() {
-	const here = dirname(fileURLToPath(import.meta.url));
-	const root = dirname(here);
-	return join(root, "config", "cheeco-config.json");
+	return join(CHEECO_DIR, "cheeco-config.json");
 }
 
 /** Resolve the plugin's assets/ resource directory. */
@@ -182,7 +180,7 @@ function renderConfigFile(v) {
 }
 
 /** In sync with package.json so the config records which plugin version produced it. */
-const PLUGIN_VERSION = "0.5.5";
+const PLUGIN_VERSION = "0.5.7";
 /** Resolve the dsh CLI package version (from @deepseek-ai/dsh/package.json). */
 function dshVersion() {
 	try {
@@ -207,6 +205,44 @@ function ensureConfigMetadata(configFile) {
 	return value;
 }
 
+/** 注册表：像“软件注册表”一样记录当前工作台装了哪些插件、以及安装/卸载事件。
+ *  放在 `node_modules/@cheeco/`（与它管理的插件同处一个目录），便于管理其下几个插件文件夹；
+ *  启动时 `syncRegistry` 会按实际安装状态重建，被清也能自愈。 */
+const REGISTRY_FILE = "cheeco-registry.json";
+function registryPath() { return join(CHEECO_DIR, REGISTRY_FILE); }
+function readRegistry() {
+	try { return JSON.parse(readFileSync(registryPath(), "utf8")) || {}; } catch (e) { return { profile: resolveProfileName(), installed: [], events: [] }; }
+}
+function writeRegistry(reg) {
+	reg.profile = resolveProfileName();
+	reg.updatedAt = new Date().toISOString();
+	mkdirSync(dirname(registryPath()), { recursive: true });
+	writeFileSync(registryPath(), JSON.stringify(reg, null, 2), "utf8");
+}
+function logEvent(reg, type, name, version) {
+	reg.events = reg.events || [];
+	reg.events.push({ ts: new Date().toISOString(), type, name, version });
+	if (reg.events.length > 200) reg.events = reg.events.slice(-200);
+}
+/** 启动自同步：对比当前已装插件与注册表，更新 installed 列表，并补 install/uninstall 事件。 */
+function syncRegistry() {
+	const reg = readRegistry();
+	const prev = new Map((reg.installed || []).map((it) => [it.name, it]));
+	const next = [];
+	for (const p of CHEECO_PLUGINS) {
+		const v = installedVersion(p.folder);
+		if (!v) continue; // 未安装
+		const before = prev.get(p.name);
+		next.push({ name: p.name, folder: p.folder, version: v, installedAt: before ? before.installedAt : new Date().toISOString() });
+		if (!before) logEvent(reg, "install", p.name, v);
+	}
+	for (const it of reg.installed || []) {
+		if (!next.some((n) => n.name === it.name)) logEvent(reg, "uninstall", it.name, it.version);
+	}
+	reg.installed = next;
+	writeRegistry(reg);
+}
+
 export default class DshWebUiPatches {
 	static name = "web-ui-patches";
 	static inject = ["webServer"];
@@ -214,6 +250,7 @@ export default class DshWebUiPatches {
 	constructor(ctx, config) {
 		const configFile = resolveConfigFile();
 		ensureConfigMetadata(configFile);
+		syncRegistry();
 		const assetsDir = resolveAssetsDir();
 		ctx.effect(() => {
 			const disposeConfig = ctx.webServer.register({
@@ -291,6 +328,10 @@ export default class DshWebUiPatches {
 				hasUpdate: Boolean(current && latest && latest !== current)
 			});
 		}
+		// 把“查到的最新版”写回注册表（@cheeco 文件夹）——相当于把这个文件夹的信息“拉更新”
+		const reg = readRegistry();
+		reg.updates = results.map((it) => ({ name: it.name, folder: it.folder, current: it.current, latest: it.latest, fetchedAt: new Date().toISOString() }));
+		writeRegistry(reg);
 		this.json(res, 200, { ok: true, results });
 	}
 
@@ -302,6 +343,11 @@ export default class DshWebUiPatches {
 		const names = wanted.filter((n) => typeof n === "string" && CHEECO_PLUGINS.some((p) => p.name === n));
 		if (names.length === 0) { this.json(res, 400, { ok: false, error: "未选择要卸载的插件" }); return; }
 		const out = runDsh(["remove", ...names]);
+		// 更新注册表：移除已卸载项 + 记 uninstall 事件
+		const reg = readRegistry();
+		reg.installed = (reg.installed || []).filter((x) => !names.includes(x.name));
+		for (const n of names) logEvent(reg, "uninstall", n, "");
+		writeRegistry(reg);
 		this.json(res, 200, { ok: out.exitCode === 0, exitCode: out.exitCode, stdout: out.stdout, stderr: out.stderr });
 	}
 
