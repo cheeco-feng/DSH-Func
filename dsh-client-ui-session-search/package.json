@@ -1,6 +1,6 @@
 {
   "name": "@cheeco/dsh-client-ui-session-search",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Cheeco 的 DSH 会话搜索小功能：侧边栏搜索入口，标题 ↔ 内容一键切换，按会话聚合展示标题与命中片段。",
   "type": "module",
   "main": "lib/index.mjs",

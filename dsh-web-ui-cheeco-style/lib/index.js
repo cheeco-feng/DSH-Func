@@ -157,6 +157,7 @@ function stripJsonComments(text) {
 function renderConfigFile(v) {
 	const s = (x) => JSON.stringify(x ?? "");
 	const dsh = (typeof v.dsh === "object" && v.dsh) ? v.dsh : {};
+	const feat = (typeof v.features === "object" && v.features) ? v.features : {};
 	return [
 		"{",
 		"  // 左侧顶部标题；留空则显示官方品牌名",
@@ -174,13 +175,15 @@ function renderConfigFile(v) {
 		"  // 自定义提示音文件名（仅作显示）",
 		`  "soundName": ${s(v.soundName)},`,
 		"  // DSH 信息（宿主自动维护：当前工作台名 / DSH_HOME / 插件与 dsh 版本；用于识别与排查）",
-		`  "dsh": { "profileName": ${s(dsh.profileName)}, "dshHome": ${s(dsh.dshHome)}, "pluginVersion": ${s(dsh.pluginVersion)}, "dshVersion": ${s(dsh.dshVersion)} }`,
+		`  "dsh": { "profileName": ${s(dsh.profileName)}, "dshHome": ${s(dsh.dshHome)}, "pluginVersion": ${s(dsh.pluginVersion)}, "dshVersion": ${s(dsh.dshVersion)} },`,
+		"  // 功能开关（面版管理：会话搜索/DSH功能命令）",
+		`  "features": { "sessionSearch": ${feat.sessionSearch === false ? "false" : "true"}, "dshCommand": ${feat.dshCommand === false ? "false" : "true"} }`,
 		"}"
 	].join("\n");
 }
 
 /** In sync with package.json so the config records which plugin version produced it. */
-const PLUGIN_VERSION = "0.5.9";
+const PLUGIN_VERSION = "0.6.0";
 /** Resolve the dsh CLI package version (from @deepseek-ai/dsh/package.json). */
 function dshVersion() {
 	try {
@@ -200,6 +203,9 @@ function ensureConfigMetadata(configFile) {
 	if (!dsh.pluginVersion) dsh.pluginVersion = PLUGIN_VERSION;
 	if (!dsh.dshVersion) dsh.dshVersion = dshVersion();
 	value.dsh = dsh;
+	value.features = (typeof value.features === "object" && value.features) ? value.features : {};
+	value.features.sessionSearch = value.features.sessionSearch !== false;
+	value.features.dshCommand = value.features.dshCommand !== false;
 	mkdirSync(dirname(configFile), { recursive: true });
 	writeFileSync(configFile, renderConfigFile(value), "utf8");
 	return value;

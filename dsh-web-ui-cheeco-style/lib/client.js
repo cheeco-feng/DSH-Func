@@ -56,7 +56,7 @@ window.__ModuleLoader__.load({
 		/** Pre-filled logo URL for this instance (change or clear in the card; leave empty for the official brand). */
 		const DEFAULT_LOGO_URL = "https://yc1971.com/ico.png";
 		/** Bump this in sync with package.json version so the UI reflects the build. */
-		const PLUGIN_VERSION = "0.5.9";
+		const PLUGIN_VERSION = "0.6.0";
 
 		/** Host endpoints (same-origin, served by our own webServer):
 		 *    GET/POST /cheeco-style/config  -> read/write the config file
@@ -81,7 +81,8 @@ window.__ModuleLoader__.load({
 		 *  Loaded once via GET, persisted via POST. */
 		let config = {
 			brandTitle: "", brandLogoUrl: "", brandLogoData: "", label: "",
-			soundEnabled: true, soundSrc: "", soundName: "", dsh: {}
+			soundEnabled: true, soundSrc: "", soundName: "",
+			dsh: {}, features: { sessionSearch: true, dshCommand: true }
 		};
 		let configLoad = null;
 		/** Fetch the host config once (shared promise); later calls reuse the result. */
@@ -100,7 +101,8 @@ window.__ModuleLoader__.load({
 							soundEnabled: data.soundEnabled !== false,
 							soundSrc: typeof data.soundSrc === "string" ? data.soundSrc : "",
 							soundName: typeof data.soundName === "string" ? data.soundName : "",
-							dsh: (typeof data.dsh === "object" && data.dsh) ? data.dsh : {}
+							dsh: (typeof data.dsh === "object" && data.dsh) ? data.dsh : {},
+							features: (typeof data.features === "object" && data.features) ? data.features : { sessionSearch: true, dshCommand: true }
 						};
 					}
 				} catch (e) {}
@@ -370,6 +372,17 @@ window.__ModuleLoader__.load({
 			const [message, setMessage] = react.useState("");
 			const [open, setOpen] = react.useState(false);
 			const [checked, setChecked] = react.useState(() => PLUGINS.map(() => true));
+			const [features, setFeatures] = react.useState(() => ({ sessionSearch: true, dshCommand: true }));
+			react.useEffect(() => {
+				let cancelled = false;
+				(async () => { await loadConfig(); if (!cancelled) setFeatures({ ...config.features }); })();
+				return () => { cancelled = true; };
+			}, []);
+			const toggleFeature = async (key, val) => {
+				const next = { ...features, [key]: val };
+				setFeatures(next);
+				await saveConfig({ features: next });
+			};
 
 			const checkUpdate = async () => {
 				setBusy(true); setMessage("正在检查更新…");
@@ -404,9 +417,20 @@ window.__ModuleLoader__.load({
 				setOpen(false); setBusy(false);
 			};
 
-			return react_jsx_runtime.jsx("div", { className: "dsh-web-ui-cheeco-style-actions", children: [
-				react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: checkUpdate, disabled: busy, children: "检查更新" }),
-				react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: () => setOpen((o) => !o), disabled: busy, children: open ? "收起卸载" : "卸载" }),
+			return react_jsx_runtime.jsx("div", { className: "dsh-web-ui-cheeco-style-section", children: [
+				react_jsx_runtime.jsx("p", { className: "dsh-web-ui-cheeco-style-state", children: "功能开关（保存立即生效）" }),
+				react_jsx_runtime.jsx("label", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 0" }, children: [
+					react_jsx_runtime.jsx("span", { children: "会话搜索功能（隐藏/显示）" }),
+					react_jsx_runtime.jsx("input", { type: "checkbox", checked: features.sessionSearch, onChange: (e) => toggleFeature("sessionSearch", e.target.checked) })
+				] }),
+				react_jsx_runtime.jsx("label", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 0" }, children: [
+					react_jsx_runtime.jsx("span", { children: "DSH功能命令（停用/开启）" }),
+					react_jsx_runtime.jsx("input", { type: "checkbox", checked: features.dshCommand, onChange: (e) => toggleFeature("dshCommand", e.target.checked) })
+				] }),
+				react_jsx_runtime.jsx("div", { className: "dsh-web-ui-cheeco-style-actions", children: [
+					react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: checkUpdate, disabled: busy, children: "检查更新" }),
+					react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: () => setOpen((o) => !o), disabled: busy, children: open ? "收起卸载" : "卸载" })
+				] }),
 				...open ? [react_jsx_runtime.jsx("div", { key: "panel", className: "dsh-web-ui-cheeco-style-section", children: [
 					react_jsx_runtime.jsx("p", { className: "dsh-web-ui-cheeco-style-state", children: "勾选要卸载的插件（默认全选）：" }),
 					react_jsx_runtime.jsx("div", { children: PLUGINS.map((p, i) => react_jsx_runtime.jsx("label", { key: p.name, style: { display: "block", padding: "3px 0" }, children: [

@@ -584,38 +584,48 @@ window.__ModuleLoader__.load({
 			const open = sessions === void 0 || typeof sessions.open !== "function" ? () => {} : (sessionId) => {
 				sessions.open(sessionId);
 			};
-			slots.inject("sidebar.footer.action", () => slots.register({
-				name: "sidebar.footer.action",
-				id: "@cheeco/dsh-client-ui-session-search",
-				order: 10
-			}, (props) => (0, react.createElement)(SwitchFooter, {
-				...props,
-				open
-			})));
-			const settingsScope = ctx.get("settingsScope");
-			if (settingsScope !== void 0) {
-				const scope = settingsScope.bind({ namespace: SWITCH_SEARCH_SETTINGS_NAMESPACE });
-				let bound;
-				const push = (snap) => {
-					bound?.sync(snap);
-				};
-				slots.inject("settings.general.item", () => slots.register({
-					name: "settings.general.item",
+			// 功能管理里“会话搜索功能”开关：关闭则隐藏（不注册入口）
+			(async () => {
+				let enabled = true;
+				try {
+					const r = await fetch("/cheeco-style/config", { cache: "no-store" });
+					const j = await r.json();
+					enabled = !(j.features && j.features.sessionSearch === false);
+				} catch (e) { enabled = true; }
+				if (!enabled) return;
+				slots.inject("sidebar.footer.action", () => slots.register({
+					name: "sidebar.footer.action",
 					id: "@cheeco/dsh-client-ui-session-search",
-					key: SWITCH_SEARCH_SETTINGS_NAMESPACE,
-					order: 100,
-					store: switchSearchStore,
-					inject: (actions) => {
-						bound = actions;
-						push(scope.getSnapshot());
-						return {
-							setEnabled: (value) => void scope.set("enabled", value),
-							setDefaultMode: (value) => void scope.set("defaultMode", value)
-						};
-					}
-				}, SwitchSettingsRow), "@cheeco/dsh-client-ui-session-search: general settings row");
-				ctx.effect(() => scope.subscribe(() => push(scope.getSnapshot())), "@cheeco/dsh-client-ui-session-search: settings watch");
-			}
+					order: 10
+				}, (props) => (0, react.createElement)(SwitchFooter, {
+					...props,
+					open
+				})));
+				const settingsScope = ctx.get("settingsScope");
+				if (settingsScope !== void 0) {
+					const scope = settingsScope.bind({ namespace: SWITCH_SEARCH_SETTINGS_NAMESPACE });
+					let bound;
+					const push = (snap) => {
+						bound?.sync(snap);
+					};
+					slots.inject("settings.general.item", () => slots.register({
+						name: "settings.general.item",
+						id: "@cheeco/dsh-client-ui-session-search",
+						key: SWITCH_SEARCH_SETTINGS_NAMESPACE,
+						order: 100,
+						store: switchSearchStore,
+						inject: (actions) => {
+							bound = actions;
+							push(scope.getSnapshot());
+							return {
+								setEnabled: (value) => void scope.set("enabled", value),
+								setDefaultMode: (value) => void scope.set("defaultMode", value)
+							};
+						}
+					}, SwitchSettingsRow), "@cheeco/dsh-client-ui-session-search: general settings row");
+					ctx.effect(() => scope.subscribe(() => push(scope.getSnapshot())), "@cheeco/dsh-client-ui-session-search: settings watch");
+				}
+			})();
 		}
 		//#endregion
 		exports.apply = apply;

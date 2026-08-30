@@ -11,10 +11,24 @@ import { defineTool } from "@deepseek-ai/dsh-tools";
 import { createRequire } from "node:module";
 import fs from "node:fs";
 import { execPath } from "node:process";
+import { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const name = "tool-dsh-plugin-exec";
 /** 需要的 cordis 服务：工具注册表 + shell 执行器。 */
 const inject = ["tools", "shell"];
+
+/** 读取 @cheeco/cheeco-config.json 的功能开关（默认开启）。
+ *  key 为 `features.<key>`；文件不存在或解析失败一律视为开启。 */
+function featureEnabled(key) {
+	try {
+		// .../dsh-tool-dsh-plugin-exec/lib -> .../@cheeco
+		const cheecoDir = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
+		const cfg = JSON.parse(fs.readFileSync(`${cheecoDir}/cheeco-config.json`, "utf8")) || {};
+		const feats = (typeof cfg.features === "object" && cfg.features) ? cfg.features : {};
+		return feats[key] !== false;
+	} catch (e) { return true; }
+}
 
 /** 定位当前 DSH 运行时提供的 `dsh` CLI，不依赖 PATH。
  *
@@ -35,6 +49,7 @@ function resolveDsh() {
 }
 
 function apply(ctx, config = {}) {
+	if (!featureEnabled("dshCommand")) return; // 功能管理里停用 -> 不注册
 	ctx.tools.register(defineTool({
 		name: "dsh_plugin_exec",
 		description: "Run a `dsh plugin` command for a DSH workbench (profile) and return its stdout/stderr + exit code. Use to install/remove/list/enable/disable plugins in a profile. `dsh plugin add <pkg|tgz>` installs the package AND auto-registers it into the profile's `dsh.profile.bundles`. Parameters: `profile` (the workbench, e.g. `web` / `test`), `command` (the args after `dsh plugin --profile <profile>`, e.g. `why @cheeco/...`, `add file:F:/.../pkg.tgz`, `remove @cheeco/...`).",
