@@ -1,0 +1,3 @@
+- insert:
+    - id: tool-dsh-plugin-exec
+      name: '@cheeco/dsh-tool-dsh-plugin-exec'

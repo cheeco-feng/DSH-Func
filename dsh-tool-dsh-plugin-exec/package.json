@@ -1,0 +1,44 @@
+{
+    "name": "@cheeco/dsh-tool-dsh-plugin-exec",
+    "version": "0.1.0",
+    "description": "DSH 独立小工具：向 agent 提供 dsh_plugin_exec，在正确的工作台上下文执行 dsh plugin 命令并返回输出。",
+    "type": "module",
+    "main": "lib/index.js",
+    "exports": {
+        ".": {
+            "default": "./lib/index.js"
+        },
+        "./package.json": "./package.json"
+    },
+    "dsh": {
+        "bundle": {
+            "patch": "./cordis.patch.yml"
+        },
+        "compatibility": {
+            "desktop": {
+                "range": ">=2.0.0",
+                "api": "^1.0.0"
+            },
+            "runtime": {
+                "range": ">=0.1.0",
+                "evidence": {
+                    "providerId": "dsh-cli-provider-v1",
+                    "runtime": "0.1.0",
+                    "desktop": "2.0.0",
+                    "verifiedAt": "2026-08-30"
+                }
+            },
+            "surfaces": [
+                "main"
+            ]
+        }
+    },
+    "dependencies": {
+        "@deepseek-ai/dsh-tools": "0.0.1-rc.1"
+    },
+    "files": [
+        "lib/index.js",
+        "cordis.patch.yml"
+    ],
+    "license": "MIT"
+}
