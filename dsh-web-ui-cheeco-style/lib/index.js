@@ -18,7 +18,8 @@
 import { mkdirSync, readFileSync, writeFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, basename } from "node:path";
 import { fileURLToPath } from "node:url";
-import { spawnSync } from "node:child_process";
+import { spawnSync, spawn } from "node:child_process";
+import { tmpdir } from "node:os";
 import { createRequire } from "node:module";
 
 /** Route the browser half fetches (same-origin, served by our own webServer). */
@@ -55,14 +56,16 @@ const FEATURES_PATH = "/cheeco-style/features";
 const FEATURES_INSTALL_PATH = "/cheeco-style/features/install";
 const FEATURES_PLAN_PATH = "/cheeco-style/features/plan";
 const FEATURES_DOWNLOAD_PATH = "/cheeco-style/features/download";
+const RESTART_PATH = "/cheeco-style/plugin/restart";
 /** 功能推荐：手写的列表（以后有新插件/推荐插件直接加到这里）。
- *  `pkg` 用于判断是否已安装；`install` 为安装所需的包名/github 源；`url` 为“查看介绍”跳转。 */
+ *  `pkg` 判断是否已安装；`install` 为**可安装来源**（真实下载 URL，`dsh plugin add <此URL>` 即从 GitHub release 下载安装）；
+ *  `url` 为“查看介绍”跳转；`folder` 为本机 release tgz 的子目录名（开发便利）。 */
 const CHEECO_FEATURES = [
-	{ id: "style", name: "界面/声音设置", pkg: "@cheeco/dsh-web-ui-cheeco-style", install: "@cheeco/dsh-web-ui-cheeco-style", folder: "dsh-web-ui-cheeco-style", url: "https://github.com/cheeco-feng/DSH-Func", download: "https://github.com/cheeco-feng/DSH-Func" },
-	{ id: "sound", name: "AI 回复提示音", pkg: "@cheeco/dsh-client-ui-message-sound", install: "@cheeco/dsh-client-ui-message-sound", folder: "dsh-client-ui-message-sound", url: "https://github.com/cheeco-feng/DSH-Func", download: "https://github.com/cheeco-feng/DSH-Func" },
-	{ id: "search", name: "会话内容检索", pkg: "@cheeco/dsh-client-ui-session-search", install: "@cheeco/dsh-client-ui-session-search", folder: "dsh-client-ui-session-search", url: "https://github.com/cheeco-feng/DSH-Func", download: "https://github.com/cheeco-feng/DSH-Func" },
-	{ id: "dshcmd", name: "DSH功能命令", pkg: "@cheeco/dsh-tool-dsh-plugin-exec", install: "@cheeco/dsh-tool-dsh-plugin-exec", folder: "dsh-tool-dsh-plugin-exec", url: "https://github.com/cheeco-feng/DSH-Func", download: "https://github.com/cheeco-feng/DSH-Func" },
-	{ id: "pmgr", name: "插件管理（dsh-plugin-manager）", pkg: "@webkong/dsh-plugin-manager", install: "github:webkong/dsh-plugin-manager", url: "https://github.com/webkong/dsh-plugin-manager", download: "https://github.com/webkong/dsh-plugin-manager" }
+	{ id: "style", name: "界面/声音设置", pkg: "@cheeco/dsh-web-ui-cheeco-style", install: "https://github.com/cheeco-feng/DSH-Func/releases/download/v0.7.5/cheeco-dsh-web-ui-cheeco-style-0.7.5.tgz", folder: "dsh-web-ui-cheeco-style", url: "https://github.com/cheeco-feng/DSH-Func" },
+	{ id: "sound", name: "AI 回复提示音", pkg: "@cheeco/dsh-client-ui-message-sound", install: "https://github.com/cheeco-feng/DSH-Func/releases/download/v0.3.0/cheeco-dsh-client-ui-message-sound-0.3.0.tgz", folder: "dsh-client-ui-message-sound", url: "https://github.com/cheeco-feng/DSH-Func" },
+	{ id: "search", name: "会话内容检索", pkg: "@cheeco/dsh-client-ui-session-search", install: "https://github.com/cheeco-feng/DSH-Func/releases/download/v0.2.0/cheeco-dsh-client-ui-session-search-0.2.0.tgz", folder: "dsh-client-ui-session-search", url: "https://github.com/cheeco-feng/DSH-Func" },
+	{ id: "dshcmd", name: "DSH功能命令", pkg: "@cheeco/dsh-tool-dsh-plugin-exec", install: "https://github.com/cheeco-feng/DSH-Func/releases/download/v0.1.6/cheeco-dsh-tool-dsh-plugin-exec-0.1.6.tgz", folder: "dsh-tool-dsh-plugin-exec", url: "https://github.com/cheeco-feng/DSH-Func" },
+	{ id: "pmgr", name: "插件管理（dsh-plugin-manager）", pkg: "@webkong/dsh-plugin-manager", install: "github:webkong/dsh-plugin-manager", url: "https://github.com/webkong/dsh-plugin-manager" }
 ];
 /** The `node_modules/@cheeco` dir — parent of this plugin's own folder. */
 const CHEECO_DIR = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
@@ -137,6 +140,30 @@ function pkgDir(pkg) {
 function profileDir() { return dirname(dirname(CHEECO_DIR)); }
 /** Local download cache dir: ${DSH_HOME}/downloads (created on demand). */
 function downloadDir() { return join(process.env.DSH_HOME || "", "downloads"); }
+/** 一键重启当前 profile（参考 dsh-plugin-manager scheduleRestart）：用启动参数重新拉起同名 profile。
+ *  跨平台：Windows 用 PowerShell，POSIX 用 /bin/sh。 */
+function scheduleRestart() {
+	try {
+		const pid = process.pid;
+		const bin = resolveDshBin();
+		const relaunch = `"${process.execPath}" "${bin}" ${process.argv.slice(2).join(" ")}`;
+		const log = join(downloadDir(), "dsh-restart.log");
+		if (process.platform === "win32") {
+			const scriptPath = join(tmpdir(), `cheeco-restart-${pid}.ps1`);
+			const ps = `Start-Sleep -Seconds 1; Stop-Process -Id ${pid} -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 2; & ${relaunch} *> "${log.replace(/"/g, '""')}"`;
+			writeFileSync(scriptPath, ps, "utf8");
+			const child = spawn("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", scriptPath], { detached: true, stdio: "ignore" });
+			child.unref();
+		} else {
+			const scriptPath = join(tmpdir(), `cheeco-restart-${pid}.sh`);
+			const sh = `#!/bin/sh\nsleep 1\nkill ${pid} 2>/dev/null\nsleep 2\nnohup ${relaunch} > "${log}" 2>&1 < /dev/null &\n`;
+			writeFileSync(scriptPath, sh, "utf8");
+			const child = spawn("/bin/sh", [scriptPath], { detached: true, stdio: "ignore" });
+			child.unref();
+		}
+		return true;
+	} catch (e) { return false; }
+}
 /** Download one feature's package to the cache and verify it exists. For @cheeco: fetch the recorded
  *  `download` URL, fall back to the local release tgz; returns { ok, file, fileName, bytes }. */
 async function downloadFeature(target) {
@@ -267,7 +294,7 @@ function renderConfigFile(v) {
 }
 
 /** In sync with package.json so the config records which plugin version produced it. */
-const PLUGIN_VERSION = "0.7.5";
+const PLUGIN_VERSION = "0.7.6";
 /** Resolve the dsh CLI package version (from @deepseek-ai/dsh/package.json). */
 function dshVersion() {
 	try {
@@ -403,6 +430,13 @@ export default class DshWebUiPatches {
 					this.handleFeatureDownload(req, res).catch((err) => this.fail(ctx, res, err));
 				}
 			});
+			const disposeRestart = ctx.webServer.register({
+				kind: "exact",
+				path: RESTART_PATH,
+				handler: (req, res) => {
+					this.handleRestart(res).catch((err) => this.fail(ctx, res, err));
+				}
+			});
 			return () => {
 				disposeConfig();
 				disposeAssets();
@@ -412,6 +446,7 @@ export default class DshWebUiPatches {
 				disposeFeatureInstall();
 				disposeFeaturePlan();
 				disposeFeatureDownload();
+				disposeRestart();
 			};
 		}, "cheeco-style: config + assets + plugin routes");
 	}
@@ -512,14 +547,14 @@ export default class DshWebUiPatches {
 		const target = CHEECO_FEATURES.find((f) => f.id === body.id);
 		if (!target) { this.json(res, 400, { ok: false, error: "未知的功能 id" }); return; }
 		if (isInstalled(target.pkg)) { this.json(res, 200, { ok: true, alreadyInstalled: true, installPath: pkgDir(target.pkg) }); return; }
-		const base = { targetDir: profileDir(), installPath: pkgDir(target.pkg), downloadUrl: target.download || "" };
+		const base = { targetDir: profileDir(), installPath: pkgDir(target.pkg), downloadUrl: target.install || "", source: target.install };
 		if (target.folder) {
 			const tgz = latestCheecoTgz(target.folder);
-			if (!tgz) { this.json(res, 200, { ok: true, kind: "tgz", downloadUrl: target.download, fileName: "(按下载地址)" , ...base, note: "本机无 release tgz，将从 download 地址下载" }); return; }
-			this.json(res, 200, { ok: true, kind: "tgz", spec: tgz, file: tgz.replace("file:", ""), source: "本机 release 目录", fileName: basename(tgz.replace("file:", "")), ...base });
+			if (!tgz) { this.json(res, 200, { ok: true, kind: "tgz", downloadUrl: target.install, fileName: "(按安装源)", ...base, note: "本机无 release tgz，将从安装源下载" }); return; }
+			this.json(res, 200, { ok: true, kind: "tgz", spec: tgz, file: tgz.replace("file:", ""), source: "本机 release 目录（" + target.install + "）", fileName: basename(tgz.replace("file:", "")), ...base });
 		} else {
 			// github 等：安装命令本身会下载；此处先给计划
-			this.json(res, 200, { ok: true, kind: "github", spec: target.install, source: "GitHub 仓库 " + target.url, fileName: "(从 " + target.install.split(":")[1] + " 拉取)", ...base });
+			this.json(res, 200, { ok: true, kind: "github", spec: target.install, source: target.install, fileName: "(从 " + target.install + " 拉取)", ...base });
 		}
 	}
 
@@ -532,6 +567,12 @@ export default class DshWebUiPatches {
 		if (isInstalled(target.pkg)) { this.json(res, 200, { ok: true, alreadyInstalled: true }); return; }
 		const d = await downloadFeature(target);
 		this.json(res, 200, d);
+	}
+
+	/** 一键重启：用启动参数重新拉起当前 profile。 */
+	async handleRestart(res) {
+		const ok = scheduleRestart();
+		this.json(res, 200, { ok, message: ok ? "正在重启当前 profile（约 10 秒后刷新页面生效）" : "重启启动失败，请手动重启 DSH" });
 	}
 
 	async handleConfig(ctx, configFile, req, res) {

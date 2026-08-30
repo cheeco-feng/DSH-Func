@@ -61,7 +61,7 @@ window.__ModuleLoader__.load({
 		/** Pre-filled logo URL for this instance (change or clear in the card; leave empty for the official brand). */
 		const DEFAULT_LOGO_URL = "https://yc1971.com/ico.png";
 		/** Bump this in sync with package.json version so the UI reflects the build. */
-		const PLUGIN_VERSION = "0.7.5";
+		const PLUGIN_VERSION = "0.7.6";
 
 		/** Host endpoints (same-origin, served by our own webServer):
 		 *    GET/POST /cheeco-style/config  -> read/write the config file
@@ -492,6 +492,7 @@ window.__ModuleLoader__.load({
 			const [log, setLog] = react.useState([]);
 			const [busy, setBusy] = react.useState(false);
 			const [done, setDone] = react.useState("");
+			const [autoRestart, setAutoRestart] = react.useState(true);
 			const steps = ["确认", "下载/检查", "安装", "完成"];
 			const addLog = (s) => setLog((l) => [...l, s]);
 			const run = async () => {
@@ -512,8 +513,12 @@ window.__ModuleLoader__.load({
 					if (i.stdout) addLog("—— 安装输出 ——\n" + i.stdout.trim());
 					if (i.stderr) addLog("—— 错误输出 ——\n" + i.stderr.trim());
 					addLog(i.ok ? ("✓ 安装成功，已安装到：" + (i.installPath || "")) : ("✗ 安装失败：" + (i.stderr || i.error || "")));
-					addLog(i.ok ? "✓ 完成：重启后生效" : "✗ 未完成，请查看上方错误");
-					setDone(i.ok ? "安装成功（重启后生效）" : "安装失败");
+					if (i.ok && autoRestart) {
+						addLog("● 正在自动重启当前 DSH…（约 10 秒后刷新页面生效）");
+						try { const rr = await (await fetch(RESTART_ENDPOINT, { method: "POST" })).json(); addLog(rr.message || "已触发重启"); } catch (e) { addLog("自动重启调用失败，请手动重启：" + e.message); }
+					}
+					addLog(i.ok ? "✓ 完成" : "✗ 未完成，请查看上方错误");
+					setDone(i.ok ? (autoRestart ? "安装成功，已触发自动重启" : "安装成功（重启后生效）") : "安装失败");
 				} catch (e) { addLog("✗ 安装失败：" + e.message); setDone("安装失败"); }
 				setBusy(false); setStep(3);
 			};
@@ -525,6 +530,10 @@ window.__ModuleLoader__.load({
 						(step === 0 && log.length === 0)
 							? "将下载并安装到当前 profile，完成后需重启 DSH 生效。点击下方「开始安装」。"
 							: log.map((l, i) => react_jsx_runtime.jsx("div", { key: i, children: l }))
+					] }),
+					react_jsx_runtime.jsx("label", { style: { display: "flex", alignItems: "center", gap: "8px", marginTop: "10px", fontSize: "13px", color: "var(--dsw-alias-label-secondary,#666)" }, children: [
+						react_jsx_runtime.jsx("input", { type: "checkbox", checked: autoRestart, onChange: (e) => setAutoRestart(e.target.checked) }),
+						"安装后自动重启"
 					] }),
 					react_jsx_runtime.jsx("div", { className: "dsh-web-ui-cheeco-style-actions", style: { marginTop: "10px" }, children: [
 						step === 0
