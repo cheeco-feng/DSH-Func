@@ -61,7 +61,7 @@ window.__ModuleLoader__.load({
 		/** Pre-filled logo URL for this instance (change or clear in the card; leave empty for the official brand). */
 		const DEFAULT_LOGO_URL = "https://yc1971.com/ico.png";
 		/** Bump this in sync with package.json version so the UI reflects the build. */
-		const PLUGIN_VERSION = "0.7.7";
+		const PLUGIN_VERSION = "0.7.8";
 
 		/** Host endpoints (same-origin, served by our own webServer):
 		 *    GET/POST /cheeco-style/config  -> read/write the config file
@@ -507,7 +507,8 @@ window.__ModuleLoader__.load({
 				"    下载/来源：" + (plan.downloadUrl || plan.source || "-"),
 				"    安装包名：" + (plan.fileName || "-"),
 				"    目标目录：" + (plan.targetDir || "-"),
-				"    安装路径：" + (plan.installPath || "-")
+				"    安装路径：" + (plan.installPath || "-"),
+				"    下载目录：" + (plan.downloadDir || "-")
 			] : ["正在加载安装计划…"];
 			const [autoRestart, setAutoRestart] = react.useState(true);
 			const steps = ["确认", "下载/检查", "安装", "完成"];
@@ -519,13 +520,20 @@ window.__ModuleLoader__.load({
 					const p = await (await fetch(FEATURES_PLAN_ENDPOINT, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: feature.id }) })).json();
 					if (!p.ok) { addLog("✗ " + (p.error || "未找到安装包")); setDone("安装失败"); setStep(3); setBusy(false); return; }
 					setPlan(p);
-					addLog("● 步骤 1/2  安装计划：");
+					addLog("● 步骤 1/3  安装计划：");
 					addLog("    下载/来源：" + (p.downloadUrl || p.source || "-"));
 					addLog("    安装包名：" + p.fileName);
 					addLog("    目标目录：" + (p.targetDir || "-"));
 					addLog("    安装路径：" + (p.installPath || "-"));
-					addLog("● 步骤 2/2  安装（dsh plugin add，pnpm 负责下载）…");
+					addLog("    下载目录：" + (p.downloadDir || "-"));
+					addLog("● 步骤 2/3  下载（到下载目录，检查同名文件）…");
 					setStep(2);
+					const dl = await (await fetch(FEATURES_DOWNLOAD_ENDPOINT, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: feature.id }) })).json();
+					addLog(dl.ok
+						? ("    " + (dl.skipped ? "已跳过下载：" : "") + dl.source + (dl.downloadDir ? "（目录：" + dl.downloadDir + "，" + (dl.bytes || 0) + " 字节）" : ""))
+						: ("    ✗ 下载失败：" + (dl.error || "")));
+					if (!dl.ok) { addLog("✗ 无法下载安装包，流程中止"); setDone("安装失败"); setStep(3); setBusy(false); return; }
+					addLog("● 步骤 3/3  安装（dsh plugin add）…");
 					const i = await (await fetch(FEATURES_INSTALL_ENDPOINT, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: feature.id }) })).json();
 					if (i.stdout) addLog("—— pnpm 安装日志（英文为 pnpm 自身输出） ——\n" + i.stdout.trim());
 					if (i.stderr) addLog("—— 错误输出（英文为 pnpm 自身输出） ——\n" + i.stderr.trim());

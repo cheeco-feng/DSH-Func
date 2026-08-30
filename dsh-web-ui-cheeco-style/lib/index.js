@@ -174,32 +174,25 @@ async function downloadFeature(target) {
 		}
 		const dir = downloadDir();
 		mkdirSync(dir, { recursive: true });
-		// 目标文件名：优先用本机 release 的实际 tgz 名；否则从 download URL 取最后一段；否则 <folder>.tgz
-		const local = latestCheecoTgz(target.folder);
-		let fileName = local
-			? basename(local.replace("file:", ""))
-			: (target.download ? (basename(new URL(target.download).pathname) || `${target.folder}.tgz`) : `${target.folder}.tgz`);
+		// 文件名：优先从 release URL 取最后一段（即 tgz 名）
+		let fileName = `${target.folder}.tgz`;
+		try { const pn = new URL(target.install).pathname; if (pn) fileName = basename(pn) || fileName; } catch (e) {}
 		const dest = join(dir, fileName);
 		// 1) 本机已有同名文件 -> 跳过下载（但信息可见）
 		if (existsSync(dest) && statSync(dest).size > 0) {
-			return { ok: true, file: dest, fileName, bytes: statSync(dest).size, source: `本机已有同名文件（${fileName}），跳过下载`, skipped: true };
+			return { ok: true, file: dest, fileName, bytes: statSync(dest).size, downloadDir: dir, source: `本机已有同名文件（${fileName}），跳过下载`, skipped: true };
 		}
-		// 2) 本机 release 目录有该插件 tgz -> 复制到缓存
-		if (local) {
-			writeFileSync(dest, readFileSync(local.replace("file:", "")));
-			return { ok: true, file: dest, fileName, bytes: statSync(dest).size, source: "本机 release 目录（已复制到缓存）", skipped: false };
-		}
-		// 3) 从 download URL 下载
-		if (target.download) {
-			const r = await fetch(target.download);
+		// 2) 从 release URL 下载
+		if (target.install) {
+			const r = await fetch(target.install);
 			if (r.ok) {
 				const buf = Buffer.from(await r.arrayBuffer());
 				writeFileSync(dest, buf);
-				return { ok: true, file: dest, fileName, bytes: buf.length, source: "已从 " + target.download + " 下载", skipped: false };
+				return { ok: true, file: dest, fileName, bytes: buf.length, downloadDir: dir, source: "已从 " + target.install + " 下载", skipped: false };
 			}
-			return { ok: false, file: dest, fileName, error: "下载失败（HTTP " + r.status + "）", source: target.download };
+			return { ok: false, file: dest, fileName, downloadDir: dir, error: "下载失败（HTTP " + r.status + "）", source: target.install };
 		}
-		return { ok: false, file: dest, fileName, error: "无安装包：请在 download 字段配置真实下载地址" };
+		return { ok: false, file: dest, fileName, error: "未配置下载地址（install 字段）" };
 	} catch (e) { return { ok: false, error: String(e && e.message || e) }; }
 }
 
@@ -294,7 +287,7 @@ function renderConfigFile(v) {
 }
 
 /** In sync with package.json so the config records which plugin version produced it. */
-const PLUGIN_VERSION = "0.7.7";
+const PLUGIN_VERSION = "0.7.8";
 /** Resolve the dsh CLI package version (from @deepseek-ai/dsh/package.json). */
 function dshVersion() {
 	try {
@@ -529,9 +522,15 @@ export default class DshWebUiPatches {
 		const target = CHEECO_FEATURES.find((f) => f.id === body.id);
 		if (!target) { this.json(res, 400, { ok: false, error: "未知的功能 id" }); return; }
 		if (isInstalled(target.pkg)) { this.json(res, 200, { ok: true, alreadyInstalled: true }); return; }
-		// @cheeco 用本机 release tgz（开发可用），否则用 install 源（github: 等）；真实远程源由 download 字段给出
-		const spec = target.folder ? (latestCheecoTgz(target.folder) || target.install) : target.install;
-		if (!spec) { this.json(res, 500, { ok: false, error: "未配置安装源（download / install 字段）" }); return; }
+		// @cheeco：先下载 release URL 到 downloads 目录（同名跳过），再从下载文件装；github 等：直接 pnpm add 源
+		let spec;
+		if (target.folder) {
+			const d = await downloadFeature(target);
+			if (!d.ok) { this.json(res, 500, { ok: false, error: d.error || "无法下载安装包" }); return; }
+			spec = `file:${d.file.replace(/\\/g, "/")}`;
+		} else {
+			spec = target.install;
+		}
 		const out = runDsh(["add", spec]);
 		if (out.exitCode === 0) syncRegistry();
 		this.json(res, 200, {
@@ -547,7 +546,7 @@ export default class DshWebUiPatches {
 		const target = CHEECO_FEATURES.find((f) => f.id === body.id);
 		if (!target) { this.json(res, 400, { ok: false, error: "未知的功能 id" }); return; }
 		if (isInstalled(target.pkg)) { this.json(res, 200, { ok: true, alreadyInstalled: true, installPath: pkgDir(target.pkg) }); return; }
-		const base = { targetDir: profileDir(), installPath: pkgDir(target.pkg), downloadUrl: target.install || "", source: target.install };
+		const base = { targetDir: profileDir(), installPath: pkgDir(target.pkg), downloadUrl: target.install || "", source: target.install, downloadDir: downloadDir() };
 		if (target.folder) {
 			const tgz = latestCheecoTgz(target.folder);
 			if (!tgz) { this.json(res, 200, { ok: true, kind: "tgz", downloadUrl: target.install, fileName: "(按安装源)", ...base, note: "本机无 release tgz，将从安装源下载" }); return; }
