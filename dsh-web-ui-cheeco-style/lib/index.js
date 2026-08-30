@@ -180,7 +180,7 @@ function renderConfigFile(v) {
 }
 
 /** In sync with package.json so the config records which plugin version produced it. */
-const PLUGIN_VERSION = "0.5.7";
+const PLUGIN_VERSION = "0.5.8";
 /** Resolve the dsh CLI package version (from @deepseek-ai/dsh/package.json). */
 function dshVersion() {
 	try {
@@ -315,16 +315,22 @@ export default class DshWebUiPatches {
 		for (const p of CHEECO_PLUGINS) {
 			const current = installedVersion(p.folder);
 			let latest = "";
-			try {
-				const r = await fetch(`${GITHUB_RAW}/${p.folder}/package.json`);
-				if (r.ok) latest = ((await r.json()) || {}).version || "";
-			} catch (e) { /* 网络不可用等 —— latest 留空 */ }
+			let ok = false;
+			// raw.githubusercontent.com 偶发网络抖动 —— 重试几次
+			for (let attempt = 0; attempt < 3 && !ok; attempt++) {
+				try {
+					const r = await fetch(`${GITHUB_RAW}/${p.folder}/package.json`);
+					if (r.ok) { latest = ((await r.json()) || {}).version || ""; ok = true; }
+				} catch (e) { /* 重试 */ }
+				if (!ok && attempt < 2) await new Promise((x) => setTimeout(x, 400));
+			}
 			results.push({
 				folder: p.folder,
 				name: p.name,
 				label: p.label,
 				current,
 				latest,
+				fetchFailed: !ok,
 				hasUpdate: Boolean(current && latest && latest !== current)
 			});
 		}

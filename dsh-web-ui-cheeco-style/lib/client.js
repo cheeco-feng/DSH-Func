@@ -56,7 +56,7 @@ window.__ModuleLoader__.load({
 		/** Pre-filled logo URL for this instance (change or clear in the card; leave empty for the official brand). */
 		const DEFAULT_LOGO_URL = "https://yc1971.com/ico.png";
 		/** Bump this in sync with package.json version so the UI reflects the build. */
-		const PLUGIN_VERSION = "0.5.7";
+		const PLUGIN_VERSION = "0.5.8";
 
 		/** Host endpoints (same-origin, served by our own webServer):
 		 *    GET/POST /cheeco-style/config  -> read/write the config file
@@ -378,7 +378,7 @@ window.__ModuleLoader__.load({
 					const data = await r.json();
 					if (!data.results) throw new Error("响应异常");
 					const lines = data.results.map((it) =>
-						it.label + "：当前 " + (it.current || "(未装)") + " / 最新 " + (it.latest || "(未知)") + (it.hasUpdate ? "  ✔ 有更新" : "")
+						it.label + "：当前 " + (it.current || "(未装)") + " / 最新 " + (it.latest ? it.latest : (it.fetchFailed ? "(获取失败)" : "(未知)")) + (it.hasUpdate ? "  ✔ 有更新" : "")
 					);
 					setMessage(data.results.some((it) => it.hasUpdate)
 						? "有可用更新：\n" + lines.join("\n")
@@ -448,18 +448,21 @@ window.__ModuleLoader__.load({
 						react_jsx_runtime.jsx("input", { type: "text", value: name, placeholder: "输入面板名称", onChange: (e) => setName(e.target.value), style: { flex: "1", minWidth: "160px", padding: "6px 10px" } }),
 						react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: save, children: "保存" })
 					] }),
-					react_jsx_runtime.jsx("p", { className: "dsh-web-ui-cheeco-style-state", children: "插件版本 " + PLUGIN_VERSION }),
 					react_jsx_runtime.jsx(PluginActions, {})
 				]
 			});
 		}
 
-		/** The section renders the sound + brand + rename cards. */
+		/** The section renders the sound + brand + rename cards, then a footer:
+		 *  a spacer + horizontal divider + the plugin version at the very bottom. */
 		function Section() {
 			return react_jsx_runtime.jsx("div", { className: "dsh-web-ui-cheeco-style", children: [
 				react_jsx_runtime.jsx(SoundCard, {}),
 				react_jsx_runtime.jsx(BrandCard, {}),
-				react_jsx_runtime.jsx(RenameCard, {})
+				react_jsx_runtime.jsx(RenameCard, {}),
+				react_jsx_runtime.jsx("div", { key: "spacer", style: { height: "28px" } }),
+				react_jsx_runtime.jsx("hr", { key: "hr", style: { border: "none", borderTop: "1px solid #4a4a4a", margin: "0 0 10px 0" } }),
+				react_jsx_runtime.jsx("p", { key: "ver", className: "dsh-web-ui-cheeco-style-state", children: "插件版本 " + PLUGIN_VERSION })
 			] });
 		}
 
