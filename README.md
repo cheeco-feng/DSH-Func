@@ -61,8 +61,9 @@ dsh plugin --profile <profile> add ./dsh-tool-dsh-plugin-exec
 **第 0 步：先装 DSH（官方源）**
 
 DSH（DeepSeek Harness）官方仓库：<https://github.com/deepseek-ai/deepseek-harness>
-- 官方支持 **npx 一条命令启动 Web UI**、**源码构建**、**桌面版** 几种方式，具体以**官方 README** 为准（新手优先照官方 README 装）。
-- 装好后能跑起 `dsh web`（或桌面应用），即可继续。（本机 DSH 仓库本身在官方仓库目录。）
+- 官方是 **Web 版**（通过 `dsh web` 启动浏览器界面），安装方式有 **npx 一键启动 Web UI**、**源码构建** 等，具体以**官方 README** 为准（新手优先照官方 README 装）。
+- **官方没有桌面版**；网上流传的"桌面版"多为第三方，**不推荐**。
+- 装好后跑起 `dsh web`（Web UI），即可继续。（本机 DSH 装在官方仓库目录。）
 
 **第 1 步：拿到本插件仓库**
 
