@@ -56,7 +56,7 @@ window.__ModuleLoader__.load({
 		/** Pre-filled logo URL for this instance (change or clear in the card; leave empty for the official brand). */
 		const DEFAULT_LOGO_URL = "https://yc1971.com/ico.png";
 		/** Bump this in sync with package.json version so the UI reflects the build. */
-		const PLUGIN_VERSION = "0.5.8";
+		const PLUGIN_VERSION = "0.5.9";
 
 		/** Host endpoints (same-origin, served by our own webServer):
 		 *    GET/POST /cheeco-style/config  -> read/write the config file
@@ -447,22 +447,49 @@ window.__ModuleLoader__.load({
 					react_jsx_runtime.jsx("div", { className: "dsh-web-ui-cheeco-style-actions", children: [
 						react_jsx_runtime.jsx("input", { type: "text", value: name, placeholder: "输入面板名称", onChange: (e) => setName(e.target.value), style: { flex: "1", minWidth: "160px", padding: "6px 10px" } }),
 						react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: save, children: "保存" })
-					] }),
-					react_jsx_runtime.jsx(PluginActions, {})
+					] })
 				]
 			});
 		}
 
-		/** The section renders the sound + brand + rename cards, then a footer:
-		 *  a spacer + horizontal divider + the plugin version at the very bottom. */
+		/** The section shows two TABS (面版修改 / 功能管理) + a footer OUTSIDE the tabs:
+		 *  a semi-transparent divider and the centered "cheeco的小功能 | 插件版本 x.y.z". */
 		function Section() {
+			const [tab, setTab] = react.useState("panel");
+			const tabBtn = (key, label) => react_jsx_runtime.jsx("button", {
+				type: "button",
+				onClick: () => setTab(key),
+				style: {
+					padding: "6px 14px",
+					background: "transparent",
+					border: "none",
+					cursor: "pointer",
+					color: "inherit",
+					font: "inherit",
+					fontWeight: tab === key ? 600 : 400,
+					borderBottom: tab === key ? "2px solid #4a90d9" : "2px solid transparent",
+					opacity: tab === key ? 1 : 0.6
+				},
+				children: label
+			});
+			const footer = react_jsx_runtime.jsx("div", { style: { marginTop: "30px", borderTop: "1px solid rgba(128,128,128,0.45)", paddingTop: "12px", textAlign: "center" }, children: [
+				react_jsx_runtime.jsx("p", { className: "dsh-web-ui-cheeco-style-state", children: "cheeco的小功能 | 插件版本 " + PLUGIN_VERSION })
+			] });
 			return react_jsx_runtime.jsx("div", { className: "dsh-web-ui-cheeco-style", children: [
-				react_jsx_runtime.jsx(SoundCard, {}),
-				react_jsx_runtime.jsx(BrandCard, {}),
-				react_jsx_runtime.jsx(RenameCard, {}),
-				react_jsx_runtime.jsx("div", { key: "spacer", style: { height: "28px" } }),
-				react_jsx_runtime.jsx("hr", { key: "hr", style: { border: "none", borderTop: "1px solid #4a4a4a", margin: "0 0 10px 0" } }),
-				react_jsx_runtime.jsx("p", { key: "ver", className: "dsh-web-ui-cheeco-style-state", children: "插件版本 " + PLUGIN_VERSION })
+				react_jsx_runtime.jsx("div", { style: { display: "flex", gap: "8px", borderBottom: "1px solid rgba(128,128,128,0.3)", marginBottom: "14px" }, children: [
+					tabBtn("panel", "面版修改"),
+					tabBtn("manage", "功能管理")
+				] }),
+				tab === "panel"
+					? react_jsx_runtime.jsx("div", { children: [
+						react_jsx_runtime.jsx(SoundCard, {}),
+						react_jsx_runtime.jsx(BrandCard, {}),
+						react_jsx_runtime.jsx(RenameCard, {})
+					] })
+					: react_jsx_runtime.jsx("div", { children: [
+						react_jsx_runtime.jsx(PluginActions, {})
+					] }),
+				footer
 			] });
 		}
 
