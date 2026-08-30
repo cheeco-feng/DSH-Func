@@ -181,42 +181,27 @@ export default class DshWebUiPatches {
 					timeoutMs: { type: "number", description: "Max wait in ms. The executor applies its configured cap." }
 				},
 				output: {
-					schema: { type: "object", additionalProperties: false, properties: {
-						kind: { type: "string", required: true, const: "foreground" },
-						exitCode: { oneOf: [{ type: "integer" }, { type: "null" }], required: true },
-						signal: { oneOf: [{ type: "string" }, { type: "null" }], required: true },
-						timedOut: { type: "boolean", required: true },
-						aborted: { type: "boolean", required: true },
-						timeoutMs: { type: "number", required: true },
-						stdout: { type: "string", required: true },
-						stderr: { type: "string", required: true }
-					} },
-					render: (_a, v) => [{ type: "text", text: (v.stdout || "(no output)") + (v.stderr ? "\n[stderr]\n" + v.stderr : "") + (v.exitCode !== 0 ? "\n[exit code: " + v.exitCode + "]" : "") }]
+					schema: { type: "string" },
+					render: (_a, v) => [{ type: "text", text: typeof v === "string" ? v : String(v ?? "") }]
 				},
 				async execute(args, exec) {
 					if (!args.profile || !args.profile.trim()) throw new Error("profile is required");
 					if (!args.command || !args.command.trim()) throw new Error("command is required");
-					const shell = (() => { try { return ctx.shell; } catch (e) {} try { if (ctx.get) return ctx.get("shell"); } catch (e) {} return undefined; })();
+					const shell = (() => { try { return ctx.get?.("shell"); } catch (e) {} return undefined; })();
 					const cmd = "dsh plugin --profile " + args.profile.trim() + " " + args.command.trim();
-					if (!shell) {
-						return { kind: "foreground", exitCode: -1, signal: null, timedOut: false, aborted: false, timeoutMs: 0, stdout: "", stderr: "dsh_plugin_exec: shell service unavailable in this composition" };
-					}
+					if (!shell) return "dsh_plugin_exec: shell service unavailable in this composition";
 					const result = await shell.run(shell.resolve({
 						command: cmd,
 						...args.timeoutMs ? { timeoutMs: args.timeoutMs } : {},
 						signal: exec.signal
 					}));
 					if (result.aborted) { const e = new Error("tool call aborted"); e.name = "AbortError"; throw e; }
-					return {
-						kind: "foreground",
-						exitCode: result.exitCode,
-						signal: result.signal,
-						timedOut: result.timedOut,
-						aborted: result.aborted,
-						timeoutMs: result.timeoutMs ?? 0,
-						stdout: result.stdout?.text ?? "",
-						stderr: result.stderr?.text ?? ""
-					};
+					let out = result.stdout?.text ?? "";
+					const err = result.stderr?.text ?? "";
+					if (err.length > 0) { if (out.length > 0 && !out.endsWith("\n")) out += "\n"; out += "[stderr]\n" + err; }
+					if (out.length === 0) out = "(no output)";
+					if (result.exitCode !== 0) out += "\n[exit code: " + result.exitCode + "]";
+					return out;
 				}
 			}));
 			ctx.logger.info("cheeco: registered agent tool dsh_plugin_exec");
