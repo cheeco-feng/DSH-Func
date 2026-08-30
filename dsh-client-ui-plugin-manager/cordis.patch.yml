@@ -1,0 +1,4 @@
+# cheeco-dsh-client-ui-plugin-manager bundle patch: 装载插件管理器（fork 自 @webkong/dsh-plugin-manager）
+- insert:
+    - id: pmgr
+      name: '@cheeco/dsh-client-ui-plugin-manager'

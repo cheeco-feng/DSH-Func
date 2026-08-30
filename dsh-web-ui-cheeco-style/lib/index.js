@@ -45,7 +45,8 @@ const CHEECO_PLUGINS = [
 	{ folder: "dsh-web-ui-cheeco-style", name: "@cheeco/dsh-web-ui-cheeco-style", label: "界面/声音设置（本页）" },
 	{ folder: "dsh-client-ui-message-sound", name: "@cheeco/dsh-client-ui-message-sound", label: "AI 回复提示音" },
 	{ folder: "dsh-client-ui-session-search", name: "@cheeco/dsh-client-ui-session-search", label: "会话内容检索" },
-	{ folder: "dsh-tool-dsh-plugin-exec", name: "@cheeco/dsh-tool-dsh-plugin-exec", label: "dsh_plugin_exec 工具" }
+	{ folder: "dsh-tool-dsh-plugin-exec", name: "@cheeco/dsh-tool-dsh-plugin-exec", label: "dsh_plugin_exec 工具" },
+	{ folder: "dsh-client-ui-plugin-manager", name: "@cheeco/dsh-client-ui-plugin-manager", label: "插件管理" }
 ];
 /** GitHub 仓库（raw package.json on main）用于“检查更新”。 */
 const GITHUB_RAW = "https://raw.githubusercontent.com/cheeco-feng/DSH-Func/main";
@@ -65,7 +66,7 @@ const CHEECO_FEATURES = [
 	{ id: "sound", name: "AI 回复提示音", pkg: "@cheeco/dsh-client-ui-message-sound", install: "https://github.com/cheeco-feng/DSH-Func/releases/download/v0.3.0/cheeco-dsh-client-ui-message-sound-0.3.0.tgz", folder: "dsh-client-ui-message-sound", url: "https://github.com/cheeco-feng/DSH-Func" },
 	{ id: "search", name: "会话内容检索", pkg: "@cheeco/dsh-client-ui-session-search", install: "https://github.com/cheeco-feng/DSH-Func/releases/download/v0.2.0/cheeco-dsh-client-ui-session-search-0.2.0.tgz", folder: "dsh-client-ui-session-search", url: "https://github.com/cheeco-feng/DSH-Func" },
 	{ id: "dshcmd", name: "DSH功能命令", pkg: "@cheeco/dsh-tool-dsh-plugin-exec", install: "https://github.com/cheeco-feng/DSH-Func/releases/download/v0.1.6/cheeco-dsh-tool-dsh-plugin-exec-0.1.6.tgz", folder: "dsh-tool-dsh-plugin-exec", url: "https://github.com/cheeco-feng/DSH-Func" },
-	{ id: "pmgr", name: "插件管理（dsh-plugin-manager）", pkg: "@webkong/dsh-plugin-manager", install: "github:webkong/dsh-plugin-manager", url: "https://github.com/webkong/dsh-plugin-manager" }
+	{ id: "pmgr", name: "插件管理（cheeco 插件管理器）", pkg: "@cheeco/dsh-client-ui-plugin-manager", install: "https://github.com/cheeco-feng/DSH-Func/releases/download/v0.1.0/cheeco-dsh-client-ui-plugin-manager-0.1.0.tgz", folder: "dsh-client-ui-plugin-manager", url: "https://github.com/cheeco-feng/DSH-Func" }
 ];
 /** The `node_modules/@cheeco` dir — parent of this plugin's own folder. */
 const CHEECO_DIR = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
@@ -287,7 +288,7 @@ function renderConfigFile(v) {
 }
 
 /** In sync with package.json so the config records which plugin version produced it. */
-const PLUGIN_VERSION = "0.7.9";
+const PLUGIN_VERSION = "0.8.0";
 /** Resolve the dsh CLI package version (from @deepseek-ai/dsh/package.json). */
 function dshVersion() {
 	try {

@@ -1,6 +1,6 @@
 # cheeco-dsh-plugins
 
-Cheeco 的 DSH 插件集合。本仓库包含**四个独立插件**（各自是独立的 DSH 插件包）：可整仓一键安装，也可按需单个装。
+Cheeco 的 DSH 插件集合。本仓库包含**五个独立插件**（各自是独立的 DSH 插件包）：可整仓一键安装，也可按需单个装。
 
 ## 包含
 
@@ -10,43 +10,57 @@ Cheeco 的 DSH 插件集合。本仓库包含**四个独立插件**（各自是�
 | `dsh-web-ui-cheeco-style` | `@cheeco/dsh-web-ui-cheeco-style` | **Cheeco的小功能** 设置页（含声音开关卡片） |
 | `dsh-client-ui-session-search` | `@cheeco/dsh-client-ui-session-search` | **会话内容检索**（标题/内容切换，按用户/回复/工具筛选） |
 | `dsh-tool-dsh-plugin-exec` | `@cheeco/dsh-tool-dsh-plugin-exec` | **`dsh_plugin_exec` agent 工具**（执行 `dsh plugin` 管理命令：装/卸/列/查某 profile 的插件） |
+| `dsh-client-ui-plugin-manager` | `@cheeco/dsh-client-ui-plugin-manager` | **插件管理（Cheeco 插件管理器）**（列出内置/三方插件，支持安装、卸载、启动、停用，并直跳三方插件 GitHub 仓库） |
 
 ## 安装（先克隆，再按需添加子目录）
 
-推荐：**一条命令装整个仓库的插件（4合1）**
+推荐：**一条命令装整个仓库的插件（5合1）**
 
 ```bash
 git clone <本仓库地址>
 cd <仓库目录>
 
-# 一条命令把 DSH-Func 的 4 个插件全部装进 <profile>
+# 一条命令把 DSH-Func 的 5 个插件全部装进 <profile>
 dsh plugin --profile <profile> add \
   ./dsh-client-ui-message-sound \
   ./dsh-client-ui-session-search \
   ./dsh-web-ui-cheeco-style \
-  ./dsh-tool-dsh-plugin-exec
+  ./dsh-tool-dsh-plugin-exec \
+  ./dsh-client-ui-plugin-manager
 ```
 
-或使用已打包的 `release/*.tgz`（各 profile 一路装齐）：
+### 按插件单独安装（各插件独立的 GitHub Release 下载 URL）
+
+每个插件一条命令，`dsh plugin add` 会直接从这个 GitHub Release 资产 URL 下载真实的 `.tgz`：
 
 ```bash
-dsh plugin --profile <profile> add \
-  file:F:/DeepSeekHarnessDataOriginal/release/cheeco-dsh-client-ui-message-sound-0.3.0.tgz \
-  file:F:/DeepSeekHarnessDataOriginal/release/cheeco-dsh-client-ui-session-search-0.1.0.tgz \
-  file:F:/DeepSeekHarnessDataOriginal/release/cheeco-dsh-web-ui-cheeco-style-0.5.4.tgz \
-  file:F:/DeepSeekHarnessDataOriginal/release/cheeco-dsh-tool-dsh-plugin-exec-0.1.5.tgz
+# AI 回复提示音
+dsh plugin --profile <profile> add https://github.com/cheeco-feng/DSH-Func/releases/download/v0.3.0/cheeco-dsh-client-ui-message-sound-0.3.0.tgz
+
+# 会话内容检索
+dsh plugin --profile <profile> add https://github.com/cheeco-feng/DSH-Func/releases/download/v0.2.0/cheeco-dsh-client-ui-session-search-0.2.0.tgz
+
+# Cheeco的小功能设置页
+dsh plugin --profile <profile> add https://github.com/cheeco-feng/DSH-Func/releases/download/v0.7.5/cheeco-dsh-web-ui-cheeco-style-0.7.5.tgz
+
+# dsh_plugin_exec agent 工具
+dsh plugin --profile <profile> add https://github.com/cheeco-feng/DSH-Func/releases/download/v0.1.6/cheeco-dsh-tool-dsh-plugin-exec-0.1.6.tgz
+
+# 插件管理（Cheeco 插件管理器）
+dsh plugin --profile <profile> add https://github.com/cheeco-feng/DSH-Func/releases/download/v0.1.0/cheeco-dsh-client-ui-plugin-manager-0.1.0.tgz
 ```
 
-> `dsh plugin add` 会自动把每个带 `dsh.bundle.patch` 的插件写进该 profile 的 `dsh.profile.bundles`。
+> 上面 URL 均为**各插件最新的 GitHub Release 资产**。`dsh plugin add` 会自动把每个带 `dsh.bundle.patch` 的插件写进该 profile 的 `dsh.profile.bundles`。
 
-**卸载（与上面安装对应）**——一条命令卸掉这 4 个插件（用安装后的 package 名）：
+**卸载（与上面安装对应）**——一条命令卸掉这 5 个插件（用安装后的 package 名）：
 
 ```bash
 dsh plugin --profile <profile> remove \
   @cheeco/dsh-client-ui-message-sound \
   @cheeco/dsh-client-ui-session-search \
   @cheeco/dsh-web-ui-cheeco-style \
-  @cheeco/dsh-tool-dsh-plugin-exec
+  @cheeco/dsh-tool-dsh-plugin-exec \
+  @cheeco/dsh-client-ui-plugin-manager
 ```
 > `dsh plugin remove` 会同时把它们从 `dsh.profile.bundles` 移除。
 
@@ -63,6 +77,9 @@ dsh plugin --profile <profile> add ./dsh-web-ui-cheeco-style
 
 # 只装 dsh_plugin_exec 工具
 dsh plugin --profile <profile> add ./dsh-tool-dsh-plugin-exec
+
+# 只装插件管理器
+dsh plugin --profile <profile> add ./dsh-client-ui-plugin-manager
 ```
 
 > `dsh plugin` 也可换成在 **设置 → 插件 → 用户插件** 的安装框里粘贴对应的本地/仓库路径。
@@ -99,7 +116,7 @@ cd DSH-Func
 
 **第 3 步：安装本仓库插件**
 
-能直接用 `dsh` 就按上方「安装」一节的 **4合1** 一键装齐；若第 2 步确认 `dsh` 不可用，则**先装 `dsh-tool-dsh-plugin-exec`**、再用它执行 `dsh plugin` 装其余（见下）。
+能直接用 `dsh` 就按上方「安装」一节的 **5合1** 一键装齐；若第 2 步确认 `dsh` 不可用，则**先装 `dsh-tool-dsh-plugin-exec`**、再用它执行 `dsh plugin` 装其余（见下）。
 
 **或者：直接让 AI 帮你装（推荐新手）**
 
@@ -108,7 +125,7 @@ cd DSH-Func
 ```bash
 git clone https://github.com/cheeco-feng/DSH-Func.git
 cd DSH-Func
-dsh plugin --profile <profile> add ./dsh-client-ui-message-sound ./dsh-client-ui-session-search ./dsh-web-ui-cheeco-style ./dsh-tool-dsh-plugin-exec
+dsh plugin --profile <profile> add ./dsh-client-ui-message-sound ./dsh-client-ui-session-search ./dsh-web-ui-cheeco-style ./dsh-tool-dsh-plugin-exec ./dsh-client-ui-plugin-manager
 ```
 
 若 `dsh` 在当前环境不可用，让 AI 先把 `dsh-tool-dsh-plugin-exec` 装上（上面 ⚠️ 提示里有替代入口），再让 AI 用 `dsh_plugin_exec(profile="<profile>", command="add ...")` 装其余插件。
@@ -173,7 +190,7 @@ node publish.mjs <插件目录> <新版本> --dry-run
 node publish.mjs dsh-web-ui-cheeco-style 0.8.0
 ```
 
-- `<插件目录>` 目前支持：`dsh-web-ui-cheeco-style` / `dsh-client-ui-message-sound` / `dsh-client-ui-session-search` / `dsh-tool-dsh-plugin-exec`。
+- `<插件目录>` 目前支持：`dsh-web-ui-cheeco-style` / `dsh-client-ui-message-sound` / `dsh-client-ui-session-search` / `dsh-tool-dsh-plugin-exec` / `dsh-client-ui-plugin-manager`。
 - **安装源永远走 GitHub release 资产 URL，不走 npm**（产品「功能推荐」里每个功能的 `install` 就是 release 下载 URL）。
 - 功能列表 `CHEECO_FEATURES` 是**手写**的（在 `dsh-web-ui-cheeco-style/lib/index.js`），发布某插件后脚本会把该功能的 `install` 指向新 release 资产 URL。
 - 因为功能列表随 `dsh-web-ui-cheeco-style` 一起打包，**发布「非 style」插件时脚本默认会顺手把 `dsh-web-ui-cheeco-style` 升一个小 patch 并重发一次**（让新 install URL 真正送达用户）；不想要就加 `--no-ship-style`。

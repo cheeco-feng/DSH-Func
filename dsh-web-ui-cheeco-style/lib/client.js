@@ -61,7 +61,7 @@ window.__ModuleLoader__.load({
 		/** Pre-filled logo URL for this instance (change or clear in the card; leave empty for the official brand). */
 		const DEFAULT_LOGO_URL = "https://yc1971.com/ico.png";
 		/** Bump this in sync with package.json version so the UI reflects the build. */
-		const PLUGIN_VERSION = "0.7.9";
+		const PLUGIN_VERSION = "0.8.0";
 
 		/** Host endpoints (same-origin, served by our own webServer):
 		 *    GET/POST /cheeco-style/config  -> read/write the config file
@@ -84,7 +84,8 @@ window.__ModuleLoader__.load({
 			{ name: "@cheeco/dsh-web-ui-cheeco-style", label: "界面/声音设置（本页）" },
 			{ name: "@cheeco/dsh-client-ui-message-sound", label: "AI 回复提示音" },
 			{ name: "@cheeco/dsh-client-ui-session-search", label: "会话内容检索" },
-			{ name: "@cheeco/dsh-tool-dsh-plugin-exec", label: "dsh_plugin_exec 工具" }
+			{ name: "@cheeco/dsh-tool-dsh-plugin-exec", label: "dsh_plugin_exec 工具" },
+			{ name: "@cheeco/dsh-client-ui-plugin-manager", label: "插件管理" }
 		];
 
 		/** In-memory cache of the file-backed config (the browser's source of truth).
@@ -603,9 +604,24 @@ window.__ModuleLoader__.load({
 			] });
 		}
 
+		/** 底部 footer：显示「cheeco的小功能 | 插件版本 x.y.z | 当前 Profile：xxx」。
+		 *  profile 由 plugin-manager 在 /pmgr/list 加载成功后写入 window.__dshCheecoProfile 并派发
+		 *  'dsh-cheeco-profile' 事件，这里订阅以刷新；plugin-manager 未安装/未加载时仅显示版本。 */
+		function SectionFooter() {
+			const getProfile = () => (typeof window !== "undefined" && window.__dshCheecoProfile) || "";
+			const [profile, setProfile] = react.useState(getProfile);
+			react.useEffect(() => {
+				if (typeof window === "undefined") return;
+				const upd = () => setProfile(getProfile());
+				window.addEventListener("dsh-cheeco-profile", upd);
+				return () => window.removeEventListener("dsh-cheeco-profile", upd);
+			}, []);
+			return react_jsx_runtime.jsx("p", { className: "dsh-web-ui-cheeco-style-state", children: "cheeco的小功能 | 插件版本 " + PLUGIN_VERSION + (profile ? " | 当前 Profile：" + profile : "") });
+		}
+
 		/** The section shows three TABS (面版修改 / 功能管理 / 功能推荐) + a footer OUTSIDE the tabs:
 		 *  a semi-transparent divider and the centered "cheeco的小功能 | 插件版本 x.y.z". */
-		function Section() {
+		function Section({ renderSlot }) {
 			const [tab, setTab] = react.useState("panel");
 			const tabBtn = (key, label) => react_jsx_runtime.jsx("button", {
 				type: "button",
@@ -624,13 +640,14 @@ window.__ModuleLoader__.load({
 				children: label
 			});
 			const footer = react_jsx_runtime.jsx("div", { style: { marginTop: "30px", borderTop: "1px solid rgba(128,128,128,0.45)", paddingTop: "12px", textAlign: "center" }, children: [
-				react_jsx_runtime.jsx("p", { className: "dsh-web-ui-cheeco-style-state", children: "cheeco的小功能 | 插件版本 " + PLUGIN_VERSION })
+				react_jsx_runtime.jsx(SectionFooter, {})
 			] });
 			return react_jsx_runtime.jsx("div", { className: "dsh-web-ui-cheeco-style", children: [
 				react_jsx_runtime.jsx("div", { style: { display: "flex", gap: "8px", borderBottom: "1px solid rgba(128,128,128,0.3)", marginBottom: "14px" }, children: [
 					tabBtn("panel", "面版修改"),
 					tabBtn("manage", "功能管理"),
-					tabBtn("features", "功能推荐")
+					tabBtn("features", "功能推荐"),
+					tabBtn("pluginmanager", "插件管理")
 				] }),
 				tab === "panel"
 					? react_jsx_runtime.jsx("div", { children: [
@@ -642,9 +659,19 @@ window.__ModuleLoader__.load({
 						? react_jsx_runtime.jsx("div", { children: [
 							react_jsx_runtime.jsx(PluginActions, {})
 						] })
-						: react_jsx_runtime.jsx("div", { children: [
-							react_jsx_runtime.jsx(FeaturesCard, {})
-						] }),
+						: tab === "pluginmanager"
+							? (() => {
+								const out = renderSlot ? renderSlot("cheeco-style.plugin-manager", {}) : null;
+								const empty = out === null || out === void 0 || (Array.isArray(out) && out.length === 0);
+								return react_jsx_runtime.jsx("div", { children: [
+									empty
+										? react_jsx_runtime.jsx("p", { style: { padding: "12px 0", color: "var(--dsw-alias-label-tertiary,#999)" }, children: "该插件未处于安装状态" })
+										: out
+								] });
+							})()
+							: react_jsx_runtime.jsx("div", { children: [
+								react_jsx_runtime.jsx(FeaturesCard, {})
+							] }),
 				footer
 			] });
 		}
@@ -661,7 +688,10 @@ window.__ModuleLoader__.load({
 				id: "cheeco-style",
 				order: -1,
 				label: () => config.label || t("nav"),
-				locale: NS
+				locale: NS,
+				// 声明第 4 个 tab（插件管理）用到的子 slot，否则 settings.section
+				// 不会把 renderSlot 能力传给 Section，导致 renderSlot(...) === undefined。
+				children: { "cheeco-style.plugin-manager": { kind: "single", scope: "root" } }
 			}, Section));
 			// Own the top-left brand row so the user can swap the title/logo from settings.
 			// The shipped brand-official plugin occupies these single slots at priority 0;

@@ -46,6 +46,7 @@ const META = {
   "dsh-client-ui-message-sound":    { id: "sound",  label: "cheeco AI 回复提示音", pkg: "@cheeco/dsh-client-ui-message-sound" },
   "dsh-client-ui-session-search":   { id: "search", label: "cheeco 会话内容检索", pkg: "@cheeco/dsh-client-ui-session-search" },
   "dsh-tool-dsh-plugin-exec":       { id: "dshcmd", label: "cheeco DSH功能命令", pkg: "@cheeco/dsh-tool-dsh-plugin-exec" },
+  "dsh-client-ui-plugin-manager":   { id: "pmgr",   label: "cheeco 插件管理器", pkg: "@cheeco/dsh-client-ui-plugin-manager" },
 };
 
 // ---- 参数解析 --------------------------------------------------------------
