@@ -39,6 +39,8 @@ dsh plugin --profile <profile> add \
 
 > `dsh plugin add` 会自动把每个带 `dsh.bundle.patch` 的插件写进该 profile 的 `dsh.profile.bundles`。
 
+> **⚠️ 多 profile / `dsh` 不在 PATH 时**：上面用到 `dsh plugin`，前提是 shell 能直接调用 `dsh`。如果你的环境里 `dsh` 不在 PATH 上（`dsh_plugin_exec` 正是为此而做），直接跑 `dsh plugin ...` 会报「无法识别 dsh」。此时**先安装 `dsh-tool-dsh-plugin-exec`**：它内部用 `require.resolve` 定位官方 `@deepseek-ai/dsh` 入口来执行 `dsh plugin`，**无需 PATH**。装好后，让 agent 调用 `dsh_plugin_exec(profile="<目标profile>", command="add ...")` 即可给任意 profile 装/管插件。首次安装该工具而 `dsh` 又不可用时，可用 `pnpm --dir <profile> add file:.../cheeco-dsh-tool-dsh-plugin-exec-0.1.5.tgz`、或引擎绝对路径 `node "<引擎>/node_modules/@deepseek-ai/dsh/lib/bin.js" plugin --profile <p> add ...`、或在 **设置 → 插件 → 用户插件** 里粘贴路径。
+
 按需单个装（参考）：
 
 ```bash
