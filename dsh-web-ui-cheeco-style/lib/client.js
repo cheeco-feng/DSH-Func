@@ -48,41 +48,99 @@ window.__ModuleLoader__.load({
 			"nav": "Cheeco的小功能"
 		};
 
-		/** Shared on/off + sound-file keys (read by @cheeco/dsh-client-ui-message-sound). */
-		const SOUND_KEY = "dsh-msg-sound-enabled";
-		const SOUND_SRC_KEY = "dsh-msg-sound-src";
-		const RENAME_KEY = "dsh-web-ui-cheeco-style:label";
-		/** Brand customization: the top-left name + logo, plus a window event so the
-		 *  brand row re-renders live when the user saves/resets in settings. */
-		const BRAND_TITLE_KEY = "dsh-web-ui-cheeco-style:brand-title";
-		const BRAND_LOGO_KEY = "dsh-web-ui-cheeco-style:brand-logo";
-		const BRAND_LOGO_URL_KEY = "dsh-web-ui-cheeco-style:brand-logo-url";
-		const BRAND_LOGO_DATA_KEY = "dsh-web-ui-cheeco-style:brand-logo-data";
+		/** Broadcast events: brand row re-render (this plugin) and a fuller
+		 *  "config changed" signal the sibling message-sound plugin listens for. */
 		const BRAND_EVENT = "cheeco-brand-change";
+		const CONFIG_CHANGE_EVENT = "cheeco-config-change";
 		const DEFAULT_BRAND_TITLE = "DeepSeek Harness";
 		/** Pre-filled logo URL for this instance (change or clear in the card; leave empty for the official brand). */
 		const DEFAULT_LOGO_URL = "https://yc1971.com/ico.png";
 		/** Bump this in sync with package.json version so the UI reflects the build. */
-		const PLUGIN_VERSION = "0.3.0";
+		const PLUGIN_VERSION = "0.4.0";
 
-		/** localStorage helpers (best-effort; never throw). */
-		function readKey(k) { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } }
-		function writeKey(k, v) { try { if (v) localStorage.setItem(k, v); else localStorage.removeItem(k); } catch (e) {} }
+		/** Host endpoints (same-origin, served by our own webServer):
+		 *    GET/POST /cheeco-style/config  -> read/write the config file
+		 *    POST     /cheeco-style/assets?name=<file> -> upload a picked image/audio to assets/
+		 *    GET      /cheeco-style/assets/<file>      -> serve it back (for <img>/<audio>)
+		 *  The title/logo/label/sound no longer live in localStorage. */
+		const CONFIG_ENDPOINT = "/cheeco-style/config";
+		const ASSETS_ENDPOINT = "/cheeco-style/assets";
+
+		/** In-memory cache of the file-backed config (the browser's source of truth).
+		 *  Loaded once via GET, persisted via POST. */
+		let config = {
+			brandTitle: "", brandLogoUrl: "", brandLogoData: "", label: "",
+			soundEnabled: true, soundSrc: "", soundName: ""
+		};
+		let configLoad = null;
+		/** Fetch the host config once (shared promise); later calls reuse the result. */
+		function loadConfig() {
+			if (configLoad) return configLoad;
+			configLoad = (async () => {
+				try {
+					const res = await fetch(CONFIG_ENDPOINT, { cache: "no-store" });
+					if (res.ok) {
+						const data = (await res.json()) || {};
+						config = {
+							brandTitle: typeof data.brandTitle === "string" ? data.brandTitle : "",
+							brandLogoUrl: typeof data.brandLogoUrl === "string" ? data.brandLogoUrl : "",
+							brandLogoData: typeof data.brandLogoData === "string" ? data.brandLogoData : "",
+							label: typeof data.label === "string" ? data.label : "",
+							soundEnabled: data.soundEnabled !== false,
+							soundSrc: typeof data.soundSrc === "string" ? data.soundSrc : "",
+							soundName: typeof data.soundName === "string" ? data.soundName : ""
+						};
+					}
+				} catch (e) {}
+				brandChanged();
+			})();
+			return configLoad;
+		}
+		/** Merge `patch` into the in-memory config and POST the whole object to the host,
+		 *  which writes it to config/cheeco-config.json. */
+		async function saveConfig(patch = {}) {
+			config = { ...config, ...patch };
+			try {
+				await fetch(CONFIG_ENDPOINT, {
+					method: "POST",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify(config)
+				});
+			} catch (e) {}
+			brandChanged();
+			configChanged();
+		}
+		/** Dispatch a "config changed" signal so the sibling message-sound plugin re-reads it. */
+		function configChanged() { try { window.dispatchEvent(new Event(CONFIG_CHANGE_EVENT)); } catch (e) {} }
+		/** True when a logo URL points at a locally-uploaded asset (not a remote https URL). */
+		function isLocalAsset(url) { return (url || "").trim().startsWith(ASSETS_ENDPOINT + "/"); }
+
 		function brandChanged() { try { window.dispatchEvent(new Event(BRAND_EVENT)); } catch (e) {} }
-		function brandTitle() { return readKey(BRAND_TITLE_KEY).trim(); }
+		function brandTitle() { return (config.brandTitle || "").trim(); }
 		/** Clean logo URL (never a base64 blob). */
 		function brandLogoUrl() {
-			const raw = (readKey(BRAND_LOGO_URL_KEY) || readKey(BRAND_LOGO_KEY)).trim();
+			const raw = (config.brandLogoUrl || "").trim();
 			return raw.startsWith("data:") ? "" : raw;
 		}
 		/** Base64 logo from a picked local file — kept out of the URL field, shown as a preview. */
 		function brandLogoData() {
-			const raw = (readKey(BRAND_LOGO_DATA_KEY) || readKey(BRAND_LOGO_KEY)).trim();
+			const raw = (config.brandLogoData || config.brandLogoUrl || "").trim();
 			return raw.startsWith("data:") ? raw : "";
 		}
 		function brandLogo() { return brandLogoData() || brandLogoUrl(); }
-		function soundEnabled() { try { return localStorage.getItem(SOUND_KEY) !== "0"; } catch (e) { return true; } }
-		function soundName() { try { return localStorage.getItem(SOUND_SRC_KEY) ? "已选" : "默认提示音(叮咚)"; } catch (e) { return "默认提示音(叮咚)"; } }
+		/** Upload a picked local file (image or audio) to the plugin's assets/ dir and
+		 *  return its served URL; "" on failure. Nothing base64 stays in the browser. */
+		async function uploadAsset(file) {
+			try {
+				const res = await fetch(ASSETS_ENDPOINT + "?name=" + encodeURIComponent(file.name), {
+					method: "POST",
+					headers: { "content-type": file.type || "application/octet-stream" },
+					body: file
+				});
+				const data = (await res.json()) || {};
+				return data.ok && data.url ? data.url : "";
+			} catch (e) { return ""; }
+		}
 
 		/** Re-render hook: bumps state on brand change so occupants update instantly. */
 		function useBrandRefresh() {
@@ -135,28 +193,54 @@ window.__ModuleLoader__.load({
 			});
 		}
 
-		/** "声音提示音" card: on/off toggle + pick a custom sound file. */
+		/** "声音提示音" card: on/off toggle + pick a custom sound file.
+		 *  The picked file is uploaded to the plugin's assets/ dir and only its URL is
+		 *  recorded in the config — nothing base64 lives in the browser anymore. */
 		function SoundCard() {
-			const [on, setOn] = react.useState(soundEnabled);
-			const [sound, setSound] = react.useState(soundName);
+			const [on, setOn] = react.useState(() => config.soundEnabled !== false);
+			const [sound, setSound] = react.useState(() => config.soundName || "默认提示音(叮咚)");
 			const fileRef = react.useRef(null);
-			const toggle = () => { const next = !on; try { localStorage.setItem(SOUND_KEY, next ? "1" : "0"); } catch (e) {} setOn(next); };
+			react.useEffect(() => {
+				let cancelled = false;
+				(async () => {
+					await loadConfig();
+					if (cancelled) return;
+					setOn(config.soundEnabled !== false);
+					setSound(config.soundName || "默认提示音(叮咚)");
+				})();
+				return () => { cancelled = true; };
+			}, []);
+			const toggle = async () => {
+				const next = !on;
+				setOn(next);
+				await saveConfig({ soundEnabled: next });
+			};
 			const choose = () => { if (fileRef.current) fileRef.current.click(); };
-			const onFile = (e) => {
+			const onFile = async (e) => {
 				const f = e.target.files && e.target.files[0];
 				if (!f) return;
-				const r = new FileReader();
-				r.onload = () => { try { localStorage.setItem(SOUND_SRC_KEY, String(r.result)); } catch (err) {} setSound(f.name); };
-				r.readAsDataURL(f);
+				const url = await uploadAsset(f);
+				if (url) {
+					setSound(f.name);
+					await saveConfig({ soundSrc: url, soundName: f.name });
+				}
 				e.target.value = "";
 			};
-			const reset = () => { try { localStorage.removeItem(SOUND_SRC_KEY); } catch (e) {} setSound("默认提示音(叮咚)"); };
+			const reset = async () => {
+				setSound("默认提示音(叮咚)");
+				await saveConfig({ soundSrc: "", soundName: "" });
+			};
 			const preview = () => {
 				if (!on) { alert("声音已关闭，请先开启声音"); return; }
-				try {
-					const src = localStorage.getItem(SOUND_SRC_KEY);
-					if (src) { const a = new Audio(src); a.volume = 0.6; a.play(); return; }
-				} catch (e) {}
+				if (config.soundSrc) {
+					try {
+						const a = new Audio(config.soundSrc);
+						a.volume = 0.6;
+						const p = a.play();
+						if (p && p.catch) p.catch(() => {});
+						return;
+					} catch (e) {}
+				}
 				try {
 					const Ctx = window.AudioContext || window.webkitAudioContext;
 					if (!Ctx) return;
@@ -197,35 +281,44 @@ window.__ModuleLoader__.load({
 
 		/** "界面标题 / Logo" card: change the top-left name + logo, or keep the official brand.
 		 *  The logo can be a clean URL (https://...) OR a locally picked image. A local file
-		 *  is stored as a base64 data URI in a hidden localStorage key and only shown as a
-		 *  preview thumbnail — the visible address field never fills with base64 code. */
+		 *  is uploaded to the plugin's assets/ dir and stored as an asset URL — the field and
+		 *  config never carry base64. */
 		function BrandCard() {
 			const [title, setTitle] = react.useState(brandTitle);
 			const [url, setUrl] = react.useState(() => brandLogoUrl() || DEFAULT_LOGO_URL);
-			const [data, setData] = react.useState(brandLogoData);
 			const fileRef = react.useRef(null);
-			const preview = data || url;
-			const save = () => {
-				writeKey(BRAND_TITLE_KEY, title.trim());
-				writeKey(BRAND_LOGO_URL_KEY, url.trim());
-				writeKey(BRAND_LOGO_DATA_KEY, data);
-				writeKey(BRAND_LOGO_KEY, "");
-				brandChanged();
+			const preview = url;
+			const isLocal = isLocalAsset(url);
+			// Load the file-backed config from the host once, then sync local state.
+			react.useEffect(() => {
+				let cancelled = false;
+				(async () => {
+					await loadConfig();
+					if (cancelled) return;
+					setTitle(config.brandTitle || "");
+					setUrl(config.brandLogoUrl || DEFAULT_LOGO_URL);
+				})();
+				return () => { cancelled = true; };
+			}, []);
+			const save = async () => {
+				await saveConfig({
+					brandTitle: title.trim(),
+					brandLogoUrl: url.trim(),
+					brandLogoData: ""
+				});
 				alert("已保存界面标题/Logo：左侧顶部即时生效。");
 			};
-			const reset = () => {
-				setTitle(""); setUrl(""); setData("");
-				writeKey(BRAND_TITLE_KEY, ""); writeKey(BRAND_LOGO_URL_KEY, ""); writeKey(BRAND_LOGO_DATA_KEY, ""); writeKey(BRAND_LOGO_KEY, "");
-				brandChanged();
+			const reset = async () => {
+				setTitle(""); setUrl("");
+				await saveConfig({ brandTitle: "", brandLogoUrl: "", brandLogoData: "" });
 			};
 			const pick = () => { if (fileRef.current) fileRef.current.click(); };
-			const clearLocal = () => { setData(""); };
-			const onFile = (e) => {
+			const clearLocal = () => { setUrl(""); };
+			const onFile = async (e) => {
 				const f = e.target.files && e.target.files[0];
 				if (!f) return;
-				const r = new FileReader();
-				r.onload = () => { setData(String(r.result)); };
-				r.readAsDataURL(f);
+				const assetUrl = await uploadAsset(f);
+				if (assetUrl) setUrl(assetUrl);
 				e.target.value = "";
 			};
 			const children = [
@@ -247,9 +340,9 @@ window.__ModuleLoader__.load({
 					react_jsx_runtime.jsx("img", { src: preview, alt: "logo 预览", className: "dsh-web-ui-cheeco-style-preview-img" }),
 					react_jsx_runtime.jsx("span", {
 						className: "dsh-web-ui-cheeco-style-state",
-						children: data !== "" ? "当前：本地图片（base64 存于 localStorage；可点「清除本地图片」）" : "当前：图片网址"
+						children: isLocal ? "当前：本地图片（已上传到资源目录 assets/）" : "当前：图片网址"
 					}),
-					data !== "" && react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: clearLocal, children: "清除本地图片" })
+					isLocal && react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: clearLocal, children: "清除本地图片" })
 				] }));
 			}
 			children.push(react_jsx_runtime.jsx("input", { type: "file", accept: "image/*", ref: fileRef, style: { display: "none" }, onChange: onFile }));
@@ -261,10 +354,19 @@ window.__ModuleLoader__.load({
 
 		/** "面板改名" card: user renames the sidebar entry for this settings panel. */
 		function RenameCard() {
-			const [name, setName] = react.useState(() => { try { return localStorage.getItem(RENAME_KEY) || ""; } catch (e) { return ""; } });
-			const save = () => {
+			const [name, setName] = react.useState(() => config.label || "");
+			react.useEffect(() => {
+				let cancelled = false;
+				(async () => {
+					await loadConfig();
+					if (cancelled) return;
+					setName(config.label || "");
+				})();
+				return () => { cancelled = true; };
+			}, []);
+			const save = async () => {
 				const next = name.trim();
-				try { localStorage.setItem(RENAME_KEY, next); } catch (e) {}
+				await saveConfig({ label: next });
 				alert("已保存「" + (next || "Cheeco的小功能") + "」；重启后生效");
 			};
 			return react_jsx_runtime.jsx("div", {
@@ -301,7 +403,7 @@ window.__ModuleLoader__.load({
 				name: "settings.section",
 				id: "cheeco-style",
 				order: -1,
-				label: () => { try { return localStorage.getItem(RENAME_KEY) || t("nav"); } catch (e) { return t("nav"); } },
+				label: () => config.label || t("nav"),
 				locale: NS
 			}, Section));
 			// Own the top-left brand row so the user can swap the title/logo from settings.
@@ -320,6 +422,9 @@ window.__ModuleLoader__.load({
 
 		exports.apply = apply;
 		exports.inject = inject;
+		// Kick off the initial config load so the top-left brand + label render from
+		// the file as soon as the browser half is up.
+		loadConfig();
 		return module.exports;
 	}
 });

@@ -1,7 +1,7 @@
 {
     "name":  "@cheeco/dsh-client-ui-message-sound",
     "description":  "Play a notification sound when an assistant reply finishes in the DSH web GUI. Custom sound selectable in the Cheeco的小功能 settings card.",
-    "version":  "0.2.0",
+    "version":  "0.3.0",
     "type":  "module",
     "main":  "lib/index.js",
     "types":  "lib/types/index.d.ts",

@@ -7,15 +7,32 @@ window.__ModuleLoader__.load({
 
 		//#region message-sound config
 		/**
-		* Sound source. Leave "" to use the built-in Web Audio chime.
-		* To play your own sound file, set this to a data: URI (no server needed) or
-		* to any URL the running app serves, for example:
-		*   var SOUND_SRC = "data:audio/mp3;base64,....";
-		* After editing, restart DSH (or reload the page) for it to take effect.
+		* Sound settings come from the shared config file served by the host plugin
+		* `dsh-web-ui-cheeco-style` (GET /cheeco-style/config): the on/off flag plus
+		* the chosen sound (served from /cheeco-style/assets/<file>). They are read
+		* into `cfg` on load and refreshed whenever `cheeco-config-change` fires.
+		* Nothing lives in localStorage anymore.
 		*/
-		var SOUND_SRC = "";
-		/** localStorage key holding a user-picked sound file (data: URI). */
-		var SOUND_SRC_KEY = "dsh-msg-sound-src";
+		var CFG_ENDPOINT = "/cheeco-style/config";
+		var CFG_CHANGE_EVENT = "cheeco-config-change";
+		/** In-memory config: enabled flag + custom sound URL ("" = use the chime). */
+		var cfg = { soundEnabled: true, soundSrc: "" };
+		/** Fetch the config and refresh `cfg`. Best-effort; never throws. */
+		function refreshConfig() {
+			try {
+				fetch(CFG_ENDPOINT, { cache: "no-store" })
+					.then(function (r) { return r.ok ? r.json() : {}; })
+					.then(function (d) {
+						cfg.soundEnabled = d && d.soundEnabled !== false;
+						cfg.soundSrc = d && typeof d.soundSrc === "string" ? d.soundSrc : "";
+						log("config loaded:", cfg);
+					})
+					.catch(function (e) { log("config fetch error:", e); });
+			} catch (e) { log("config load error:", e); }
+		}
+		if (typeof window !== "undefined") {
+			try { window.addEventListener(CFG_CHANGE_EVENT, refreshConfig); } catch (e) {}
+		}
 		/** Volume 0..1. */
 		var VOLUME = 0.6;
 		/** Diagnostic logging to the browser console (DevTools). */
@@ -94,15 +111,10 @@ window.__ModuleLoader__.load({
 				else log("custom sound play() called");
 			} catch (e) { log("custom sound error:", e); }
 		}
-		// User-selected sound file (set by the settings card). Precedence:
-		// user pick (localStorage) > SOUND_SRC (compile-time) > Web Audio beep.
-		// The file is stored as a data: URI so it needs no server hosting.
+		// Custom sound file chosen in the settings card (hosted at /cheeco-style/assets/...).
+		// Play it if set, else fall back to the Web Audio chime.
 		function play() {
-			var src = "";
-			var user = null;
-			try { user = localStorage.getItem(SOUND_SRC_KEY); } catch (e) {}
-			if (user) src = user;
-			else if (SOUND_SRC) src = SOUND_SRC;
+			var src = cfg.soundSrc || "";
 			if (src) playFile(src); else playBeep();
 		}
 		window.__dshMsgSoundTest = function () { log("manual test invoked"); play(); return "played"; };
@@ -113,9 +125,8 @@ window.__ModuleLoader__.load({
 		var lastPlay = 0;
 		var seenKeys = new Set();
 		// Shared on/off toggle (set by the "改风格" settings card). Default on.
-		var ENABLED_KEY = "dsh-msg-sound-enabled";
 		function soundEnabled() {
-			try { return localStorage.getItem(ENABLED_KEY) !== "0"; } catch (e) { return true; }
+			return cfg.soundEnabled;
 		}
 
 		// The turn-tail row carries data-turn-tail = the turn number, which is genuinely
@@ -177,6 +188,8 @@ window.__ModuleLoader__.load({
 			if (window.__dshMsgSoundInstalled) return;
 			window.__dshMsgSoundInstalled = true;
 			log("apply() run; document.readyState=", document.readyState);
+			// Read the current sound settings from the config file.
+			refreshConfig();
 			// Warm up the shared AudioContext on the first user gesture so browsers with
 			// an autoplay policy don't keep the chime silent.
 			armAudioUnlock();
