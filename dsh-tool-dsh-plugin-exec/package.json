@@ -1,6 +1,6 @@
 {
     "name": "@cheeco/dsh-tool-dsh-plugin-exec",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "description": "DSH 独立小工具：向 agent 提供 dsh_plugin_exec，在正确的工作台上下文执行 dsh plugin 命令并返回输出。",
     "type": "module",
     "main": "lib/index.js",

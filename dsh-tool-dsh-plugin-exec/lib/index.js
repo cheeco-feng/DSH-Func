@@ -43,11 +43,6 @@ function apply(ctx, config = {}) {
 			return out;
 		}
 	}));
-	ctx.systemPrompt?.section?.({
-		name: "tool:dsh_plugin_exec",
-		order: 106,
-		text: "Use dsh_plugin_exec to run `dsh plugin` for a workbench; check the [exit code: N] marker."
-	});
 }
 
 export { apply, inject, name };
