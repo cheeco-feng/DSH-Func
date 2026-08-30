@@ -35,7 +35,12 @@ window.__ModuleLoader__.load({
 				+ ".dsh-web-ui-cheeco-style-brand-logo{display:block;}"
 				+ ".dsh-web-ui-cheeco-style-brand-fallback{display:inline-block;border-radius:50%;background:var(--dsw-alias-bg-module-platform,#eee);}"
 				+ ".dsh-web-ui-cheeco-style-brand-preview{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:10px;}"
-				+ ".dsh-web-ui-cheeco-style-preview-img{height:28px;width:28px;object-fit:contain;border-radius:6px;background:var(--dsw-alias-bg-module-platform,#f0f0f0);flex:none;}";
+				+ ".dsh-web-ui-cheeco-style-preview-img{height:28px;width:28px;object-fit:contain;border-radius:6px;background:var(--dsw-alias-bg-module-platform,#f0f0f0);flex:none;}"
+				+ ".dsw-switch{appearance:none;-webkit-appearance:none;width:40px;height:22px;border-radius:11px;border:1px solid var(--dsw-alias-border-l2,#d9d9d9);background:var(--dsw-alias-bg-layer-3,#d3d3d3);position:relative;cursor:pointer;transition:background .15s,border-color .15s;flex:none;margin:0;vertical-align:middle;}"
+				+ ".dsw-switch::before{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left .15s;box-shadow:0 1px 2px rgba(0,0,0,.25);}"
+				+ ".dsw-switch:checked{background:var(--dsw-alias-state-business-primary,#3498db);border-color:var(--dsw-alias-state-business-primary,#3498db);}"
+				+ ".dsw-switch:checked::before{left:20px;}"
+				+ ".dsw-switch:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary,#3498db);outline-offset:2px;}";
 			var tag = document.createElement("style");
 			tag.dataset.plugin = "dsh-web-ui-cheeco-style";
 			tag.textContent = css;
@@ -56,7 +61,7 @@ window.__ModuleLoader__.load({
 		/** Pre-filled logo URL for this instance (change or clear in the card; leave empty for the official brand). */
 		const DEFAULT_LOGO_URL = "https://yc1971.com/ico.png";
 		/** Bump this in sync with package.json version so the UI reflects the build. */
-		const PLUGIN_VERSION = "0.6.0";
+		const PLUGIN_VERSION = "0.6.1";
 
 		/** Host endpoints (same-origin, served by our own webServer):
 		 *    GET/POST /cheeco-style/config  -> read/write the config file
@@ -418,14 +423,14 @@ window.__ModuleLoader__.load({
 			};
 
 			return react_jsx_runtime.jsx("div", { className: "dsh-web-ui-cheeco-style-section", children: [
-				react_jsx_runtime.jsx("p", { className: "dsh-web-ui-cheeco-style-state", children: "功能开关（保存立即生效）" }),
+				react_jsx_runtime.jsx("p", { className: "dsh-web-ui-cheeco-style-state", children: "功能开关（勾选保存，重启后生效）" }),
 				react_jsx_runtime.jsx("label", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 0" }, children: [
 					react_jsx_runtime.jsx("span", { children: "会话搜索功能（隐藏/显示）" }),
-					react_jsx_runtime.jsx("input", { type: "checkbox", checked: features.sessionSearch, onChange: (e) => toggleFeature("sessionSearch", e.target.checked) })
+					react_jsx_runtime.jsx("input", { type: "checkbox", className: "dsw-switch", checked: features.sessionSearch, onChange: (e) => toggleFeature("sessionSearch", e.target.checked) })
 				] }),
 				react_jsx_runtime.jsx("label", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 0" }, children: [
 					react_jsx_runtime.jsx("span", { children: "DSH功能命令（停用/开启）" }),
-					react_jsx_runtime.jsx("input", { type: "checkbox", checked: features.dshCommand, onChange: (e) => toggleFeature("dshCommand", e.target.checked) })
+					react_jsx_runtime.jsx("input", { type: "checkbox", className: "dsw-switch", checked: features.dshCommand, onChange: (e) => toggleFeature("dshCommand", e.target.checked) })
 				] }),
 				react_jsx_runtime.jsx("div", { className: "dsh-web-ui-cheeco-style-actions", children: [
 					react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: checkUpdate, disabled: busy, children: "检查更新" }),
