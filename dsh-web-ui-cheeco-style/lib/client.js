@@ -61,7 +61,7 @@ window.__ModuleLoader__.load({
 		/** Pre-filled logo URL for this instance (change or clear in the card; leave empty for the official brand). */
 		const DEFAULT_LOGO_URL = "https://yc1971.com/ico.png";
 		/** Bump this in sync with package.json version so the UI reflects the build. */
-		const PLUGIN_VERSION = "0.6.2";
+		const PLUGIN_VERSION = "0.7.0";
 
 		/** Host endpoints (same-origin, served by our own webServer):
 		 *    GET/POST /cheeco-style/config  -> read/write the config file
@@ -74,6 +74,8 @@ window.__ModuleLoader__.load({
 		const ASSETS_ENDPOINT = "/cheeco-style/assets";
 		const UPDATE_ENDPOINT = "/cheeco-style/plugin/update-check";
 		const UNINSTALL_ENDPOINT = "/cheeco-style/plugin/uninstall";
+		const FEATURES_ENDPOINT = "/cheeco-style/features";
+		const FEATURES_INSTALL_ENDPOINT = "/cheeco-style/features/install";
 		/** The DSH-Func plugins this page can uninstall (labels shown in the multi-select). */
 		const PLUGINS = [
 			{ name: "@cheeco/dsh-web-ui-cheeco-style", label: "界面/声音设置（本页）" },
@@ -481,7 +483,44 @@ window.__ModuleLoader__.load({
 			});
 		}
 
-		/** The section shows two TABS (面版修改 / 功能管理) + a footer OUTSIDE the tabs:
+		/** "功能推荐" tab：展示宿主手写的功能列表（每项状态 已安装/我要安装 + 查看介绍）。 */
+		function FeaturesCard() {
+			const [items, setItems] = react.useState([]);
+			const [msg, setMsg] = react.useState("");
+			const load = async () => {
+				try {
+					const r = await fetch(FEATURES_ENDPOINT, { cache: "no-store" });
+					const j = await r.json();
+					setItems(j.items || []);
+				} catch (e) { setMsg("加载失败：" + e.message); }
+			};
+			react.useEffect(() => { load(); }, []);
+			const install = async (id) => {
+				setMsg("正在安装…");
+				try {
+					const r = await fetch(FEATURES_INSTALL_ENDPOINT, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id }) });
+					const j = await r.json();
+					setMsg(j.ok ? (j.alreadyInstalled ? "已安装" : "安装成功（重启后生效）") : "安装失败：" + (j.stderr || j.error || "未知"));
+				} catch (e) { setMsg("安装失败：" + e.message); }
+				load();
+			};
+			const row = (f) => react_jsx_runtime.jsx("div", { key: f.id, style: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid rgba(128,128,128,0.15)" }, children: [
+				react_jsx_runtime.jsx("span", { children: f.name }),
+				react_jsx_runtime.jsx("div", { style: { display: "flex", gap: "8px", alignItems: "center" }, children: [
+					f.installed
+						? react_jsx_runtime.jsx("span", { style: { color: "#2ecc71" }, children: "已安装" })
+						: react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: () => install(f.id), children: "我要安装" }),
+					react_jsx_runtime.jsx("a", { href: f.url, target: "_blank", rel: "noreferrer", className: "dsh-web-ui-cheeco-style-action", style: { textDecoration: "none" }, children: "查看介绍" })
+				] })
+			] });
+			return react_jsx_runtime.jsx("div", { className: "dsh-web-ui-cheeco-style-section", children: [
+				react_jsx_runtime.jsx("p", { className: "dsh-web-ui-cheeco-style-state", children: "功能推荐（手写列表：已安装 / 我要安装 / 查看介绍）" }),
+				items.map(row),
+				msg ? react_jsx_runtime.jsx("p", { className: "dsh-web-ui-cheeco-style-state", children: msg }) : null
+			] });
+		}
+
+		/** The section shows three TABS (面版修改 / 功能管理 / 功能推荐) + a footer OUTSIDE the tabs:
 		 *  a semi-transparent divider and the centered "cheeco的小功能 | 插件版本 x.y.z". */
 		function Section() {
 			const [tab, setTab] = react.useState("panel");
@@ -507,7 +546,8 @@ window.__ModuleLoader__.load({
 			return react_jsx_runtime.jsx("div", { className: "dsh-web-ui-cheeco-style", children: [
 				react_jsx_runtime.jsx("div", { style: { display: "flex", gap: "8px", borderBottom: "1px solid rgba(128,128,128,0.3)", marginBottom: "14px" }, children: [
 					tabBtn("panel", "面版修改"),
-					tabBtn("manage", "功能管理")
+					tabBtn("manage", "功能管理"),
+					tabBtn("features", "功能推荐")
 				] }),
 				tab === "panel"
 					? react_jsx_runtime.jsx("div", { children: [
@@ -515,9 +555,13 @@ window.__ModuleLoader__.load({
 						react_jsx_runtime.jsx(BrandCard, {}),
 						react_jsx_runtime.jsx(RenameCard, {})
 					] })
-					: react_jsx_runtime.jsx("div", { children: [
-						react_jsx_runtime.jsx(PluginActions, {})
-					] }),
+					: tab === "manage"
+						? react_jsx_runtime.jsx("div", { children: [
+							react_jsx_runtime.jsx(PluginActions, {})
+						] })
+						: react_jsx_runtime.jsx("div", { children: [
+							react_jsx_runtime.jsx(FeaturesCard, {})
+						] }),
 				footer
 			] });
 		}

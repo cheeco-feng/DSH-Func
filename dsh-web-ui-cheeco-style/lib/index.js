@@ -51,6 +51,17 @@ const GITHUB_RAW = "https://raw.githubusercontent.com/cheeco-feng/DSH-Func/main"
 /** 客户端操作的宿主路由。 */
 const UPDATE_PATH = "/cheeco-style/plugin/update-check";
 const UNINSTALL_PATH = "/cheeco-style/plugin/uninstall";
+const FEATURES_PATH = "/cheeco-style/features";
+const FEATURES_INSTALL_PATH = "/cheeco-style/features/install";
+/** 功能推荐：手写的列表（以后有新插件/推荐插件直接加到这里）。
+ *  `pkg` 用于判断是否已安装；`install` 为安装所需的包名/github 源；`url` 为“查看介绍”跳转。 */
+const CHEECO_FEATURES = [
+	{ id: "style", name: "界面/声音设置", url: "https://github.com/cheeco-feng/DSH-Func", pkg: "@cheeco/dsh-web-ui-cheeco-style", install: "@cheeco/dsh-web-ui-cheeco-style" },
+	{ id: "sound", name: "AI 回复提示音", url: "https://github.com/cheeco-feng/DSH-Func", pkg: "@cheeco/dsh-client-ui-message-sound", install: "@cheeco/dsh-client-ui-message-sound" },
+	{ id: "search", name: "会话内容检索", url: "https://github.com/cheeco-feng/DSH-Func", pkg: "@cheeco/dsh-client-ui-session-search", install: "@cheeco/dsh-client-ui-session-search" },
+	{ id: "dshcmd", name: "DSH功能命令", url: "https://github.com/cheeco-feng/DSH-Func", pkg: "@cheeco/dsh-tool-dsh-plugin-exec", install: "@cheeco/dsh-tool-dsh-plugin-exec" },
+	{ id: "pmgr", name: "插件管理（dsh-plugin-manager）", url: "https://github.com/webkong/dsh-plugin-manager", pkg: "@webkong/dsh-plugin-manager", install: "github:webkong/dsh-plugin-manager" }
+];
 /** The `node_modules/@cheeco` dir — parent of this plugin's own folder. */
 const CHEECO_DIR = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
 
@@ -90,6 +101,17 @@ function installedVersion(folder) {
 		const raw = readFileSync(join(CHEECO_DIR, folder, "package.json"), "utf8");
 		return JSON.parse(raw).version || "";
 	} catch (e) { return ""; }
+}
+/** Whether a package (e.g. `@webkong/dsh-plugin-manager`) is installed in this profile.
+ *  `node_modules` is the parent of the @cheeco dir. */
+function isInstalled(pkg) {
+	try {
+		const parts = String(pkg).split("/");
+		const p = parts.length > 1
+			? join(dirname(CHEECO_DIR), parts[0], parts[1])
+			: join(dirname(CHEECO_DIR), parts[0]);
+		return existsSync(join(p, "package.json"));
+	} catch (e) { return false; }
 }
 
 /** Guess a content-type from a file extension (images + common audio). */
@@ -183,7 +205,7 @@ function renderConfigFile(v) {
 }
 
 /** In sync with package.json so the config records which plugin version produced it. */
-const PLUGIN_VERSION = "0.6.2";
+const PLUGIN_VERSION = "0.7.0";
 /** Resolve the dsh CLI package version (from @deepseek-ai/dsh/package.json). */
 function dshVersion() {
 	try {
@@ -291,11 +313,27 @@ export default class DshWebUiPatches {
 					this.handleUninstall(req, res).catch((err) => this.fail(ctx, res, err));
 				}
 			});
+			const disposeFeatures = ctx.webServer.register({
+				kind: "exact",
+				path: FEATURES_PATH,
+				handler: (req, res) => {
+					this.handleFeatures(res).catch((err) => this.fail(ctx, res, err));
+				}
+			});
+			const disposeFeatureInstall = ctx.webServer.register({
+				kind: "exact",
+				path: FEATURES_INSTALL_PATH,
+				handler: (req, res) => {
+					this.handleFeatureInstall(req, res).catch((err) => this.fail(ctx, res, err));
+				}
+			});
 			return () => {
 				disposeConfig();
 				disposeAssets();
 				disposeUpdate();
 				disposeUninstall();
+				disposeFeatures();
+				disposeFeatureInstall();
 			};
 		}, "cheeco-style: config + assets + plugin routes");
 	}
@@ -360,6 +398,25 @@ export default class DshWebUiPatches {
 		reg.installed = (reg.installed || []).filter((x) => !names.includes(x.name));
 		for (const n of names) logEvent(reg, "uninstall", n, "");
 		writeRegistry(reg);
+		this.json(res, 200, { ok: out.exitCode === 0, exitCode: out.exitCode, stdout: out.stdout, stderr: out.stderr });
+	}
+
+	/** 功能推荐列表：返回手写列表 + 每个插件的已安装状态。 */
+	async handleFeatures(res) {
+		this.json(res, 200, {
+			ok: true,
+			items: CHEECO_FEATURES.map((f) => ({ ...f, installed: isInstalled(f.pkg) }))
+		});
+	}
+
+	/** 功能推荐：“我要安装” —— 对未安装插件执行 `dsh plugin --profile <p> add <install>`。 */
+	async handleFeatureInstall(req, res) {
+		let body = {};
+		try { body = JSON.parse((await readBody(req)) || "{}"); } catch (e) { body = {}; }
+		const target = CHEECO_FEATURES.find((f) => f.id === body.id);
+		if (!target) { this.json(res, 400, { ok: false, error: "未知的功能 id" }); return; }
+		if (isInstalled(target.pkg)) { this.json(res, 200, { ok: true, alreadyInstalled: true }); return; }
+		const out = runDsh(["add", target.install]);
 		this.json(res, 200, { ok: out.exitCode === 0, exitCode: out.exitCode, stdout: out.stdout, stderr: out.stderr });
 	}
 
