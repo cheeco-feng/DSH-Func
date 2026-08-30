@@ -182,9 +182,12 @@ export default class DshWebUiPatches {
 				},
 				output: {
 					schema: { type: "object", additionalProperties: false, properties: {
+						kind: { type: "string", required: true, const: "foreground" },
 						exitCode: { oneOf: [{ type: "integer" }, { type: "null" }], required: true },
 						signal: { oneOf: [{ type: "string" }, { type: "null" }], required: true },
 						timedOut: { type: "boolean", required: true },
+						aborted: { type: "boolean", required: true },
+						timeoutMs: { type: "number", required: true },
 						stdout: { type: "string", required: true },
 						stderr: { type: "string", required: true }
 					} },
@@ -194,8 +197,10 @@ export default class DshWebUiPatches {
 					if (!args.profile || !args.profile.trim()) throw new Error("profile is required");
 					if (!args.command || !args.command.trim()) throw new Error("command is required");
 					const shell = (() => { try { return ctx.shell; } catch (e) {} try { if (ctx.get) return ctx.get("shell"); } catch (e) {} return undefined; })();
-					if (!shell) throw new Error("dsh_plugin_exec: shell service unavailable");
 					const cmd = "dsh plugin --profile " + args.profile.trim() + " " + args.command.trim();
+					if (!shell) {
+						return { kind: "foreground", exitCode: -1, signal: null, timedOut: false, aborted: false, timeoutMs: 0, stdout: "", stderr: "dsh_plugin_exec: shell service unavailable in this composition" };
+					}
 					const result = await shell.run(shell.resolve({
 						command: cmd,
 						...args.timeoutMs ? { timeoutMs: args.timeoutMs } : {},
@@ -203,9 +208,12 @@ export default class DshWebUiPatches {
 					}));
 					if (result.aborted) { const e = new Error("tool call aborted"); e.name = "AbortError"; throw e; }
 					return {
+						kind: "foreground",
 						exitCode: result.exitCode,
 						signal: result.signal,
 						timedOut: result.timedOut,
+						aborted: result.aborted,
+						timeoutMs: result.timeoutMs ?? 0,
 						stdout: result.stdout?.text ?? "",
 						stderr: result.stderr?.text ?? ""
 					};
