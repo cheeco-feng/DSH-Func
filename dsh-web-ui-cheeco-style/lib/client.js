@@ -61,7 +61,7 @@ window.__ModuleLoader__.load({
 		/** Pre-filled logo URL for this instance (change or clear in the card; leave empty for the official brand). */
 		const DEFAULT_LOGO_URL = "https://yc1971.com/ico.png";
 		/** Bump this in sync with package.json version so the UI reflects the build. */
-		const PLUGIN_VERSION = "0.8.0";
+		const PLUGIN_VERSION = "0.8.1";
 
 		/** Host endpoints (same-origin, served by our own webServer):
 		 *    GET/POST /cheeco-style/config  -> read/write the config file
@@ -377,12 +377,9 @@ window.__ModuleLoader__.load({
 			});
 		}
 
-		/** "插件操作" card: check for updates + multi-select uninstall (via host routes). */
+		/** "功能管理" tab：仅功能开关（会话搜索 / DSH功能命令）。
+		 *  检查更新 / 卸载 已并入「功能推荐」每行。 */
 		function PluginActions() {
-			const [busy, setBusy] = react.useState(false);
-			const [message, setMessage] = react.useState("");
-			const [open, setOpen] = react.useState(false);
-			const [checked, setChecked] = react.useState(() => PLUGINS.map(() => true));
 			const [features, setFeatures] = react.useState(() => ({ sessionSearch: true, dshCommand: true }));
 			react.useEffect(() => {
 				let cancelled = false;
@@ -394,40 +391,6 @@ window.__ModuleLoader__.load({
 				setFeatures(next);
 				await saveConfig({ features: next });
 			};
-
-			const checkUpdate = async () => {
-				setBusy(true); setMessage("正在检查更新…");
-				try {
-					const r = await fetch(UPDATE_ENDPOINT, { cache: "no-store" });
-					const data = await r.json();
-					if (!data.results) throw new Error("响应异常");
-					const lines = data.results.map((it) =>
-						it.label + "：当前 " + (it.current || "(未装)") + " / 最新 " + (it.latest ? it.latest : (it.fetchFailed ? "(获取失败)" : "(未知)")) + (it.hasUpdate ? "  ✔ 有更新" : "")
-					);
-					setMessage(data.results.some((it) => it.hasUpdate)
-						? "有可用更新：\n" + lines.join("\n")
-						: "全部已是最新：\n" + lines.join("\n"));
-				} catch (e) { setMessage("检查更新失败（可能无网络）：" + e.message); }
-				setBusy(false);
-			};
-
-			const uninstall = async () => {
-				const sel = PLUGINS.filter((_, i) => checked[i]).map((p) => p.name);
-				if (sel.length === 0) { setMessage("请至少勾选一个要卸载的插件"); return; }
-				if (!window.confirm("确定卸载选中的插件吗？卸载后需重启 DSH 生效。\n" + sel.join("\n"))) return;
-				setBusy(true); setMessage("正在卸载…");
-				try {
-					const r = await fetch(UNINSTALL_ENDPOINT, {
-						method: "POST",
-						headers: { "content-type": "application/json" },
-						body: JSON.stringify({ plugins: sel })
-					});
-					const data = await r.json();
-					setMessage(data.ok ? "卸载成功（重启后生效）" : "卸载失败：" + (data.stderr || data.error || "未知"));
-				} catch (e) { setMessage("卸载失败：" + e.message); }
-				setOpen(false); setBusy(false);
-			};
-
 			return react_jsx_runtime.jsx("div", { className: "dsh-web-ui-cheeco-style-section", children: [
 				react_jsx_runtime.jsx("p", { className: "dsh-web-ui-cheeco-style-state", children: "功能开关（切换后重启生效）" }),
 				react_jsx_runtime.jsx("label", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 0" }, children: [
@@ -437,23 +400,7 @@ window.__ModuleLoader__.load({
 				react_jsx_runtime.jsx("label", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 0" }, children: [
 					react_jsx_runtime.jsx("span", { children: "DSH功能命令（停用/开启）" }),
 					react_jsx_runtime.jsx("input", { type: "checkbox", className: "dsw-switch", checked: features.dshCommand, onChange: (e) => toggleFeature("dshCommand", e.target.checked) })
-				] }),
-				react_jsx_runtime.jsx("div", { className: "dsh-web-ui-cheeco-style-actions", children: [
-					react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: checkUpdate, disabled: busy, children: "检查更新" }),
-					react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: () => setOpen((o) => !o), disabled: busy, children: open ? "收起卸载" : "卸载" })
-				] }),
-				...open ? [react_jsx_runtime.jsx("div", { key: "panel", className: "dsh-web-ui-cheeco-style-section", children: [
-					react_jsx_runtime.jsx("p", { className: "dsh-web-ui-cheeco-style-state", children: "勾选要卸载的插件（默认全选）：" }),
-					react_jsx_runtime.jsx("div", { children: PLUGINS.map((p, i) => react_jsx_runtime.jsx("label", { key: p.name, style: { display: "block", padding: "3px 0" }, children: [
-						react_jsx_runtime.jsx("input", { type: "checkbox", checked: checked[i], onChange: (e) => setChecked((c) => { const n = c.slice(); n[i] = e.target.checked; return n; }) }),
-						" " + p.label
-					] })) }),
-					react_jsx_runtime.jsx("div", { className: "dsh-web-ui-cheeco-style-actions", children: [
-						react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: uninstall, disabled: busy, children: "确认卸载" }),
-						react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: () => setOpen(false), children: "取消" })
-					] })
-				] })] : [],
-				message ? react_jsx_runtime.jsx("pre", { key: "msg", className: "dsh-web-ui-cheeco-style-state", style: { whiteSpace: "pre-wrap", width: "100%" }, children: message }) : null
+				] })
 			] });
 		}
 
@@ -536,12 +483,15 @@ window.__ModuleLoader__.load({
 					if (!dl.ok) { addLog("✗ 无法下载安装包，流程中止"); setDone("安装失败"); setStep(3); setBusy(false); return; }
 					addLog("● 步骤 3/3  安装（dsh plugin add）…");
 					const i = await (await fetch(FEATURES_INSTALL_ENDPOINT, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: feature.id }) })).json();
-					if (i.stdout) addLog("—— pnpm 安装日志（英文为 pnpm 自身输出） ——\n" + i.stdout.trim());
-					if (i.stderr) addLog("—— 错误输出（英文为 pnpm 自身输出） ——\n" + i.stderr.trim());
+					if (i.stdout) addLog("—— pnpm 安装日志 ——\n" + i.stdout.trim());
+					if (i.stderr) addLog("—— 错误输出 ——\n" + i.stderr.trim());
 					addLog(i.ok ? ("✓ 安装成功，已安装到：" + (i.installPath || "")) : ("✗ 安装失败：" + (i.stderr || i.error || "")));
 					if (i.ok && autoRestart) {
-						addLog("● 正在自动重启当前 DSH…（约 10 秒后刷新页面生效）");
-						try { const rr = await (await fetch(RESTART_ENDPOINT, { method: "POST" })).json(); addLog(rr.message || "已触发重启"); } catch (e) { addLog("自动重启调用失败，请手动重启：" + e.message); }
+						addLog("● 正在自动重启当前 DSH…");
+						try {
+							const rr = await (await fetch(RESTART_ENDPOINT, { method: "POST" })).json();
+							addLog(rr.ok ? "✓ 已触发自动重启，约 10 秒后刷新页面生效。" : "未能成功重启，本次执行，须手动重启后生效。");
+						} catch (e) { addLog("未能成功重启，本次执行，须手动重启后生效。"); }
 					}
 					addLog(i.ok ? "✓ 完成" : "✗ 未完成，请查看上方错误");
 					setDone(i.ok ? (autoRestart ? "安装成功，已触发自动重启" : "安装成功（重启后生效）") : "安装失败");
@@ -574,30 +524,78 @@ window.__ModuleLoader__.load({
 			] });
 		}
 
-		/** "功能推荐" tab：展示宿主手写的功能列表（每项状态 已安装/我要安装 + 查看介绍）。 */
+		/** "功能推荐" tab：一体化插件中心 —— 最上方 dsh 官方程序，下面每个插件一行：
+		 *  名称 + 版本(当前/最新) + 启用/停用状态(只读) + 已安装→卸载 / 未安装→我要安装 + 查看介绍 +
+		 *  行下「检查更新」（实时 GitHub）。不再有顶部说明文字。 */
 		function FeaturesCard() {
 			const [items, setItems] = react.useState([]);
 			const [msg, setMsg] = react.useState("");
 			const [wizard, setWizard] = react.useState(null);
+			const [busyId, setBusyId] = react.useState("");
+			const [enabledMap, setEnabledMap] = react.useState({});
 			const load = async () => {
 				try {
 					const r = await fetch(FEATURES_ENDPOINT, { cache: "no-store" });
 					const j = await r.json();
 					setItems(j.items || []);
 				} catch (e) { setMsg("加载失败：" + e.message); }
+				// 从插件管理器(/pmgr/list, Loader 实时)读启用/停用状态并合并；未装 pmgr 时忽略
+				try {
+					const pm = await (await fetch("/pmgr/list", { cache: "no-store" })).json();
+					if (pm && Array.isArray(pm.plugins)) {
+						const m = {};
+						for (const p of pm.plugins) m[p.name] = !!p.enabled;
+						setEnabledMap(m);
+					}
+				} catch (e) {}
 			};
 			react.useEffect(() => { load(); }, []);
-			const row = (f) => react_jsx_runtime.jsx("div", { key: f.id, style: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid rgba(128,128,128,0.15)" }, children: [
-				react_jsx_runtime.jsx("span", { children: f.name }),
-				react_jsx_runtime.jsx("div", { style: { display: "flex", gap: "8px", alignItems: "center" }, children: [
-					f.installed
-						? react_jsx_runtime.jsx("span", { style: { color: "#2ecc71" }, children: "已安装" })
-						: react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: () => setWizard(f), children: "我要安装" }),
-					react_jsx_runtime.jsx("a", { href: f.url, target: "_blank", rel: "noreferrer", className: "dsh-web-ui-cheeco-style-action", style: { textDecoration: "none" }, children: "查看介绍" })
-				] })
-			] });
+			const checkUpdate = async (f) => {
+				setBusyId(f.id); setMsg("正在检查更新…");
+				try {
+					const r = await fetch(FEATURES_ENDPOINT, { cache: "no-store" });
+					const j = await r.json();
+					setItems(j.items || []);
+					setMsg("已刷新实时最新版本。（安装/卸载后需重启 DSH 生效）");
+				} catch (e) { setMsg("检查更新失败：" + e.message); }
+				setBusyId("");
+			};
+			const uninstall = async (f) => {
+				if (!window.confirm("确定卸载「" + f.name + "」吗？卸载后需重启 DSH 生效。")) return;
+				setBusyId(f.id); setMsg("正在卸载…");
+				try {
+					const r = await fetch(UNINSTALL_ENDPOINT, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ plugins: [f.pkg] }) });
+					const data = await r.json();
+					const errItem = data.results && data.results.find((x) => !x.ok);
+					setMsg(data.ok ? "卸载成功（重启后生效）" : "卸载失败：" + (errItem ? errItem.error : (data.error || "未知")));
+				} catch (e) { setMsg("卸载失败：" + e.message); }
+				setBusyId(""); load();
+			};
+			const row = (f) => {
+				const isOff = !!f.official;
+				const enabled = isOff ? true : (enabledMap[f.pkg] !== void 0 ? enabledMap[f.pkg] : f.enabled);
+				const ver = isOff
+					? "dsh 版本 " + (f.current || "")
+					: "当前 " + (f.current || "(未装)") + (f.latest ? " / 最新 " + f.latest : "") + (f.hasUpdate ? "　（有更新）" : (f.installed ? "　（已是最新）" : ""));
+				return react_jsx_runtime.jsx("div", { key: f.id, className: "dsh-web-ui-cheeco-style-section", style: { padding: "10px 14px", marginBottom: "8px" }, children: [
+					react_jsx_runtime.jsx("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" }, children: [
+						react_jsx_runtime.jsx("span", { style: { fontWeight: 600 }, children: [
+							f.name,
+							isOff ? react_jsx_runtime.jsx("span", { style: { marginLeft: "8px", fontSize: "12px", color: "#8e44ad" }, children: "官方" }) : null
+						] }),
+						react_jsx_runtime.jsx("span", { style: { fontSize: "12.5px", color: enabled ? "#2ecc71" : "#999" }, children: enabled ? "● 启用" : "● 停用" })
+					] }),
+					react_jsx_runtime.jsx("p", { className: "dsh-web-ui-cheeco-style-state", style: { marginBottom: "6px" }, children: ver }),
+					react_jsx_runtime.jsx("div", { className: "dsh-web-ui-cheeco-style-actions", children: [
+						!isOff && (f.installed
+							? react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: () => uninstall(f), disabled: busyId === f.id, children: "卸载" })
+							: react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: () => setWizard(f), disabled: busyId === f.id, style: { background: "#3498db", borderColor: "#3498db", color: "#fff" }, children: "我要安装" })),
+						react_jsx_runtime.jsx("a", { href: f.url, target: "_blank", rel: "noreferrer", className: "dsh-web-ui-cheeco-style-action", style: { textDecoration: "none" }, children: "查看介绍" }),
+						react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: () => checkUpdate(f), disabled: busyId === f.id, children: "检查更新" })
+					] })
+				] });
+			};
 			return react_jsx_runtime.jsx("div", { className: "dsh-web-ui-cheeco-style-section", children: [
-				react_jsx_runtime.jsx("p", { className: "dsh-web-ui-cheeco-style-state", children: "功能推荐（手写列表：已安装 / 我要安装 / 查看介绍）" }),
 				items.map(row),
 				msg ? react_jsx_runtime.jsx("p", { className: "dsh-web-ui-cheeco-style-state", children: msg }) : null,
 				wizard ? react_jsx_runtime.jsx(InstallWizard, { feature: wizard, onClose: () => { setWizard(null); load(); } }) : null

@@ -15,7 +15,7 @@
             POST /cheeco-style/assets?name=<file>  -> write assets/<file>
             GET  /cheeco-style/assets/<file>       -> serve it back (for <img>/<audio>)
       - All browser-UI work lives in the browser half (lib/client.js). */
-import { mkdirSync, readFileSync, writeFileSync, existsSync, readdirSync, statSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync, existsSync, readdirSync, statSync, rmSync } from "node:fs";
 import { dirname, join, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync, spawn } from "node:child_process";
@@ -62,11 +62,17 @@ const RESTART_PATH = "/cheeco-style/plugin/restart";
  *  `pkg` 判断是否已安装；`install` 为**可安装来源**（真实下载 URL，`dsh plugin add <此URL>` 即从 GitHub release 下载安装）；
  *  `url` 为“查看介绍”跳转；`folder` 为本机 release tgz 的子目录名（开发便利）。 */
 const CHEECO_FEATURES = [
-	{ id: "style", name: "界面/声音设置", pkg: "@cheeco/dsh-web-ui-cheeco-style", install: "https://github.com/cheeco-feng/DSH-Func/releases/download/v0.8.0/cheeco-dsh-web-ui-cheeco-style-0.8.0.tgz", folder: "dsh-web-ui-cheeco-style", url: "https://github.com/cheeco-feng/DSH-Func" },
+	{ id: "style", name: "界面/声音设置", pkg: "@cheeco/dsh-web-ui-cheeco-style", install: "https://github.com/cheeco-feng/DSH-Func/releases/download/v0.8.1/cheeco-dsh-web-ui-cheeco-style-0.8.1.tgz", folder: "dsh-web-ui-cheeco-style", url: "https://github.com/cheeco-feng/DSH-Func" },
 	{ id: "sound", name: "AI 回复提示音", pkg: "@cheeco/dsh-client-ui-message-sound", install: "https://github.com/cheeco-feng/DSH-Func/releases/download/v0.3.0/cheeco-dsh-client-ui-message-sound-0.3.0.tgz", folder: "dsh-client-ui-message-sound", url: "https://github.com/cheeco-feng/DSH-Func" },
 	{ id: "search", name: "会话内容检索", pkg: "@cheeco/dsh-client-ui-session-search", install: "https://github.com/cheeco-feng/DSH-Func/releases/download/v0.2.0/cheeco-dsh-client-ui-session-search-0.2.0.tgz", folder: "dsh-client-ui-session-search", url: "https://github.com/cheeco-feng/DSH-Func" },
 	{ id: "dshcmd", name: "DSH功能命令", pkg: "@cheeco/dsh-tool-dsh-plugin-exec", install: "https://github.com/cheeco-feng/DSH-Func/releases/download/v0.1.6/cheeco-dsh-tool-dsh-plugin-exec-0.1.6.tgz", folder: "dsh-tool-dsh-plugin-exec", url: "https://github.com/cheeco-feng/DSH-Func" },
 	{ id: "pmgr", name: "插件管理（cheeco 插件管理器）", pkg: "@cheeco/dsh-client-ui-plugin-manager", install: "https://github.com/cheeco-feng/DSH-Func/releases/download/v0.1.0/cheeco-dsh-client-ui-plugin-manager-0.1.0.tgz", folder: "dsh-client-ui-plugin-manager", url: "https://github.com/cheeco-feng/DSH-Func" }
+];
+/** DSH 官方程序（功能推荐列表最上方，仅列出 + 查看介绍，不提供安装）。
+ *  以后有新官方程序/官方插件直接加到这里；发布时也可顺手更新。 */
+const DSH_OFFICIAL = [
+	{ id: "dsh-main", name: "DeepSeek Harness（官方主程序）", url: "https://github.com/deepseek-ai/deepseek-harness", folder: "" },
+	{ id: "dsh-web", name: "DSH Web 官方网页版", url: "https://github.com/deepseek-ai/deepseek-harness", folder: "" }
 ];
 /** The `node_modules/@cheeco` dir — parent of this plugin's own folder. */
 const CHEECO_DIR = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
@@ -106,6 +112,16 @@ function installedVersion(folder) {
 	try {
 		const raw = readFileSync(join(CHEECO_DIR, folder, "package.json"), "utf8");
 		return JSON.parse(raw).version || "";
+	} catch (e) { return ""; }
+}
+/** 实时从 GitHub 仓库读某插件 latest 版本（<repo>/<folder>/package.json 的 version）。
+ *  失败/无网络返回 ""，绝不抛错。 */
+async function latestFromGitHub(folder) {
+	if (!folder) return "";
+	try {
+		const r = await fetch(`${GITHUB_RAW}/${folder}/package.json`, { signal: AbortSignal.timeout(4000) });
+		if (!r.ok) return "";
+		return ((await r.json()) || {}).version || "";
 	} catch (e) { return ""; }
 }
 /** Whether a package (e.g. `@webkong/dsh-plugin-manager`) is installed in this profile.
@@ -288,7 +304,7 @@ function renderConfigFile(v) {
 }
 
 /** In sync with package.json so the config records which plugin version produced it. */
-const PLUGIN_VERSION = "0.8.0";
+const PLUGIN_VERSION = "0.8.1";
 /** Resolve the dsh CLI package version (from @deepseek-ai/dsh/package.json). */
 function dshVersion() {
 	try {
@@ -296,21 +312,21 @@ function dshVersion() {
 		return JSON.parse(readFileSync(require.resolve("@deepseek-ai/dsh/package.json"), "utf8")).version || "";
 	} catch (e) { return ""; }
 }
-/** Ensure config/cheeco-config.json exists (preset from install) and carries DSH metadata.
- *  Reads the file if present, else a blank default; fills/keeps the `dsh` block
- *  (当前工作台名 / DSH_HOME / 插件与 dsh 版本) for identification & debugging. */
+/** Ensure config/cheeco-config.json exists and carries DSH metadata.
+ *  若配置已存在（用户已配置过 / 上次卸载后保留的），**绝不覆盖** —— 直接原样保留，
+ *  让用户在卸载/重装/升级前后都保有自己那份配置。只有首次（文件不存在时）才写一份
+ *  默认配置 + DSH 元数据（当前工作台名 / DSH_HOME / 插件与 dsh 版本）。
+ *  卸载时也**不删除 @cheeco 目录 / 该 config**（由用户手动删除）。 */
 function ensureConfigMetadata(configFile) {
+	if (existsSync(configFile)) return; // 已存在 -> 跳过，不覆盖
 	let value = {};
-	try { value = JSON.parse(stripJsonComments(readFileSync(configFile, "utf8"))) || {}; } catch (e) { value = {}; }
-	const dsh = (typeof value.dsh === "object" && value.dsh) ? value.dsh : {};
-	if (!dsh.profileName) dsh.profileName = resolveProfileName();
-	if (!dsh.dshHome) dsh.dshHome = process.env.DSH_HOME || "";
-	if (!dsh.pluginVersion) dsh.pluginVersion = PLUGIN_VERSION;
-	if (!dsh.dshVersion) dsh.dshVersion = dshVersion();
+	const dsh = {};
+	dsh.profileName = resolveProfileName();
+	dsh.dshHome = process.env.DSH_HOME || "";
+	dsh.pluginVersion = PLUGIN_VERSION;
+	dsh.dshVersion = dshVersion();
 	value.dsh = dsh;
-	value.features = (typeof value.features === "object" && value.features) ? value.features : {};
-	value.features.sessionSearch = value.features.sessionSearch !== false;
-	value.features.dshCommand = value.features.dshCommand !== false;
+	value.features = { sessionSearch: true, dshCommand: true };
 	mkdirSync(dirname(configFile), { recursive: true });
 	writeFileSync(configFile, renderConfigFile(value), "utf8");
 	return value;
@@ -493,27 +509,56 @@ export default class DshWebUiPatches {
 	}
 
 	/** 卸载：按客户端传来的插件名，执行 `dsh plugin --profile <p> remove <names>`。 */
+	/** 卸载（独立方法，不走 pnpm/dsh plugin remove，避免 store 不一致）：
+	 *  ① 从 profile 的 package.json 移除该插件依赖 + bundle；
+	 *  ② 删除 node_modules/@cheeco/<folder>（保留 @cheeco 根：cheeco-config.json / cheeco-registry.json）；
+	 *  ③ 更新 cheeco-registry.json（移除 + 记 uninstall 事件）。 */
 	async handleUninstall(req, res) {
 		let body = {};
 		try { body = JSON.parse((await readBody(req)) || "{}"); } catch (e) { body = {}; }
 		const wanted = Array.isArray(body.plugins) ? body.plugins : [];
 		const names = wanted.filter((n) => typeof n === "string" && CHEECO_PLUGINS.some((p) => p.name === n));
 		if (names.length === 0) { this.json(res, 400, { ok: false, error: "未选择要卸载的插件" }); return; }
-		const out = runDsh(["remove", ...names]);
-		// 更新注册表：移除已卸载项 + 记 uninstall 事件
-		const reg = readRegistry();
-		reg.installed = (reg.installed || []).filter((x) => !names.includes(x.name));
-		for (const n of names) logEvent(reg, "uninstall", n, "");
-		writeRegistry(reg);
-		this.json(res, 200, { ok: out.exitCode === 0, exitCode: out.exitCode, stdout: out.stdout, stderr: out.stderr });
+		const results = [];
+		for (const name of names) {
+			const p = CHEECO_PLUGINS.find((c) => c.name === name);
+			if (!p) { results.push({ name, ok: false, error: "未知插件" }); continue; }
+			try {
+				// ① profile package.json：移除依赖 + bundle
+				const pkgFile = join(profileDir(), "package.json");
+				const pkg = JSON.parse(readFileSync(pkgFile, "utf8"));
+				if (pkg.dependencies && pkg.dependencies[name]) delete pkg.dependencies[name];
+				if (pkg.dsh && pkg.dsh.profile && Array.isArray(pkg.dsh.profile.bundles)) {
+					pkg.dsh.profile.bundles = pkg.dsh.profile.bundles.filter((b) => b !== name);
+				}
+				writeFileSync(pkgFile, JSON.stringify(pkg, null, 2) + "\n", "utf8");
+				// ② 删 @cheeco/<folder>，保留 @cheeco 根
+				const folderDir = join(CHEECO_DIR, p.folder);
+				if (existsSync(folderDir)) rmSync(folderDir, { recursive: true, force: true });
+				// ③ 注册表
+				const reg = readRegistry();
+				reg.installed = (reg.installed || []).filter((x) => x.name !== name);
+				logEvent(reg, "uninstall", name, "");
+				writeRegistry(reg);
+				results.push({ name, ok: true });
+			} catch (e) { results.push({ name, ok: false, error: String(e && e.message || e) }); }
+		}
+		this.json(res, 200, { ok: results.every((r) => r.ok), results });
 	}
 
 	/** 功能推荐列表：返回手写列表 + 每个插件的已安装状态。 */
 	async handleFeatures(res) {
-		this.json(res, 200, {
-			ok: true,
-			items: CHEECO_FEATURES.map((f) => ({ ...f, installed: isInstalled(f.pkg) }))
-		});
+		const dshVer = dshVersion();
+		// dsh 官方程序：仅列出 + 查看介绍，不提供安装
+		const official = DSH_OFFICIAL.map((o) => ({ ...o, installed: true, installable: false, official: true, current: dshVer, latest: dshVer, hasUpdate: false, enabled: true }));
+		// cheeco 功能：已安装版本(本地) + 最新版本(实时 GitHub) + 是否有更新
+		const cheeco = await Promise.all(CHEECO_FEATURES.map(async (f) => {
+			const installed = isInstalled(f.pkg);
+			const current = installed ? installedVersion(f.folder) : "";
+			const latest = f.folder ? await latestFromGitHub(f.folder) : "";
+			return { ...f, installed, installable: true, official: false, current, latest, hasUpdate: Boolean(current && latest && latest !== current), enabled: installed };
+		}));
+		this.json(res, 200, { ok: true, items: [...official, ...cheeco] });
 	}
 
 	/** 功能推荐：“我要安装” —— 参考 dsh-plugin-manager：直接把安装源交给 `dsh plugin add`（pnpm 下载+安装）。 */
@@ -572,7 +617,7 @@ export default class DshWebUiPatches {
 	/** 一键重启：用启动参数重新拉起当前 profile。 */
 	async handleRestart(res) {
 		const ok = scheduleRestart();
-		this.json(res, 200, { ok, message: ok ? "正在重启当前 profile（约 10 秒后刷新页面生效）" : "重启启动失败，请手动重启 DSH" });
+		this.json(res, 200, { ok, message: ok ? "正在重启当前 profile（约 10 秒后刷新页面生效）" : "未能成功重启，本次执行，须手动重启后生效。" });
 	}
 
 	async handleConfig(ctx, configFile, req, res) {
