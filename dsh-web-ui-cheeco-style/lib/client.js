@@ -61,7 +61,7 @@ window.__ModuleLoader__.load({
 		/** Pre-filled logo URL for this instance (change or clear in the card; leave empty for the official brand). */
 		const DEFAULT_LOGO_URL = "https://yc1971.com/ico.png";
 		/** Bump this in sync with package.json version so the UI reflects the build. */
-		const PLUGIN_VERSION = "0.8.4";
+		const PLUGIN_VERSION = "0.8.5";
 
 		/** Host endpoints (same-origin, served by our own webServer):
 		 *    GET/POST /cheeco-style/config  -> read/write the config file
@@ -434,8 +434,9 @@ window.__ModuleLoader__.load({
 			});
 		}
 
-		/** 安装向导弹窗：确认 → 下载/检查 → 安装 → 成功(重启提示)。 */
+		/** 安装/更新向导弹窗：确认 → 下载/检查 → 安装 → 成功(重启提示)。 */
 		function InstallWizard({ feature, onClose }) {
+			const isUpdate = !!feature.installed;
 			const [step, setStep] = react.useState(0);
 			const [plan, setPlan] = react.useState(null);
 			const [log, setLog] = react.useState([]);
@@ -445,7 +446,7 @@ window.__ModuleLoader__.load({
 			react.useEffect(() => {
 				(async () => {
 					try {
-						const p = await (await fetch(FEATURES_PLAN_ENDPOINT, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: feature.id }) })).json();
+						const p = await (await fetch(FEATURES_PLAN_ENDPOINT, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: feature.id, force: true }) })).json();
 						if (p.ok) setPlan(p);
 					} catch (e) {}
 				})();
@@ -463,9 +464,9 @@ window.__ModuleLoader__.load({
 			const addLog = (s) => setLog((l) => [...l, s]);
 			const run = async () => {
 				setStep(1); setBusy(true); setLog([]); setDone("");
-				addLog("▶ 开始安装「" + feature.name + "」");
+				addLog("▶ 开始" + (isUpdate ? "更新" : "安装") + "「" + feature.name + "」");
 				try {
-					const p = await (await fetch(FEATURES_PLAN_ENDPOINT, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: feature.id }) })).json();
+					const p = await (await fetch(FEATURES_PLAN_ENDPOINT, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: feature.id, force: true }) })).json();
 					if (!p.ok) { addLog("✗ " + (p.error || "未找到安装包")); setDone("安装失败"); setStep(3); setBusy(false); return; }
 					setPlan(p);
 					addLog("● 步骤 1/3  安装计划：");
@@ -476,13 +477,13 @@ window.__ModuleLoader__.load({
 					addLog("    下载目录：" + (p.downloadDir || "-"));
 					addLog("● 步骤 2/3  下载（到下载目录，检查同名文件）…");
 					setStep(2);
-					const dl = await (await fetch(FEATURES_DOWNLOAD_ENDPOINT, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: feature.id }) })).json();
+					const dl = await (await fetch(FEATURES_DOWNLOAD_ENDPOINT, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: feature.id, force: true }) })).json();
 					addLog(dl.ok
 						? ("    " + (dl.skipped ? "已跳过下载：" : "") + dl.source + (dl.downloadDir ? "（目录：" + dl.downloadDir + "，" + (dl.bytes || 0) + " 字节）" : ""))
 						: ("    ✗ 下载失败：" + (dl.error || "")));
 					if (!dl.ok) { addLog("✗ 无法下载安装包，流程中止"); setDone("安装失败"); setStep(3); setBusy(false); return; }
 					addLog("● 步骤 3/3  安装（dsh plugin add）…");
-					const i = await (await fetch(FEATURES_INSTALL_ENDPOINT, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: feature.id }) })).json();
+					const i = await (await fetch(FEATURES_INSTALL_ENDPOINT, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: feature.id, force: true }) })).json();
 					if (i.stdout) addLog("—— pnpm 安装日志 ——\n" + i.stdout.trim());
 					if (i.stderr) addLog("—— 错误输出 ——\n" + i.stderr.trim());
 					addLog(i.ok ? ("✓ 安装成功，已安装到：" + (i.installPath || "")) : ("✗ 安装失败：" + (i.stderr || i.error || "")));
@@ -500,7 +501,7 @@ window.__ModuleLoader__.load({
 			};
 			return react_jsx_runtime.jsx("div", { style: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }, children: [
 				react_jsx_runtime.jsx("div", { className: "dsh-web-ui-cheeco-style-section", style: { width: "85vw", height: "85vh", maxWidth: "1080px", display: "flex", flexDirection: "column" }, children: [
-					react_jsx_runtime.jsx("h3", { children: "安装「" + feature.name + "」" }),
+					react_jsx_runtime.jsx("h3", { children: (isUpdate ? "更新「" : "安装「") + feature.name + "」" }),
 					react_jsx_runtime.jsx("p", { className: "dsh-web-ui-cheeco-style-state", children: "流程：确认 → 下载/检查 → 安装 → 完成（当前：" + steps[step] + (done ? "　结果：" + done : "") + "）" }),
 					react_jsx_runtime.jsx("div", { style: { flex: 1, overflow: "auto", border: "1px solid var(--dsw-alias-border-l1,#e5e5e5)", borderRadius: "8px", background: "var(--dsw-alias-bg-layer-1,#fff)", padding: "10px 12px", fontFamily: "ui-monospace, monospace", fontSize: "12.5px", lineHeight: "1.6", whiteSpace: "pre-wrap", wordBreak: "break-all", color: "var(--dsw-alias-label-secondary,#555)" }, children: [
 						(step === 0
@@ -588,7 +589,9 @@ window.__ModuleLoader__.load({
 					react_jsx_runtime.jsx("p", { className: "dsh-web-ui-cheeco-style-state", style: { marginBottom: "6px" }, children: ver }),
 					react_jsx_runtime.jsx("div", { className: "dsh-web-ui-cheeco-style-actions", children: [
 						!isOff && (f.installed
-							? react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: () => uninstall(f), disabled: busyId === f.id, children: "卸载" })
+							? (f.hasUpdate
+								? react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: () => setWizard(f), disabled: busyId === f.id, style: { background: "#3498db", borderColor: "#3498db", color: "#fff" }, children: "更新" })
+								: react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: () => uninstall(f), disabled: busyId === f.id, children: "卸载" }))
 							: react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: () => setWizard(f), disabled: busyId === f.id, style: { background: "#3498db", borderColor: "#3498db", color: "#fff" }, children: "我要安装" })),
 						react_jsx_runtime.jsx("a", { href: f.url, target: "_blank", rel: "noreferrer", className: "dsh-web-ui-cheeco-style-action", style: { textDecoration: "none" }, children: "查看介绍" }),
 						react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: () => checkUpdate(f), disabled: busyId === f.id, children: "检查更新" })

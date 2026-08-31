@@ -62,7 +62,7 @@ const RESTART_PATH = "/cheeco-style/plugin/restart";
  *  `pkg` 判断是否已安装；`install` 为**可安装来源**（真实下载 URL，`dsh plugin add <此URL>` 即从 GitHub release 下载安装）；
  *  `url` 为“查看介绍”跳转；`folder` 为本机 release tgz 的子目录名（开发便利）。 */
 const CHEECO_FEATURES = [
-	{ id: "style", name: "界面/声音设置", pkg: "@cheeco/dsh-web-ui-cheeco-style", install: "https://github.com/cheeco-feng/DSH-Func/releases/download/v0.8.4/cheeco-dsh-web-ui-cheeco-style-0.8.4.tgz", folder: "dsh-web-ui-cheeco-style", url: "https://github.com/cheeco-feng/DSH-Func" },
+	{ id: "style", name: "界面/声音设置", pkg: "@cheeco/dsh-web-ui-cheeco-style", install: "https://github.com/cheeco-feng/DSH-Func/releases/download/v0.8.5/cheeco-dsh-web-ui-cheeco-style-0.8.5.tgz", folder: "dsh-web-ui-cheeco-style", url: "https://github.com/cheeco-feng/DSH-Func" },
 	{ id: "sound", name: "AI 回复提示音", pkg: "@cheeco/dsh-client-ui-message-sound", install: "https://github.com/cheeco-feng/DSH-Func/releases/download/v0.3.0/cheeco-dsh-client-ui-message-sound-0.3.0.tgz", folder: "dsh-client-ui-message-sound", url: "https://github.com/cheeco-feng/DSH-Func" },
 	{ id: "search", name: "会话内容检索", pkg: "@cheeco/dsh-client-ui-session-search", install: "https://github.com/cheeco-feng/DSH-Func/releases/download/v0.2.0/cheeco-dsh-client-ui-session-search-0.2.0.tgz", folder: "dsh-client-ui-session-search", url: "https://github.com/cheeco-feng/DSH-Func" },
 	{ id: "dshcmd", name: "DSH功能命令", pkg: "@cheeco/dsh-tool-dsh-plugin-exec", install: "https://github.com/cheeco-feng/DSH-Func/releases/download/v0.1.6/cheeco-dsh-tool-dsh-plugin-exec-0.1.6.tgz", folder: "dsh-tool-dsh-plugin-exec", url: "https://github.com/cheeco-feng/DSH-Func" },
@@ -153,7 +153,7 @@ async function latestVersionOf(folder) {
 }
 /** 动态解析某功能的**最新版下载地址**（免维护）：按最新版本拼 release URL；
  *  拉不到最新版则回退到静态 `install` 字段。返回形如
- *  https://github.com/cheeco-feng/DSH-Func/releases/download/v0.8.4/cheeco-dsh-web-ui-cheeco-style-0.8.4.tgz */
+ *  https://github.com/cheeco-feng/DSH-Func/releases/download/v0.8.5/cheeco-dsh-web-ui-cheeco-style-0.8.5.tgz */
 async function resolveDownloadUrl(target) {
 	if (target.folder) {
 		const v = await latestVersionOf(target.folder);
@@ -343,7 +343,7 @@ function renderConfigFile(v) {
 }
 
 /** In sync with package.json so the config records which plugin version produced it. */
-const PLUGIN_VERSION = "0.8.4";
+const PLUGIN_VERSION = "0.8.5";
 /** Resolve the dsh CLI package version (from @deepseek-ai/dsh/package.json). */
 function dshVersion() {
 	try {
@@ -603,13 +603,15 @@ export default class DshWebUiPatches {
 		this.json(res, 200, { ok: true, items: [...official, ...cheeco] });
 	}
 
-	/** 功能推荐：“我要安装” —— 参考 dsh-plugin-manager：直接把安装源交给 `dsh plugin add`（pnpm 下载+安装）。 */
+	/** 功能推荐：“我要安装 / 更新” —— 参考 dsh-plugin-manager：直接把安装源交给 `dsh plugin add`（pnpm 下载+安装）。
+	 *  `force:true` 表示“更新”（覆盖安装在已装插件上，即原地升级）。 */
 	async handleFeatureInstall(req, res) {
 		let body = {};
 		try { body = JSON.parse((await readBody(req)) || "{}"); } catch (e) { body = {}; }
 		const target = CHEECO_FEATURES.find((f) => f.id === body.id);
 		if (!target) { this.json(res, 400, { ok: false, error: "未知的功能 id" }); return; }
-		if (isInstalled(target.pkg)) { this.json(res, 200, { ok: true, alreadyInstalled: true }); return; }
+		const force = body.force === true;
+		if (!force && isInstalled(target.pkg)) { this.json(res, 200, { ok: true, alreadyInstalled: true }); return; }
 		// @cheeco：先下载 release URL 到 downloads 目录（同名跳过），再从下载文件装；github 等：直接 pnpm add 源
 		let spec;
 		if (target.folder) {
@@ -633,7 +635,8 @@ export default class DshWebUiPatches {
 		try { body = JSON.parse((await readBody(req)) || "{}"); } catch (e) { body = {}; }
 		const target = CHEECO_FEATURES.find((f) => f.id === body.id);
 		if (!target) { this.json(res, 400, { ok: false, error: "未知的功能 id" }); return; }
-		if (isInstalled(target.pkg)) { this.json(res, 200, { ok: true, alreadyInstalled: true, installPath: pkgDir(target.pkg) }); return; }
+		const force = body.force === true;
+		if (!force && isInstalled(target.pkg)) { this.json(res, 200, { ok: true, alreadyInstalled: true, installPath: pkgDir(target.pkg) }); return; }
 		const install = await resolveDownloadUrl(target);
 		const base = { targetDir: profileDir(), installPath: pkgDir(target.pkg), downloadUrl: install, source: install, downloadDir: downloadDir() };
 		if (target.folder) {
@@ -652,7 +655,8 @@ export default class DshWebUiPatches {
 		try { body = JSON.parse((await readBody(req)) || "{}"); } catch (e) { body = {}; }
 		const target = CHEECO_FEATURES.find((f) => f.id === body.id);
 		if (!target) { this.json(res, 400, { ok: false, error: "未知的功能 id" }); return; }
-		if (isInstalled(target.pkg)) { this.json(res, 200, { ok: true, alreadyInstalled: true }); return; }
+		const force = body.force === true;
+		if (!force && isInstalled(target.pkg)) { this.json(res, 200, { ok: true, alreadyInstalled: true }); return; }
 		const d = await downloadFeature(target);
 		this.json(res, 200, d);
 	}
