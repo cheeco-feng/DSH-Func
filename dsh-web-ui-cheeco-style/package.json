@@ -1,6 +1,6 @@
 {
   "name": "@cheeco/dsh-web-ui-cheeco-style",
-  "version": "0.8.3",
+  "version": "0.8.4",
   "description": "Cheeco的小功能：DSH 小功能集合（含「AI 回复提示音」开关卡片、顶部「界面标题 / Logo」自定义）。",
   "type": "module",
   "main": "lib/index.js",
