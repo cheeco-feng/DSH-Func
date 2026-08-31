@@ -62,7 +62,7 @@ const RESTART_PATH = "/cheeco-style/plugin/restart";
  *  `pkg` 判断是否已安装；`install` 为**可安装来源**（真实下载 URL，`dsh plugin add <此URL>` 即从 GitHub release 下载安装）；
  *  `url` 为“查看介绍”跳转；`folder` 为本机 release tgz 的子目录名（开发便利）。 */
 const CHEECO_FEATURES = [
-	{ id: "style", name: "界面/声音设置", pkg: "@cheeco/dsh-web-ui-cheeco-style", install: "https://github.com/cheeco-feng/DSH-Func/releases/download/v0.8.2/cheeco-dsh-web-ui-cheeco-style-0.8.2.tgz", folder: "dsh-web-ui-cheeco-style", url: "https://github.com/cheeco-feng/DSH-Func" },
+	{ id: "style", name: "界面/声音设置", pkg: "@cheeco/dsh-web-ui-cheeco-style", install: "https://github.com/cheeco-feng/DSH-Func/releases/download/v0.8.3/cheeco-dsh-web-ui-cheeco-style-0.8.3.tgz", folder: "dsh-web-ui-cheeco-style", url: "https://github.com/cheeco-feng/DSH-Func" },
 	{ id: "sound", name: "AI 回复提示音", pkg: "@cheeco/dsh-client-ui-message-sound", install: "https://github.com/cheeco-feng/DSH-Func/releases/download/v0.3.0/cheeco-dsh-client-ui-message-sound-0.3.0.tgz", folder: "dsh-client-ui-message-sound", url: "https://github.com/cheeco-feng/DSH-Func" },
 	{ id: "search", name: "会话内容检索", pkg: "@cheeco/dsh-client-ui-session-search", install: "https://github.com/cheeco-feng/DSH-Func/releases/download/v0.2.0/cheeco-dsh-client-ui-session-search-0.2.0.tgz", folder: "dsh-client-ui-session-search", url: "https://github.com/cheeco-feng/DSH-Func" },
 	{ id: "dshcmd", name: "DSH功能命令", pkg: "@cheeco/dsh-tool-dsh-plugin-exec", install: "https://github.com/cheeco-feng/DSH-Func/releases/download/v0.1.6/cheeco-dsh-tool-dsh-plugin-exec-0.1.6.tgz", folder: "dsh-tool-dsh-plugin-exec", url: "https://github.com/cheeco-feng/DSH-Func" },
@@ -124,12 +124,39 @@ async function latestFromGitHub(folder) {
 		return ((await r.json()) || {}).version || "";
 	} catch (e) { return ""; }
 }
+/** 仓库维护的“版本清单”唯一真源文件（含各插件最新版本 + dsh 官方程序）。
+ *  发版时只需更新这个文件 + 推送，下载地址/版本显示自动跟上。 */
+const MANIFEST_URL = `${GITHUB_RAW}/cheeco-dsh-plugins.json`;
+let manifestCache = { promise: null, at: 0 };
+async function getManifest() {
+	const now = Date.now();
+	if (manifestCache.promise && now - manifestCache.at < 60000) return manifestCache.promise;
+	const p = (async () => {
+		try {
+			const r = await fetch(MANIFEST_URL, { signal: AbortSignal.timeout(5000) });
+			if (!r.ok) return null;
+			return await r.json();
+		} catch (e) { return null; }
+	})();
+	manifestCache = { promise: p, at: now };
+	return p;
+}
+/** 优先从版本清单读某插件最新版；清单不可用/没有该项再逐个 fetch；仍失败返回 ""。 */
+async function latestVersionOf(folder) {
+	if (!folder) return "";
+	const m = await getManifest();
+	if (m && Array.isArray(m.plugins)) {
+		const p = m.plugins.find((x) => x.folder === folder);
+		if (p && p.version) return String(p.version);
+	}
+	return latestFromGitHub(folder);
+}
 /** 动态解析某功能的**最新版下载地址**（免维护）：按最新版本拼 release URL；
  *  拉不到最新版则回退到静态 `install` 字段。返回形如
- *  https://github.com/cheeco-feng/DSH-Func/releases/download/v0.8.2/cheeco-dsh-web-ui-cheeco-style-0.8.2.tgz */
+ *  https://github.com/cheeco-feng/DSH-Func/releases/download/v0.8.3/cheeco-dsh-web-ui-cheeco-style-0.8.3.tgz */
 async function resolveDownloadUrl(target) {
 	if (target.folder) {
-		const v = await latestFromGitHub(target.folder);
+		const v = await latestVersionOf(target.folder);
 		if (v) return `https://github.com/cheeco-feng/DSH-Func/releases/download/v${v}/cheeco-${target.folder}-${v}.tgz`;
 	}
 	return target.install || "";
@@ -316,7 +343,7 @@ function renderConfigFile(v) {
 }
 
 /** In sync with package.json so the config records which plugin version produced it. */
-const PLUGIN_VERSION = "0.8.2";
+const PLUGIN_VERSION = "0.8.3";
 /** Resolve the dsh CLI package version (from @deepseek-ai/dsh/package.json). */
 function dshVersion() {
 	try {
@@ -561,13 +588,16 @@ export default class DshWebUiPatches {
 	/** 功能推荐列表：返回手写列表 + 每个插件的已安装状态。 */
 	async handleFeatures(res) {
 		const dshVer = dshVersion();
+		// 从清单（唯一真源）读官方程序列表；清单不可用则回退到常量的 DSH_OFFICIAL
+		const manifest = await getManifest();
+		const officialList = (manifest && Array.isArray(manifest.official) && manifest.official.length) ? manifest.official : DSH_OFFICIAL;
 		// dsh 官方程序：仅列出 + 查看介绍，不提供安装
-		const official = DSH_OFFICIAL.map((o) => ({ ...o, installed: true, installable: false, official: true, current: dshVer, latest: dshVer, hasUpdate: false, enabled: true }));
-		// cheeco 功能：已安装版本(本地) + 最新版本(实时 GitHub) + 是否有更新
+		const official = officialList.map((o) => ({ ...o, installed: true, installable: false, official: true, current: dshVer, latest: dshVer, hasUpdate: false, enabled: true }));
+		// cheeco 功能：已安装版本(本地) + 最新版本(清单优先/实时 GitHub) + 是否有更新
 		const cheeco = await Promise.all(CHEECO_FEATURES.map(async (f) => {
 			const installed = isInstalled(f.pkg);
 			const current = installed ? installedVersion(f.folder) : "";
-			const latest = f.folder ? await latestFromGitHub(f.folder) : "";
+			const latest = f.folder ? await latestVersionOf(f.folder) : "";
 			return { ...f, installed, installable: true, official: false, current, latest, hasUpdate: Boolean(current && latest && latest !== current), enabled: installed };
 		}));
 		this.json(res, 200, { ok: true, items: [...official, ...cheeco] });
