@@ -61,7 +61,7 @@ window.__ModuleLoader__.load({
 		/** Pre-filled logo URL for this instance (change or clear in the card; leave empty for the official brand). */
 		const DEFAULT_LOGO_URL = "https://yc1971.com/ico.png";
 		/** Bump this in sync with package.json version so the UI reflects the build. */
-		const PLUGIN_VERSION = "0.8.5";
+		const PLUGIN_VERSION = "0.8.6";
 
 		/** Host endpoints (same-origin, served by our own webServer):
 		 *    GET/POST /cheeco-style/config  -> read/write the config file
@@ -589,12 +589,11 @@ window.__ModuleLoader__.load({
 					react_jsx_runtime.jsx("p", { className: "dsh-web-ui-cheeco-style-state", style: { marginBottom: "6px" }, children: ver }),
 					react_jsx_runtime.jsx("div", { className: "dsh-web-ui-cheeco-style-actions", children: [
 						!isOff && (f.installed
-							? (f.hasUpdate
-								? react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: () => setWizard(f), disabled: busyId === f.id, style: { background: "#3498db", borderColor: "#3498db", color: "#fff" }, children: "更新" })
-								: react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: () => uninstall(f), disabled: busyId === f.id, children: "卸载" }))
+							? react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: () => uninstall(f), disabled: busyId === f.id, children: "卸载" })
 							: react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: () => setWizard(f), disabled: busyId === f.id, style: { background: "#3498db", borderColor: "#3498db", color: "#fff" }, children: "我要安装" })),
 						react_jsx_runtime.jsx("a", { href: f.url, target: "_blank", rel: "noreferrer", className: "dsh-web-ui-cheeco-style-action", style: { textDecoration: "none" }, children: "查看介绍" }),
-						react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: () => checkUpdate(f), disabled: busyId === f.id, children: "检查更新" })
+						react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: () => checkUpdate(f), disabled: busyId === f.id, children: "检查更新" }),
+						!isOff && f.installed && f.hasUpdate && react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: () => setWizard(f), disabled: busyId === f.id, style: { background: "#3498db", borderColor: "#3498db", color: "#fff" }, children: "更新" })
 					] })
 				] });
 			};
