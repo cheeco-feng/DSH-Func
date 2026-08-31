@@ -1,3 +1,11 @@
+# 全文检索（content search 模式）所需的会话索引。官方 dsh-web-app 把
+# session-query-sqlite 固定为 openAt: never；这里把 FTS 索引打开（延迟到首次
+# 搜索再建，避免 Node 22 启动期开销）。随插件自动生效，无需在 profile 的
+# cordis.patch.yml 手动重复。
 - insert:
     - id: dsh-client-ui-session-search
       name: '@cheeco/dsh-client-ui-session-search'
+- id: session-query-sqlite
+  config:
+    path: ':memory:'
+    openAt: first-search
