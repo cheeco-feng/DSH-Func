@@ -62,7 +62,7 @@ const RESTART_PATH = "/cheeco-style/plugin/restart";
  *  `pkg` 判断是否已安装；`install` 为**可安装来源**（真实下载 URL，`dsh plugin add <此URL>` 即从 GitHub release 下载安装）；
  *  `url` 为“查看介绍”跳转；`folder` 为本机 release tgz 的子目录名（开发便利）。 */
 const CHEECO_FEATURES = [
-	{ id: "style", name: "界面/声音设置", pkg: "@cheeco/dsh-web-ui-cheeco-style", install: "https://github.com/cheeco-feng/DSH-Func/releases/download/v0.8.1/cheeco-dsh-web-ui-cheeco-style-0.8.1.tgz", folder: "dsh-web-ui-cheeco-style", url: "https://github.com/cheeco-feng/DSH-Func" },
+	{ id: "style", name: "界面/声音设置", pkg: "@cheeco/dsh-web-ui-cheeco-style", install: "https://github.com/cheeco-feng/DSH-Func/releases/download/v0.8.2/cheeco-dsh-web-ui-cheeco-style-0.8.2.tgz", folder: "dsh-web-ui-cheeco-style", url: "https://github.com/cheeco-feng/DSH-Func" },
 	{ id: "sound", name: "AI 回复提示音", pkg: "@cheeco/dsh-client-ui-message-sound", install: "https://github.com/cheeco-feng/DSH-Func/releases/download/v0.3.0/cheeco-dsh-client-ui-message-sound-0.3.0.tgz", folder: "dsh-client-ui-message-sound", url: "https://github.com/cheeco-feng/DSH-Func" },
 	{ id: "search", name: "会话内容检索", pkg: "@cheeco/dsh-client-ui-session-search", install: "https://github.com/cheeco-feng/DSH-Func/releases/download/v0.2.0/cheeco-dsh-client-ui-session-search-0.2.0.tgz", folder: "dsh-client-ui-session-search", url: "https://github.com/cheeco-feng/DSH-Func" },
 	{ id: "dshcmd", name: "DSH功能命令", pkg: "@cheeco/dsh-tool-dsh-plugin-exec", install: "https://github.com/cheeco-feng/DSH-Func/releases/download/v0.1.6/cheeco-dsh-tool-dsh-plugin-exec-0.1.6.tgz", folder: "dsh-tool-dsh-plugin-exec", url: "https://github.com/cheeco-feng/DSH-Func" },
@@ -123,6 +123,16 @@ async function latestFromGitHub(folder) {
 		if (!r.ok) return "";
 		return ((await r.json()) || {}).version || "";
 	} catch (e) { return ""; }
+}
+/** 动态解析某功能的**最新版下载地址**（免维护）：按最新版本拼 release URL；
+ *  拉不到最新版则回退到静态 `install` 字段。返回形如
+ *  https://github.com/cheeco-feng/DSH-Func/releases/download/v0.8.2/cheeco-dsh-web-ui-cheeco-style-0.8.2.tgz */
+async function resolveDownloadUrl(target) {
+	if (target.folder) {
+		const v = await latestFromGitHub(target.folder);
+		if (v) return `https://github.com/cheeco-feng/DSH-Func/releases/download/v${v}/cheeco-${target.folder}-${v}.tgz`;
+	}
+	return target.install || "";
 }
 /** Whether a package (e.g. `@webkong/dsh-plugin-manager`) is installed in this profile.
  *  `node_modules` is the parent of the @cheeco dir. */
@@ -191,23 +201,25 @@ async function downloadFeature(target) {
 		}
 		const dir = downloadDir();
 		mkdirSync(dir, { recursive: true });
+		// 动态解析最新版下载地址（免维护）；失败回退到静态 install
+		const install = await resolveDownloadUrl(target);
 		// 文件名：优先从 release URL 取最后一段（即 tgz 名）
 		let fileName = `${target.folder}.tgz`;
-		try { const pn = new URL(target.install).pathname; if (pn) fileName = basename(pn) || fileName; } catch (e) {}
+		try { const pn = new URL(install).pathname; if (pn) fileName = basename(pn) || fileName; } catch (e) {}
 		const dest = join(dir, fileName);
 		// 1) 本机已有同名文件 -> 跳过下载（信息可见：完整路径）
 		if (existsSync(dest) && statSync(dest).size > 0) {
 			return { ok: true, file: dest, fileName, bytes: statSync(dest).size, downloadDir: dir, source: `本机已存在：${dest}，已跳过下载`, skipped: true };
 		}
 		// 2) 从 release URL 下载
-		if (target.install) {
-			const r = await fetch(target.install);
+		if (install) {
+			const r = await fetch(install);
 			if (r.ok) {
 				const buf = Buffer.from(await r.arrayBuffer());
 				writeFileSync(dest, buf);
-				return { ok: true, file: dest, fileName, bytes: buf.length, downloadDir: dir, source: "已从 " + target.install + " 下载", skipped: false };
+				return { ok: true, file: dest, fileName, bytes: buf.length, downloadDir: dir, source: "已从 " + install + " 下载", skipped: false };
 			}
-			return { ok: false, file: dest, fileName, downloadDir: dir, error: "下载失败（HTTP " + r.status + "）", source: target.install };
+			return { ok: false, file: dest, fileName, downloadDir: dir, error: "下载失败（HTTP " + r.status + "）", source: install };
 		}
 		return { ok: false, file: dest, fileName, error: "未配置下载地址（install 字段）" };
 	} catch (e) { return { ok: false, error: String(e && e.message || e) }; }
@@ -304,7 +316,7 @@ function renderConfigFile(v) {
 }
 
 /** In sync with package.json so the config records which plugin version produced it. */
-const PLUGIN_VERSION = "0.8.1";
+const PLUGIN_VERSION = "0.8.2";
 /** Resolve the dsh CLI package version (from @deepseek-ai/dsh/package.json). */
 function dshVersion() {
 	try {
@@ -592,14 +604,15 @@ export default class DshWebUiPatches {
 		const target = CHEECO_FEATURES.find((f) => f.id === body.id);
 		if (!target) { this.json(res, 400, { ok: false, error: "未知的功能 id" }); return; }
 		if (isInstalled(target.pkg)) { this.json(res, 200, { ok: true, alreadyInstalled: true, installPath: pkgDir(target.pkg) }); return; }
-		const base = { targetDir: profileDir(), installPath: pkgDir(target.pkg), downloadUrl: target.install || "", source: target.install, downloadDir: downloadDir() };
+		const install = await resolveDownloadUrl(target);
+		const base = { targetDir: profileDir(), installPath: pkgDir(target.pkg), downloadUrl: install, source: install, downloadDir: downloadDir() };
 		if (target.folder) {
 			const tgz = latestCheecoTgz(target.folder);
-			if (!tgz) { this.json(res, 200, { ok: true, kind: "tgz", downloadUrl: target.install, fileName: "(按安装源)", ...base, note: "本机无 release tgz，将从安装源下载" }); return; }
-			this.json(res, 200, { ok: true, kind: "tgz", spec: tgz, file: tgz.replace("file:", ""), source: "本机 release 目录（" + target.install + "）", fileName: basename(tgz.replace("file:", "")), ...base });
+			if (!tgz) { this.json(res, 200, { ok: true, kind: "tgz", downloadUrl: install, fileName: "(按安装源)", ...base, note: "本机无 release tgz，将从安装源下载" }); return; }
+			this.json(res, 200, { ok: true, kind: "tgz", spec: tgz, file: tgz.replace("file:", ""), source: "本机 release 目录（" + install + "）", fileName: basename(tgz.replace("file:", "")), ...base });
 		} else {
 			// github 等：安装命令本身会下载；此处先给计划
-			this.json(res, 200, { ok: true, kind: "github", spec: target.install, source: target.install, fileName: "(从 " + target.install + " 拉取)", ...base });
+			this.json(res, 200, { ok: true, kind: "github", spec: install, source: install, fileName: "(从 " + install + " 拉取)", ...base });
 		}
 	}
 
