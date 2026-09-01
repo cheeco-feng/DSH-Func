@@ -54,6 +54,7 @@ const META = {
   "dsh-client-ui-plugin-push":     { id: "push",     label: "cheeco 功能推荐（插件中心）", pkg: "@cheeco/dsh-client-ui-plugin-push" },
   "dsh-client-ui-task-status":     { id: "taskstatus", label: "cheeco 后台任务状态条", pkg: "@cheeco/dsh-client-ui-task-status" },
   "dsh-cmdwatch":                  { id: "cmdwatch",  label: "cheeco 命令窗", pkg: "@cheeco/dsh-cmdwatch" },
+  "dsh-client-ui-mobile":          { id: "mobile",    label: "cheeco 移动端适配", pkg: "@cheeco/dsh-client-ui-mobile" },
 };
 
 // ---- 参数解析 --------------------------------------------------------------
