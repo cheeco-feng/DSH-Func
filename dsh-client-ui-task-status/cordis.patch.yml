@@ -1,0 +1,4 @@
+# dsh-client-ui-task-status bundle：向组合挂 Node half（数据路由）
+- insert:
+    - id: task-status
+      name: '@cheeco/dsh-client-ui-task-status'

@@ -1,0 +1,190 @@
+// dsh-cmdwatch —— 命令净化（纯逻辑，可单测，不依赖宿主）
+//
+// dsh 自主生成的命令可能带"收集型管道"（`| Select-Object -Last 4`、`| tail -n 4`、
+// `| Sort-Object`）或"输出消耗型管道"（`| Out-File`、`| Set-Content`、`>` 重定向）：
+//   收集型 —— 必须等上游全部输出完才产生输出，stdout 在命令结束前是空的；
+//   消耗型 —— 输出直接写入文件/丢弃，stdout 全程无内容。
+// 两者都会让命令窗看不到实时进度。剥离收集型管道并不能救消耗型（如
+// `... | Select-Object -Last 2 | Out-File f` 剥离后输出仍被 Out-File 吞掉），
+// 且会改变工具结果语义。因此统一采用**插入 Tee**（pwsh `Tee-Object` / bash `tee`）：
+// 把输出落盘供插件轮询，Tee 插在**最早**的收集/消耗段之前——面板看到全量渐进
+// 输出，而 dsh 的原管道（-Last、Out-File、Get-Content 等）原样保留，工具结果
+// 语义零改变。
+//
+//   - analyzeCommand：检测并返回警示（收集/消耗/提前终止）
+//   - buildStreamWrap：插入 Tee 包装命令（后台任务仅在存在收集/消耗段时包装，
+//     否则 jobs 通道本身就能流式；前台任务总是包装）
+
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+
+// 收集型管道：缓冲上游全部输出，命令结束前无中间输出（\|&?\s* 兼容 bash |&）
+const COLLECTING = [
+  { re: /\|&?\s*(?:Select-Object|select)\s+-Last\s+\d+\s*/gi, label: '收集型管道 Select-Object -Last N（缓冲全部输出，命令结束前无中间输出）' },
+  { re: /\|&?\s*tail\s+(?:-n\s+)?-?\d+\s*/gi, label: '收集型管道 tail -n N（缓冲全部输出，命令结束前无中间输出）' },
+  { re: /\|&?\s*(?:Format-Table|Format-List|Format-Wide|Format-Custom)\b[^|]*/gi, label: '格式型管道 Format-*（需收集全部输出计算布局）' },
+  { re: /\|&?\s*(?:ConvertTo-Json|ConvertTo-Html|ConvertTo-Xml)\b[^|]*/gi, label: '转换型管道 ConvertTo-*（需收集全部输出构建）' },
+  { re: /\|&?\s*Out-String\b[^|]*/gi, label: '拼接型管道 Out-String（需收集全部输出拼字符串）' },
+  { re: /\|&?\s*wc\b[^|]*/gi, label: '统计型管道 wc（需收集全部输出计数）' },
+];
+
+// 尾部收集型：收集后排序/分组/统计，结束前无中间输出
+const TAIL_COLLECTING = [
+  { re: /\|&?\s*(?:Sort-Object|sort)\b[^|]*/gi, label: '收集型管道 Sort-Object（需收集全部输出排序）' },
+  { re: /\|&?\s*(?:Group-Object|group)\b[^|]*/gi, label: '收集型管道 Group-Object（需收集全部输出分组）' },
+  { re: /\|&?\s*(?:Measure-Object|measure)\b[^|]*/gi, label: '收集型管道 Measure-Object（需收集全部输出统计）' },
+];
+
+// 输出消耗型管道：输出写入文件/丢弃，stdout 无内容（Tee 必须插在它之前）
+const CONSUMING = [
+  { re: /\|&?\s*(?:Out-File|Set-Content|Add-Content|Out-Null)\b[^|]*/gi, label: '输出重定向管道（Out-File/Set-Content/Out-Null），stdout 无内容' },
+  // 重定向 > / >>：排除 2>&1（> 紧邻数字/&），但 cmd2 > f（> 前是空格）应命中
+  { re: /(?<![\d&])\s*>{1,2}(?!>)\s*/g, label: '重定向 > / >>（输出写入文件，stdout 无内容）' },
+];
+
+// 过滤型管道：只放行匹配行/项，其余输出被丢弃（Tee 必须插在它之前才能看到全量）
+const FILTERING = [
+  { re: /\|&?\s*(?:Select-String|findstr|grep|egrep|fgrep)\b[^|]*/gi, label: '过滤管道（Select-String/grep 等只放行匹配行，其余输出被丢弃）' },
+  { re: /\|&?\s*(?:Where-Object|where)\b[^|]*/gi, label: '过滤管道 Where-Object（只放行匹配项，其余输出被丢弃）' },
+];
+
+// 提前终止型：只放行前 N 行/项并截断上游（Tee 插在它之前可拿到截断前的输出）
+const TERMINATING = [
+  { re: /\|&?\s*(?:Select-Object|select)\s+-First\s+\d+/gi, label: '提前终止管道 Select-Object -First N（可能提前截断上游命令）' },
+  { re: /\|&?\s*head\s+(?:-n\s+)?\d+/gi, label: '提前终止管道 head -n N（可能提前截断上游命令）' },
+];
+
+function findMatches(command, patterns) {
+  const found = [];
+  for (const p of patterns) {
+    if (p.re.global) {
+      p.re.lastIndex = 0;
+      let m;
+      while ((m = p.re.exec(command)) !== null) found.push({ label: p.label, match: m[0].trim() });
+    } else {
+      const m = p.re.exec(command);
+      if (m) found.push({ label: p.label, match: m[0].trim() });
+    }
+  }
+  return found;
+}
+
+/**
+ * 检测命令中的收集/消耗/提前终止管道，返回警示（不改写）。
+ * @returns {{command: string, changed: boolean, original: string, warnings: string[]}}
+ */
+function analyzeCommand(command, opts = {}) {
+  const original = command;
+  const warnings = [];
+  const detect = opts.detect !== false;
+  if (typeof command !== 'string' || !command.trim()) {
+    return { command, changed: false, original, warnings: [] };
+  }
+  if (detect) {
+    for (const w of findMatches(command, COLLECTING)) warnings.push(w.label + `（${w.match}）`);
+    for (const w of findMatches(command, TAIL_COLLECTING)) warnings.push(w.label + `（${w.match}）`);
+    for (const w of findMatches(command, CONSUMING)) warnings.push(w.label + `（${w.match}）`);
+    for (const w of findMatches(command, FILTERING)) warnings.push(w.label + `（${w.match}）`);
+    for (const w of findMatches(command, TERMINATING)) warnings.push(w.label + `（${w.match}）`);
+  }
+  return { command, changed: false, original, warnings };
+}
+
+/**
+ * 插入 Tee（pwsh `Tee-Object` / bash `tee`）把命令输出落盘，供插件轮询实现
+ * 实时显示。Tee 插在**最早**的收集/消耗段之前；无此类段时追加到命令尾部
+ * （前台任务）或返回 null（后台任务——jobs 通道本身即可流式）。
+ *
+ * 返回 null 表示不适合包装（命令原样执行）。
+ * @param {string} command 原始命令行
+ * @param {object} [opts]
+ * @param {'pwsh'|'bash'} [opts.tool]
+ * @param {string} [opts.callId]
+ * @param {string} [opts.workdir] 提供时日志文件落在 workdir（命令里用相对名）
+ * @param {'fg'|'bg'} [opts.mode='fg'] 'bg' 时无收集/消耗段则返回 null
+ * @returns {{wrapped: string, file: string, injectedPython: boolean}|null}
+ */
+function buildStreamWrap(command, opts = {}) {
+  const tool = opts.tool;
+  const callId = opts.callId || 'x';
+  const mode = opts.mode || 'fg';
+  const workdir = typeof opts.workdir === 'string' && opts.workdir ? opts.workdir : undefined;
+  if (typeof command !== 'string' || !command.trim()) return null;
+  if (tool !== 'pwsh' && tool !== 'bash') return null;
+  // 单行才包装：多行命令尾部拼接风险高
+  if (command.includes('\n') || command.includes('\r')) return null;
+  const trimmed = command.trim();
+  // 尾部防呆（仅"尾部追加 Tee"时需要；插入型包装不碰尾部，见下）
+  const tailUnsafe = /[{};\\]$/.test(trimmed)
+    || /(^|[;\s])(exit|return|break|continue|throw)(\s+\d+)?\s*$/i.test(trimmed);
+  // 已包装过则跳过（防重入/重复包装）
+  if (/cmdmon-[A-Za-z0-9_-]+\.log/i.test(trimmed)) return null;
+
+  // 找所有收集/消耗/过滤/终止段的插入点（多语句命令每条语句都可能带管道）
+  const segments = [...COLLECTING, ...TAIL_COLLECTING, ...CONSUMING, ...FILTERING, ...TERMINATING];
+  const insertions = [];
+  for (const p of segments) {
+    p.re.lastIndex = 0;
+    let m;
+    while ((m = p.re.exec(command)) !== null) {
+      const pipeIdx = m[0].indexOf('|');
+      const idx = m.index + (pipeIdx >= 0 ? pipeIdx : 0);
+      if (!insertions.includes(idx)) insertions.push(idx);
+    }
+  }
+  insertions.sort((a, b) => a - b);
+  // 后台任务无收集/消耗段：jobs 通道本身可流式，无需包装
+  if (mode === 'bg' && insertions.length === 0) return null;
+
+  const fileName = `.cmdmon-${String(callId).replace(/[^A-Za-z0-9_-]/g, '_')}.log`;
+  const filePath = workdir ? join(workdir, fileName) : join(tmpdir(), fileName);
+  const quote = (p) => (tool === 'pwsh'
+    ? `'${String(p).replace(/'/g, "''")}'`
+    : `"${String(p).replace(/"/g, '\\"').replace(/\$/g, '\\$')}"`);
+  // 注意：不能给 Tee-Object 加 -Encoding 参数——该参数仅 PowerShell 7 支持，
+  // Windows PowerShell 5.1 会参数绑定失败导致整条命令 exit 1（实测踩坑）。
+  // 5.1 默认写 UTF-16LE（带 BOM）、7 默认写 utf8NoBOM，插件读取端按 BOM 自动
+  // 识别编码（readTeeDelta），两种都能正确解码，无需显式指定编码。
+  // 第一个 Tee 建文件，后续 Tee 用 -Append 追加（-Append 在 5.1/7 均支持）
+  const teeCreate = (tool === 'pwsh' ? '| Tee-Object -FilePath ' : '| tee ') + quote(filePath);
+  const teeAppend = (tool === 'pwsh' ? '| Tee-Object -FilePath ' : '| tee -a ') + quote(filePath)
+    + (tool === 'pwsh' ? ' -Append' : '');
+
+  // 同语句去重：同一 `;` 分隔的语句内，只有第一个收集/消耗段需要 Tee
+  //（后面的段已在同一条管道链里，第一个 Tee 已捕获全量）
+  const kept = [];
+  for (const idx of insertions) {
+    const last = kept[kept.length - 1];
+    if (last !== undefined && !command.slice(last, idx).includes(';')) continue;
+    kept.push(idx);
+  }
+
+  let wrapped;
+  if (kept.length > 0) {
+    // 从右往左插入，保持索引有效；最左（第一个执行）建文件，其余 -Append
+    wrapped = command;
+    for (let i = kept.length - 1; i >= 0; i--) {
+      const idx = kept[i];
+      const left = wrapped.slice(0, idx).trimEnd();
+      const right = wrapped.slice(idx).trimStart();
+      wrapped = left + ' ' + (i === 0 ? teeCreate : teeAppend) + ' ' + right;
+    }
+  } else if (tailUnsafe) {
+    return null; // 需尾部追加但尾部不安全（以 ;/}/exit 收尾）：跳过包装
+  } else if (trimmed.endsWith('|')) {
+    wrapped = trimmed + teeCreate.slice(1); // 命令以管道收尾：直接接 Tee
+  } else {
+    wrapped = trimmed + ' ' + teeCreate;
+  }
+
+  // python 块缓冲：需要逐行才实时
+  let injectedPython = false;
+  if (/\bpython\b/.test(wrapped) && !/PYTHONUNBUFFERED/i.test(wrapped) && !/(^|\s)-u(\s|$)/.test(wrapped)) {
+    wrapped = (tool === 'bash' ? 'export PYTHONUNBUFFERED=1; ' : "$env:PYTHONUNBUFFERED='1'; ") + wrapped;
+    injectedPython = true;
+  }
+
+  return { wrapped, file: filePath, injectedPython };
+}
+
+export { analyzeCommand, buildStreamWrap, COLLECTING, TAIL_COLLECTING, CONSUMING, FILTERING, TERMINATING };

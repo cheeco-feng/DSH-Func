@@ -1,0 +1,5 @@
+# @cheeco/dsh-cmdwatch bundle patch（dsh.bundle manifest 要求的加载配置）
+# 单包单插件：装一次，命令窗全部功能到位。
+- insert:
+    - id: dsh-cmdwatch
+      name: '@cheeco/dsh-cmdwatch'

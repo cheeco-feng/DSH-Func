@@ -52,6 +52,8 @@ const META = {
   "dsh-client-ui-session-deeplink": { id: "deeplink", label: "cheeco 会话深链接", pkg: "@cheeco/dsh-client-ui-session-deeplink" },
   "dsh-client-ui-timeline-rail":   { id: "timeline", label: "cheeco 会话时间轴", pkg: "@cheeco/dsh-client-ui-timeline-rail" },
   "dsh-client-ui-plugin-push":     { id: "push",     label: "cheeco 功能推荐（插件中心）", pkg: "@cheeco/dsh-client-ui-plugin-push" },
+  "dsh-client-ui-task-status":     { id: "taskstatus", label: "cheeco 后台任务状态条", pkg: "@cheeco/dsh-client-ui-task-status" },
+  "dsh-cmdwatch":                  { id: "cmdwatch",  label: "cheeco 命令窗", pkg: "@cheeco/dsh-cmdwatch" },
 };
 
 // ---- 参数解析 --------------------------------------------------------------
