@@ -47,7 +47,8 @@ const CHEECO_PLUGINS = [
 	{ folder: "dsh-client-ui-message-sound", name: "@cheeco/dsh-client-ui-message-sound", label: "AI 回复提示音" },
 	{ folder: "dsh-client-ui-session-search", name: "@cheeco/dsh-client-ui-session-search", label: "会话内容检索" },
 	{ folder: "dsh-tool-dsh-plugin-exec", name: "@cheeco/dsh-tool-dsh-plugin-exec", label: "dsh_plugin_exec 工具" },
-	{ folder: "dsh-client-ui-plugin-manager", name: "@cheeco/dsh-client-ui-plugin-manager", label: "插件管理" }
+	{ folder: "dsh-client-ui-plugin-manager", name: "@cheeco/dsh-client-ui-plugin-manager", label: "插件管理" },
+	{ folder: "dsh-client-ui-session-deeplink", name: "@cheeco/dsh-client-ui-session-deeplink", label: "会话深链接" }
 ];
 /** GitHub 仓库（raw package.json on main）用于“检查更新”。 */
 const GITHUB_RAW = "https://raw.githubusercontent.com/cheeco-feng/DSH-Func/main";
@@ -338,7 +339,7 @@ function renderConfigFile(v) {
 }
 
 /** In sync with package.json so the config records which plugin version produced it. */
-const PLUGIN_VERSION = "0.8.8";
+const PLUGIN_VERSION = "0.8.9";
 /** Resolve the dsh CLI package version (from @deepseek-ai/dsh/package.json). */
 function dshVersion() {
 	try {
