@@ -1,12 +1,14 @@
 {
-  "updatedAt": "2026-08-31",
+  "updatedAt": "2026-09-01",
   "plugins": [
-    { "id": "style", "name": "界面/声音设置", "pkg": "@cheeco/dsh-web-ui-cheeco-style", "folder": "dsh-web-ui-cheeco-style", "version": "0.8.9", "url": "https://github.com/cheeco-feng/DSH-Func" },
+    { "id": "style", "name": "界面/声音设置", "pkg": "@cheeco/dsh-web-ui-cheeco-style", "folder": "dsh-web-ui-cheeco-style", "version": "0.8.10", "url": "https://github.com/cheeco-feng/DSH-Func" },
     { "id": "sound", "name": "AI 回复提示音", "pkg": "@cheeco/dsh-client-ui-message-sound", "folder": "dsh-client-ui-message-sound", "version": "0.3.1", "url": "https://github.com/cheeco-feng/DSH-Func" },
     { "id": "search", "name": "会话内容检索", "pkg": "@cheeco/dsh-client-ui-session-search", "folder": "dsh-client-ui-session-search", "version": "0.2.1", "url": "https://github.com/cheeco-feng/DSH-Func" },
     { "id": "dshcmd", "name": "DSH功能命令", "pkg": "@cheeco/dsh-tool-dsh-plugin-exec", "folder": "dsh-tool-dsh-plugin-exec", "version": "0.1.7", "url": "https://github.com/cheeco-feng/DSH-Func" },
     { "id": "pmgr", "name": "插件管理（cheeco 插件管理器）", "pkg": "@cheeco/dsh-client-ui-plugin-manager", "folder": "dsh-client-ui-plugin-manager", "version": "0.1.1", "url": "https://github.com/cheeco-feng/DSH-Func" },
-    { "id": "deeplink", "name": "会话深链接", "pkg": "@cheeco/dsh-client-ui-session-deeplink", "folder": "dsh-client-ui-session-deeplink", "version": "0.1.1", "url": "https://github.com/cheeco-feng/DSH-Func" }
+    { "id": "deeplink", "name": "会话深链接", "pkg": "@cheeco/dsh-client-ui-session-deeplink", "folder": "dsh-client-ui-session-deeplink", "version": "0.1.1", "url": "https://github.com/cheeco-feng/DSH-Func" },
+    { "id": "timeline", "name": "会话时间轴", "pkg": "@cheeco/dsh-client-ui-timeline-rail", "folder": "dsh-client-ui-timeline-rail", "version": "0.1.0", "url": "https://github.com/cheeco-feng/DSH-Func" },
+    { "id": "push", "name": "功能推荐（插件中心）", "pkg": "@cheeco/dsh-client-ui-plugin-push", "folder": "dsh-client-ui-plugin-push", "version": "0.1.0", "url": "https://github.com/cheeco-feng/DSH-Func" }
   ],
   "official": [
     { "id": "dsh-main", "name": "DeepSeek Harness（官方主程序）", "url": "https://github.com/deepseek-ai/deepseek-harness" },

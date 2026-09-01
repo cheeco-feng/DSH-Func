@@ -37,9 +37,9 @@ const API = `https://api.github.com/repos/${OWNER}/${REPO}`;
 const UPLOAD_API = `https://uploads.github.com/repos/${OWNER}/${REPO}/releases`;
 const DOWNLOAD_BASE = `https://github.com/${OWNER}/${REPO}/releases/download`;
 
-const STYLE_FOLDER = "dsh-web-ui-cheeco-style";             // 承载“功能推荐”列表的插件
+const STYLE_FOLDER = "dsh-client-ui-plugin-push";             // 承载“功能推荐”列表的插件（原为 style，现已独立）
 const STYLE_LIB = join(REPO_DIR, STYLE_FOLDER, "lib");
-const PLUGIN_FILE = join(STYLE_LIB, "index.js");             // 宿主入口（PLUGIN_VERSION 常量在这）
+const PLUGIN_FILE = join(STYLE_LIB, "index.js");             // 宿主入口（PLUGIN_VERSION 常量在这，若存在）
 const FEATURE_FILE = join(STYLE_LIB, "cheeco-features.js"); // 功能推荐列表（独立文件，改它即可加插件）
 
 /** folder -> { id(功能推荐 id), label(release 名前缀), pkg(包名) }。 */
@@ -50,6 +50,8 @@ const META = {
   "dsh-tool-dsh-plugin-exec":       { id: "dshcmd", label: "cheeco DSH功能命令", pkg: "@cheeco/dsh-tool-dsh-plugin-exec" },
   "dsh-client-ui-plugin-manager":   { id: "pmgr",   label: "cheeco 插件管理器", pkg: "@cheeco/dsh-client-ui-plugin-manager" },
   "dsh-client-ui-session-deeplink": { id: "deeplink", label: "cheeco 会话深链接", pkg: "@cheeco/dsh-client-ui-session-deeplink" },
+  "dsh-client-ui-timeline-rail":   { id: "timeline", label: "cheeco 会话时间轴", pkg: "@cheeco/dsh-client-ui-timeline-rail" },
+  "dsh-client-ui-plugin-push":     { id: "push",     label: "cheeco 功能推荐（插件中心）", pkg: "@cheeco/dsh-client-ui-plugin-push" },
 };
 
 // ---- 参数解析 --------------------------------------------------------------
@@ -92,11 +94,12 @@ function bumpPkgVersion(folder, next) {
   writeText(p, s);
 }
 
-/** 提升 dsh-web-ui-cheeco-style 里 PLUGIN_VERSION 常量（与 package.json 同步）。 */
+/** 提升插件里 PLUGIN_VERSION 常量（与 package.json 同步）；若无该常量（如 push 纯 class 宿主）则跳过。 */
 function bumpPluginVersionConst(next) {
-  let s = readFileSync(PLUGIN_FILE, "utf8");
+  let s;
+  try { s = readFileSync(PLUGIN_FILE, "utf8"); } catch (e) { warn(`未找到 ${PLUGIN_FILE}，跳过 PLUGIN_VERSION 同步`); return; }
   const re = /(const\s+PLUGIN_VERSION\s*=\s*)"[^"]*"/;
-  if (!re.test(s)) fail("未找到 PLUGIN_VERSION 常量（dsh-web-ui-cheeco-style/lib/index.js）");
+  if (!re.test(s)) { warn("未找到 PLUGIN_VERSION 常量，跳过（push 等 class 宿主无此常量）"); return; }
   s = s.replace(re, `$1"${next}"`);
   writeText(PLUGIN_FILE, s);
 }

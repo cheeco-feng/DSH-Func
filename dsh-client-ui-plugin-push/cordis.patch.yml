@@ -1,0 +1,4 @@
+# dsh-client-ui-plugin-push —— 「功能推荐」独立插件 roster 行。
+- insert:
+    - id: push
+      name: '@cheeco/dsh-client-ui-plugin-push'
