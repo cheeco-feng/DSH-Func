@@ -1,19 +1,19 @@
 {
   "updatedAt": "2026-09-01",
   "plugins": [
-    { "id": "style", "name": "界面/声音设置", "pkg": "@cheeco/dsh-web-ui-cheeco-style", "folder": "dsh-web-ui-cheeco-style", "version": "0.8.11", "url": "https://github.com/cheeco-feng/DSH-Func" },
+    { "id": "style", "name": "界面/声音设置", "pkg": "@cheeco/dsh-web-ui-cheeco-style", "folder": "dsh-web-ui-cheeco-style", "version": "0.8.16", "url": "https://github.com/cheeco-feng/DSH-Func" },
     { "id": "sound", "name": "AI 回复提示音", "pkg": "@cheeco/dsh-client-ui-message-sound", "folder": "dsh-client-ui-message-sound", "version": "0.3.1", "url": "https://github.com/cheeco-feng/DSH-Func" },
     { "id": "search", "name": "会话内容检索", "pkg": "@cheeco/dsh-client-ui-session-search", "folder": "dsh-client-ui-session-search", "version": "0.2.1", "url": "https://github.com/cheeco-feng/DSH-Func" },
     { "id": "dshcmd", "name": "DSH功能命令", "pkg": "@cheeco/dsh-tool-dsh-plugin-exec", "folder": "dsh-tool-dsh-plugin-exec", "version": "0.1.7", "url": "https://github.com/cheeco-feng/DSH-Func" },
     { "id": "pmgr", "name": "插件管理（cheeco 插件管理器）", "pkg": "@cheeco/dsh-client-ui-plugin-manager", "folder": "dsh-client-ui-plugin-manager", "version": "0.1.1", "url": "https://github.com/cheeco-feng/DSH-Func" },
     { "id": "deeplink", "name": "会话深链接", "pkg": "@cheeco/dsh-client-ui-session-deeplink", "folder": "dsh-client-ui-session-deeplink", "version": "0.1.1", "url": "https://github.com/cheeco-feng/DSH-Func" },
     { "id": "timeline", "name": "会话时间轴", "pkg": "@cheeco/dsh-client-ui-timeline-rail", "folder": "dsh-client-ui-timeline-rail", "version": "0.1.0", "url": "https://github.com/cheeco-feng/DSH-Func" },
-    { "id": "push", "name": "功能推荐（插件中心）", "pkg": "@cheeco/dsh-client-ui-plugin-push", "folder": "dsh-client-ui-plugin-push", "version": "0.1.0", "url": "https://github.com/cheeco-feng/DSH-Func" },
+    { "id": "push", "name": "功能推荐（插件中心）", "pkg": "@cheeco/dsh-client-ui-plugin-push", "folder": "dsh-client-ui-plugin-push", "version": "0.1.1", "url": "https://github.com/cheeco-feng/DSH-Func" },
     { "id": "taskstatus", "name": "后台任务状态条", "pkg": "@cheeco/dsh-client-ui-task-status", "folder": "dsh-client-ui-task-status", "version": "0.1.0", "url": "https://github.com/cheeco-feng/DSH-Func" },
     { "id": "cmdwatch", "name": "命令窗（命令监视）", "pkg": "@cheeco/dsh-cmdwatch", "folder": "dsh-cmdwatch", "version": "0.1.0", "url": "https://github.com/cheeco-feng/DSH-Func" },
     { "id": "mobile", "name": "移动端适配", "pkg": "@cheeco/dsh-client-ui-mobile", "folder": "dsh-client-ui-mobile", "version": "0.1.0", "url": "https://github.com/cheeco-feng/DSH-Func" },
-    { "id": "systeminfo", "name": "系统信息", "pkg": "@cheeco/dsh-client-ui-system-info", "folder": "dsh-client-ui-system-info", "version": "0.1.0", "url": "https://github.com/cheeco-feng/DSH-Func" },
-    { "id": "usercenter", "name": "用户中心", "pkg": "@cheeco/dsh-web-ui-web_user_center", "folder": "dsh-web-ui-web_user_center", "version": "0.1.0", "url": "https://github.com/cheeco-feng/DSH-Func" }
+    { "id": "systeminfo", "name": "系统信息", "pkg": "@cheeco/dsh-client-ui-system-info", "folder": "dsh-client-ui-system-info", "version": "0.1.2", "url": "https://github.com/cheeco-feng/DSH-Func" },
+    { "id": "usercenter", "name": "用户中心", "pkg": "@cheeco/dsh-web-ui-web_user_center", "folder": "dsh-web-ui-web_user_center", "version": "0.1.1", "url": "https://github.com/cheeco-feng/DSH-Func" }
   ],
   "official": [
     { "id": "dsh-main", "name": "DeepSeek Harness（官方主程序）", "url": "https://github.com/deepseek-ai/deepseek-harness" },

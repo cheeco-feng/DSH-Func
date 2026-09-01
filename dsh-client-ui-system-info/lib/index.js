@@ -116,7 +116,10 @@ export default class DshClientUiSystemInfo {
 					dshHome: h.dshHome,
 					startedAt: h.startedAt,
 					alive: typeof h.pid === "number" ? isAlive(h.pid, pid) : false
-				})).sort((a, b) => String(a.pid).localeCompare(String(b.pid)));
+				}))/* 只保留「运行中」的实例：每个 profile 唯一，最多 3 台（mobile/test/web）。
+				   失效的残留心跳（Stop-Process 强杀导致 exit 清理未跑）不再返回，避免列表被一堆旧 PID 占满。*/
+				.filter((h) => h.alive)
+				.sort((a, b) => String(a.port).localeCompare(String(b.port)));
 				const body = JSON.stringify({
 					ok: true,
 					profileName,
@@ -124,7 +127,7 @@ export default class DshClientUiSystemInfo {
 					port,
 					pid,
 					dshVersion: dshVersion(),
-					pluginVersion: "0.1.0",
+					pluginVersion: "0.1.2",
 					instances
 				});
 				res.statusCode = 200;

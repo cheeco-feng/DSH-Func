@@ -1,7 +1,11 @@
 /**
  * @cheeco/dsh-web-ui-web_user_center client half（浏览器侧）
  *
- * 注册「用户中心」tab 到 dsh-web-ui-cheeco-style 的 cheeco-style.tab 槽位；内容为占位页。
+ * 用户中心页的展示由 panel-config 驱动：此插件在 package.json 的
+ * `dsh.cheecoPanel.addPage` 声明一个「用户中心」页面 + 其 blocks，
+ * host 的 syncPanelConfig 重建 panel-config.json 后，cheeco 内页
+ * fetch 该配置并 for 循环渲染 pages/blocks。
+ * 因此这里不再需要往任何系统槽位注入 tab，仅保留可加载的空客户端。
  */
 window.__ModuleLoader__.load({
   id: "@cheeco/dsh-web-ui-web_user_center",
@@ -10,24 +14,10 @@ window.__ModuleLoader__.load({
     var exports = module.exports;
     Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
 
-    let react = require("react");
-    let rx = require("react/jsx-runtime");
-
-    function UserCenterTab() {
-      return rx.jsx("div", {
-        className: "dsh-web-ui-cheeco-style-section",
-        children: rx.jsx("p", { style: { padding: "16px 0", color: "#666", fontSize: "14px" }, children: "当前页面 正在维护中" })
-      });
-    }
-
-    function apply(ctx) {
-      ctx.slots.inject("cheeco-style.tab", function () {
-        return ctx.slots.register({ name: "cheeco-style.tab", id: "web-user-center", order: 300, label: "用户中心" }, UserCenterTab);
-      });
-    }
+    function apply(ctx) {}
 
     exports.apply = apply;
-    exports.inject = ["slots"];
+    exports.inject = [];
     return module.exports;
   }
 });

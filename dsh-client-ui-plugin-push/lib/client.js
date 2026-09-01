@@ -118,6 +118,7 @@ window.__ModuleLoader__.load({
 		function FeaturesCard() {
 			const [items, setItems] = react.useState([]);
 			const [msg, setMsg] = react.useState("");
+			const [loading, setLoading] = react.useState(true);
 			const [wizard, setWizard] = react.useState(null);
 			const [busyId, setBusyId] = react.useState("");
 			const [enabledMap, setEnabledMap] = react.useState({});
@@ -135,6 +136,7 @@ window.__ModuleLoader__.load({
 						setEnabledMap(m);
 					}
 				} catch (e) {}
+				setLoading(false);
 			};
 			react.useEffect(() => { load(); }, []);
 			const checkUpdate = async (f) => {
@@ -177,6 +179,9 @@ window.__ModuleLoader__.load({
 				] });
 			};
 			return react_jsx_runtime.jsx("div", { className: "dsh-web-ui-cheeco-style-section", children: [
+				items.length === 0 && loading && !msg && !wizard
+					? react_jsx_runtime.jsx("p", { className: "dsh-web-ui-cheeco-style-state", children: "加载中…" })
+					: null,
 				items.map(row),
 				msg ? react_jsx_runtime.jsx("p", { className: "dsh-web-ui-cheeco-style-state", children: msg }) : null,
 				wizard ? react_jsx_runtime.jsx(InstallWizard, { feature: wizard, onClose: () => { setWizard(null); load(); } }) : null

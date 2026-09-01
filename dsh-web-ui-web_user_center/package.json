@@ -1,6 +1,6 @@
 {
   "name": "@cheeco/dsh-web-ui-web_user_center",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Cheeco 用户中心（测试）：注册「用户中心」tab，显示维护中占位页。",
   "license": "MIT",
   "type": "module",
@@ -12,6 +12,16 @@
   },
   "dsh": {
     "bundle": { "patch": "./cordis.patch.yml" },
+    "cheecoPanel": {
+      "addPage": {
+        "id": "user-center",
+        "label": "用户中心",
+        "page": "@cheeco/dsh-web-ui-web_user_center",
+        "blocks": [
+          { "id": "maintain", "type": "text", "text": "当前页面 正在维护中" }
+        ]
+      }
+    },
     "client": {
       "platform": "web",
       "inject": ["@deepseek-ai/dsh-client-runtime", "@deepseek-ai/dsh-client-ui-slots", "@deepseek-ai/dsh-client-locale"]

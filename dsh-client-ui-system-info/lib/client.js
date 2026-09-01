@@ -41,6 +41,9 @@ window.__ModuleLoader__.load({
     function SystemInfoTab() {
       var state = react.useState({ loading: true, error: null, data: null });
       var loading = state[0].loading, error = state[0].error, data = state[0].data;
+      // 展开的 profile 名（点击「正在运行的实例」某一行展开/收起）。
+      var openedPair = react.useState(null);
+      var opened = openedPair[0], setOpened = openedPair[1];
       react.useEffect(function () {
         var cancelled = false;
         (async function () {
@@ -59,6 +62,15 @@ window.__ModuleLoader__.load({
       if (error) return rx.jsx("p", { style: { color: "#c00" }, children: zh.error + "：" + error });
       var d = data || {};
       var inst = Array.isArray(d.instances) ? d.instances : [];
+      // 只把「运行中」的实例按 profile 压成简洁行；点击某行再展开该 profile 的全部实例详情。
+      var byProfile = inst.reduce(function (acc, h) {
+        var key = h.profile || "未知";
+        (acc[key] = acc[key] || []).push(h);
+        return acc;
+      }, {});
+      var profileNames = Object.keys(byProfile).filter(function (k) {
+        return byProfile[k].some(function (h) { return h.alive; });
+      });
       return rx.jsx("div", {
         className: "dsh-web-ui-cheeco-style-section",
         children: [
@@ -66,23 +78,35 @@ window.__ModuleLoader__.load({
           cell(zh.dshHome, d.dshHome || "-"),
           cell(zh.dshVersion, d.dshVersion || "-"),
           cell(zh.pluginVersion, d.pluginVersion || "-"),
-          rx.jsx("h3", { style: { marginTop: "18px" }, children: zh.running + "（" + inst.length + "）" }),
-          inst.length === 0
+          rx.jsx("h3", { style: { marginTop: "18px" }, children: zh.running + "（" + profileNames.length + "）" }),
+          profileNames.length === 0
             ? rx.jsx("p", { style: { color: "#999" }, children: zh.none })
-            : rx.jsx("div", { children: inst.map(function (h) {
-                return rx.jsx("div", {
-                  key: String(h.pid),
-                  style: { padding: "8px 0", borderBottom: "1px solid rgba(128,128,128,0.15)", fontFamily: "monospace", fontSize: "12px" },
-                  children: "PID " + (h.pid ?? "-") + " | 端口 " + (h.port ?? "-") + " | " + (h.profile || "-") + " | " + (h.dshHome || "-") + " | " + (h.startedAt || "-") + " | " + (h.alive ? "运行中" : "失效")
-                });
+            : rx.jsx("div", { children: profileNames.map(function (k) {
+                var alive = byProfile[k].filter(function (h) { return h.alive; });
+                var collapsed = opened !== k;
+                return rx.jsx("div", { key: k, style: { padding: "8px 0", borderBottom: "1px solid rgba(128,128,128,0.15)" }, children: [
+                  rx.jsx("div", {
+                    onClick: function () { setOpened(collapsed ? k : null); },
+                    style: { cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", fontFamily: "monospace", fontSize: "13px" },
+                    children: [
+                      rx.jsx("span", { children: alive[0].port + " | " + k + " | " + alive[0].dshHome }),
+                      rx.jsx("span", { style: { fontSize: "12px", color: "#888" }, children: "运行中（" + alive.length + "） " + (collapsed ? "▸" : "▾") })
+                    ]
+                  }),
+                  collapsed ? null : rx.jsx("div", { style: { marginTop: "6px", paddingLeft: "10px", fontFamily: "monospace", fontSize: "12px" }, children: alive.map(function (h) {
+                    return rx.jsx("div", { key: String(h.pid), style: { padding: "4px 0", color: "#666" }, children: "PID " + (h.pid ?? "-") + " | 端口 " + (h.port ?? "-") + " | " + (h.startedAt || "-") + " | " + (h.alive ? "运行中" : "失效") });
+                  }) })
+                ] });
               }) })
         ]
       });
     }
 
     function apply(ctx) {
-      ctx.slots.inject("cheeco-style.tab", function () {
-        return ctx.slots.register({ name: "cheeco-style.tab", id: "sysinfo", order: 200, label: "系统信息" }, SystemInfoTab);
+      // 向 cheeco 内页的「插件自有组件页」槽位注入：内页选中 system-info 页时
+      // 通过 renderSlot("cheeco-style.page.system-info") 渲染本组件（/sysinfo 内容）。
+      ctx.slots.inject("cheeco-style.page.system-info", function () {
+        return ctx.slots.register({ name: "cheeco-style.page.system-info", id: "sysinfo", label: "系统信息" }, SystemInfoTab);
       });
     }
 

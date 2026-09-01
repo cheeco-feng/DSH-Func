@@ -61,7 +61,7 @@ window.__ModuleLoader__.load({
 		/** Pre-filled logo URL for this instance (change or clear in the card; leave empty for the official brand). */
 		const DEFAULT_LOGO_URL = "https://yc1971.com/ico.png";
 		/** Bump this in sync with package.json version so the UI reflects the build. */
-		const PLUGIN_VERSION = "0.8.11";
+		const PLUGIN_VERSION = "0.8.16";
 
 		/** Host endpoints (same-origin, served by our own webServer):
 		 *    GET/POST /cheeco-style/config  -> read/write the config file
@@ -434,10 +434,37 @@ window.__ModuleLoader__.load({
 			return react_jsx_runtime.jsx("p", { className: "dsh-web-ui-cheeco-style-state", children: "cheeco的小功能 | 插件版本 " + PLUGIN_VERSION + (profile ? " | 当前 Profile：" + profile : "") });
 		}
 
-		/** The section shows three TABS (面版修改 / 功能管理 / 功能推荐) + a footer OUTSIDE the tabs:
-		 *  a semi-transparent divider and the centered "cheeco的小功能 | 插件版本 x.y.z". */
+		/** 通用卡片：panel-config.json 里 `blocks[]` 的一条。type=text 显示一段说明文本。 */
+		function PanelBlock({ block }) {
+			const text = (block && block.text) || "";
+			return react_jsx_runtime.jsx("div", {
+				className: "dsh-web-ui-cheeco-style-section",
+				children: react_jsx_runtime.jsx("p", { className: "dsh-web-ui-cheeco-style-state", children: text })
+			});
+		}
+		/** Pages are driven by /cheeco-style/panel-config (the single source of truth, rebuilt by
+		 *  host syncPanelConfig from each plugin's dsh.cheecoPanel declaration). Built-in pages
+		 *  ("cheeco-internal") render their built-in card components by id; plugin pages render
+		 *  their `blocks`. No more hard-coded tab buttons / cheeco-style.tab slot / window.__slots.
+		 *  The features / plugin-manager sub-slots are kept so those pages still inject content. */
 		function Section({ renderSlot }) {
 			const [tab, setTab] = react.useState("panel");
+			const [panel, setPanel] = react.useState({ pages: [] });
+			react.useEffect(() => {
+				let cancelled = false;
+				(async () => {
+					try {
+						const res = await fetch("/cheeco-style/panel-config", { cache: "no-store" });
+						if (res.ok) {
+							const data = (await res.json()) || {};
+							if (!cancelled) setPanel({ pages: Array.isArray(data.pages) ? data.pages : [] });
+						}
+					} catch (e) {}
+				})();
+				return () => { cancelled = true; };
+			}, []);
+			const pages = panel.pages;
+			const current = pages.find((p) => p.id === tab) || null;
 			const tabBtn = (key, label) => react_jsx_runtime.jsx("button", {
 				type: "button",
 				onClick: (e) => {
@@ -462,71 +489,59 @@ window.__ModuleLoader__.load({
 				},
 				children: label
 			});
-			// 通过 cheeco-style.tab（list）槽位注入的额外 tab（如「系统信息」）。兼容数组/单个返回。
-			const injected = (renderSlot ? renderSlot("cheeco-style.tab", {}) : null) || [];
-			const injectedArr = Array.isArray(injected) ? injected : injected ? [injected] : [];
-			// 标题从注册项配置读取：与 settings 外壳一致，取 e.options.label（可能为函数，需解析）。
-			const slotEntries = (typeof window !== "undefined" && window.__slots && window.__slots.entries) ? (window.__slots.entries("cheeco-style.tab") || []) : [];
-			const entryOk = Array.isArray(slotEntries) && slotEntries.length > 0;
-			const extraTabs = (entryOk ? slotEntries : injectedArr).map((item, idx) => {
-				const opts = (item && typeof item === "object" && item.options && typeof item.options === "object")
-					? item.options
-					: ((typeof item === "object" && item !== null && !react.isValidElement(item)) ? item : {});
-				let rawLabel = opts.label;
-				if (typeof rawLabel === "function") { try { rawLabel = rawLabel(); } catch (e) { rawLabel = void 0; } }
-				var lbl = (typeof rawLabel === "string" && rawLabel.length > 0) ? rawLabel : "Tab";
-				return {
-					key: opts.id || opts.name || "extra" + idx,
-					label: lbl,
-					component: null,
-					node: injectedArr[idx] || null,
-					raw: item
-				};
-			});
 			const footer = react_jsx_runtime.jsx("div", { style: { marginTop: "30px", borderTop: "1px solid rgba(128,128,128,0.45)", paddingTop: "12px", textAlign: "center" }, children: [
 				react_jsx_runtime.jsx(SectionFooter, {})
 			] });
-			// 非内置 tab（来自 cheeco-style.tab）的内容。
-			const extra = extraTabs.find((t) => t.key === tab);
-			return react_jsx_runtime.jsx("div", { className: "dsh-web-ui-cheeco-style", children: [
-				react_jsx_runtime.jsx("div", { style: { display: "flex", gap: "8px", borderBottom: "1px solid rgba(128,128,128,0.3)", marginBottom: "14px", overflowX: "auto", whiteSpace: "nowrap", WebkitOverflowScrolling: "touch", scrollbarWidth: "thin" }, children: [
-					tabBtn("panel", "面版修改"),
-					tabBtn("manage", "功能管理"),
-					tabBtn("features", "功能推荐"),
-					tabBtn("pluginmanager", "插件管理"),
-					...extraTabs.map((t) => tabBtn(t.key, t.label))
-				] }),
-				tab === "panel"
-					? react_jsx_runtime.jsx("div", { children: [
-						react_jsx_runtime.jsx(SoundCard, {}),
-						react_jsx_runtime.jsx(BrandCard, {}),
-						react_jsx_runtime.jsx(RenameCard, {})
-					] })
-					: tab === "manage"
-						? react_jsx_runtime.jsx("div", { children: [
+			let content = null;
+			if (current) {
+				if (current.page === "cheeco-internal") {
+					// 内置页：按 id 用本插件现有组件渲染。
+					if (current.id === "panel") {
+						content = react_jsx_runtime.jsx("div", { children: [
+							react_jsx_runtime.jsx(SoundCard, {}),
+							react_jsx_runtime.jsx(BrandCard, {}),
+							react_jsx_runtime.jsx(RenameCard, {})
+						] });
+					} else if (current.id === "manage") {
+						content = react_jsx_runtime.jsx("div", { children: [
 							react_jsx_runtime.jsx(PluginActions, {})
-						] })
-						: tab === "pluginmanager"
-							? (() => {
-								const out = renderSlot ? renderSlot("cheeco-style.plugin-manager", {}) : null;
-								const empty = out === null || out === void 0 || (Array.isArray(out) && out.length === 0);
-								return react_jsx_runtime.jsx("div", { children: [
-									empty
-										? react_jsx_runtime.jsx("p", { style: { padding: "12px 0", color: "var(--dsw-alias-label-tertiary,#999)" }, children: "该插件未处于安装状态" })
-										: out
-								] });
-							})()
-							: tab === "features"
-								? (() => {
-									const out = renderSlot ? renderSlot("cheeco-style.features", {}) : null;
-									const empty = out === null || out === void 0 || (Array.isArray(out) && out.length === 0);
-									return react_jsx_runtime.jsx("div", { children: [
-										empty ? react_jsx_runtime.jsx("p", { style: { padding: "12px 0", color: "var(--dsw-alias-label-tertiary,#999)" }, children: "该插件未处于安装状态" }) : out
-									] });
-								})()
-								: extra
-									? react_jsx_runtime.jsx("div", { children: renderSlot ? renderSlot("cheeco-style.tab", {}, { only: tab }) : null })
-									: null,
+						] });
+					} else if (current.id === "features") {
+						const out = renderSlot ? renderSlot("cheeco-style.features", {}) : null;
+						// 判空：slot 返回的可能是 null/undefined/空数组，或一个包裹后仍无内容的 React 节点。
+						// 用 React.Children.toArray 剥掉容器，取实际可渲染子节点数量，否则 empty 会漏判成"非空"。
+						const renderedChildren = (out === null || out === void 0) ? [] : react.Children.toArray(out);
+						const empty = renderedChildren.length === 0;
+						content = react_jsx_runtime.jsx("div", { children: [
+							empty ? react_jsx_runtime.jsx("p", { style: { padding: "12px 0", color: "var(--dsw-alias-label-tertiary,#999)" }, children: "该插件未处于安装状态" }) : out
+						] });
+					} else if (current.id === "pluginmanager") {
+						const out = renderSlot ? renderSlot("cheeco-style.plugin-manager", {}) : null;
+						const renderedChildren = (out === null || out === void 0) ? [] : react.Children.toArray(out);
+						const empty = renderedChildren.length === 0;
+						content = react_jsx_runtime.jsx("div", { children: [
+							empty ? react_jsx_runtime.jsx("p", { style: { padding: "12px 0", color: "var(--dsw-alias-label-tertiary,#999)" }, children: "该插件未处于安装状态" }) : out
+						] });
+					}
+				} else {
+					// 插件页：先渲染插件注入的自有组件页（cheeco-style.page.<pageId>）作主体，
+					// 再把本页的 blocks（额外强加的卡片）追加在后面。
+					// 判空用 react.Children.toArray：即使 page slot 已声明但无 occupant、renderSlot
+					// 返回"非空的空容器"，也会被剥成空 → 不渲染，避免盖住 blocks 导致空白。
+					let pageSlot = null;
+					try { pageSlot = renderSlot ? renderSlot("cheeco-style.page." + current.id, {}) : null; }
+					catch (e) { pageSlot = null; }
+					const pageChildren = (pageSlot === null || pageSlot === void 0) ? [] : react.Children.toArray(pageSlot);
+					const blk = Array.isArray(current.blocks) ? current.blocks : [];
+					const children = [];
+					if (pageChildren.length > 0) children.push(pageSlot);
+					for (const b of blk) children.push(react_jsx_runtime.jsx(PanelBlock, { block: b }));
+					content = react_jsx_runtime.jsx("div", { children: children });
+				}
+			}
+			return react_jsx_runtime.jsx("div", { className: "dsh-web-ui-cheeco-style", children: [
+				react_jsx_runtime.jsx("div", { style: { display: "flex", gap: "8px", borderBottom: "1px solid rgba(128,128,128,0.3)", marginBottom: "14px", overflowX: "auto", whiteSpace: "nowrap", WebkitOverflowScrolling: "touch", scrollbarWidth: "thin" }, children: pages.map((p) => tabBtn(p.id, p.label)) }),
+				content,
 				footer
 			] });
 		}
@@ -537,7 +552,6 @@ window.__ModuleLoader__.load({
 		/** Register the section into the Settings panel's settings.section slot. */
 		function apply(ctx) {
 			const t = ctx.locale.bind(NS);
-			window.__slots = ctx.slots;
 			ctx.effect(() => ctx.locale.register(NS, { zh, en: zh }), "dsh-web-ui-cheeco-style: dictionaries");
 			ctx.slots.inject("settings.section", () => ctx.slots.register({
 				name: "settings.section",
@@ -545,9 +559,16 @@ window.__ModuleLoader__.load({
 				order: -1,
 				label: () => config.label || t("nav"),
 				locale: NS,
-				// 声明第 4 个 tab（插件管理）用到的子 slot，否则 settings.section
+				// 声明「功能推荐/插件管理」两个 tab 用到的子 slot，否则 settings.section
 				// 不会把 renderSlot 能力传给 Section，导致 renderSlot(...) === undefined。
-				children: { "cheeco-style.plugin-manager": { kind: "single", scope: "root" }, "cheeco-style.features": { kind: "single", scope: "root" }, "cheeco-style.tab": { kind: "list", scope: "root" } }
+				// 另外给「插件自有组件页」预留通用 slot：cheeco-style.page.<pageId>，
+				// 插件用 dsh.cheecoPanel.addPage 声明页面后向它注入组件（如 system-info 的 /sysinfo 页）。
+				children: {
+					"cheeco-style.plugin-manager": { kind: "single", scope: "root" },
+					"cheeco-style.features": { kind: "single", scope: "root" },
+					"cheeco-style.page.system-info": { kind: "single", scope: "root" },
+					"cheeco-style.page.user-center": { kind: "single", scope: "root" }
+				}
 			}, Section));
 			// Own the top-left brand row so the user can swap the title/logo from settings.
 			// The shipped brand-official plugin occupies these single slots at priority 0;

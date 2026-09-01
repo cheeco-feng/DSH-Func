@@ -6,7 +6,7 @@
       - GET  /cheeco-style/assets/<file>       -> serve it back (for <img>/<audio>)
     「功能推荐」页已独立为 @cheeco/dsh-client-ui-plugin-push（路由 /cheeco-push/*），
     本插件不再承载任何推荐/安装/卸载/更新逻辑。 */
-import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
@@ -74,6 +74,69 @@ function writeRegistry(reg) {
 	reg.updatedAt = new Date().toISOString();
 	mkdirSync(dirname(registryPath()), { recursive: true });
 	writeFileSync(registryPath(), JSON.stringify(reg, null, 2), "utf8");
+}
+
+/** 面板配置：与注册表同思路——记录当前面板有哪些页面(tab)、每个页面有哪些卡片(blocks)。
+ *  安装插件时往里 add 对应页面/卡片，卸载时 remove；读写走统一函数。 */
+const PANEL_FILE = "panel-config.json";
+function panelConfigPath() { return join(CHEECO_DIR, PANEL_FILE); }
+function readPanelConfig() {
+	try { return JSON.parse(readFileSync(panelConfigPath(), "utf8")) || { pages: [] }; } catch (e) { return { pages: [] }; }
+}
+function writePanelConfig(cfg) {
+	mkdirSync(dirname(panelConfigPath()), { recursive: true });
+	writeFileSync(panelConfigPath(), JSON.stringify(cfg, null, 2), "utf8");
+}
+
+/** 内页本体（cheeco-style）自带的基础页面(tab)，始终存在，与插件声明无关。
+ *  插件用 `dsh.cheecoPanel.addPage` 追加新页、`addBlocks` 往已有页加卡片。 */
+const BASE_PANEL_PAGES = [
+	{ id: "panel", label: "面版修改", page: "cheeco-internal", blocks: [] },
+	{ id: "manage", label: "功能管理", page: "cheeco-internal", blocks: [] },
+	{ id: "features", label: "功能推荐", page: "cheeco-internal", blocks: [] },
+	{ id: "pluginmanager", label: "插件管理", page: "cheeco-internal", blocks: [] }
+];
+
+/** 面板配置自同步：扫描所有已装 cheeco 插件的 `dsh.cheecoPanel` 声明，重建 `panel-config.json`。
+ *  - 内置4页作为基础始终在；
+ *  - 插件 `addPage` 声明追加/合并页面；
+ *  - 插件 `addBlocks` 声明往已存在的页面（pageId）加卡片；
+ *  - 重建是全覆盖，所以卸载的插件（声明消失）其页面/卡片自动被删——装进删出，天然对应。
+ *  每次 profile 启动时调用（与 syncRegistry 同理，install/uninstall 后重启生效）。 */
+function syncPanelConfig() {
+	const pages = BASE_PANEL_PAGES.map((p) => ({ ...p, blocks: [] }));
+	const findPage = (id) => pages.find((p) => p.id === id);
+	// 第一遍：先收集所有 addPage，保证后续 addBlocks 的目标页存在（不依赖插件遍历顺序）。
+	const pendingBlocks = [];
+	for (const dir of readdirSync(CHEECO_DIR, { withFileTypes: true })) {
+		if (!dir.isDirectory()) continue;
+		let decl = null;
+		try {
+			const pkg = JSON.parse(readFileSync(join(CHEECO_DIR, dir.name, "package.json"), "utf8"));
+			decl = (pkg.dsh && pkg.dsh.cheecoPanel) || null;
+		} catch (e) { decl = null; }
+		if (!decl) continue;
+		if (decl.addPage && typeof decl.addPage === "object") {
+			const base = { ...(decl.addPage.blocks || []), from: dir.name };
+			const { blocks = [], ...rest } = decl.addPage;
+			const existing = findPage(rest.id);
+			if (existing) {
+				existing.blocks.push(...blocks);
+			} else {
+				pages.push({ ...rest, blocks: [...blocks] });
+			}
+		}
+		for (const item of (Array.isArray(decl.addBlocks) ? decl.addBlocks : [])) {
+			if (item && item.pageId && item.card) pendingBlocks.push({ ...item, from: dir.name });
+		}
+	}
+	// 第二遍：把 addBlocks 挂到已存在的页面（目标页不存在则忽略——声明失效，交给重建自然删掉）。
+	for (const item of pendingBlocks) {
+		const target = findPage(item.pageId);
+		if (!target) continue;
+		if (!target.blocks.some((b) => b.id === item.card.id)) target.blocks.push(item.card);
+	}
+	writePanelConfig({ pages });
 }
 function logEvent(reg, type, name, version) {
 	reg.events = reg.events || [];
@@ -174,7 +237,7 @@ function renderConfigFile(v) {
 }
 
 /** In sync with package.json so the config records which plugin version produced it. */
-const PLUGIN_VERSION = "0.8.11";
+const PLUGIN_VERSION = "0.8.16";
 /** Resolve the dsh CLI package version (from @deepseek-ai/dsh/package.json). */
 function dshVersion() {
 	try {
@@ -206,6 +269,7 @@ export default class DshWebUiPatches {
 		const configFile = resolveConfigFile();
 		ensureConfigMetadata(configFile);
 		syncRegistry();
+		syncPanelConfig();
 		const assetsDir = resolveAssetsDir();
 		ctx.effect(() => {
 			const disposeConfig = ctx.webServer.register({
@@ -226,9 +290,20 @@ export default class DshWebUiPatches {
 					});
 				}
 			});
+			// 面板配置（pages/blocks）：内页 fetch 这个接口后 for 循环渲染页面/卡片。
+			const disposePanel = ctx.webServer.register({
+				kind: "exact",
+				path: "/cheeco-style/panel-config",
+				handler: (req, res) => {
+					const value = readPanelConfig();
+					res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+					res.end(JSON.stringify(value));
+				}
+			});
 			return () => {
 				disposeConfig();
 				disposeAssets();
+				disposePanel();
 			};
 		}, "cheeco-style: config + assets routes");
 	}
