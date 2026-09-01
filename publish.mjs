@@ -38,7 +38,9 @@ const UPLOAD_API = `https://uploads.github.com/repos/${OWNER}/${REPO}/releases`;
 const DOWNLOAD_BASE = `https://github.com/${OWNER}/${REPO}/releases/download`;
 
 const STYLE_FOLDER = "dsh-web-ui-cheeco-style";             // 承载“功能推荐”列表的插件
-const FEATURE_FILE = join(REPO_DIR, STYLE_FOLDER, "lib", "index.js");
+const STYLE_LIB = join(REPO_DIR, STYLE_FOLDER, "lib");
+const PLUGIN_FILE = join(STYLE_LIB, "index.js");             // 宿主入口（PLUGIN_VERSION 常量在这）
+const FEATURE_FILE = join(STYLE_LIB, "cheeco-features.js"); // 功能推荐列表（独立文件，改它即可加插件）
 
 /** folder -> { id(功能推荐 id), label(release 名前缀), pkg(包名) }。 */
 const META = {
@@ -47,6 +49,7 @@ const META = {
   "dsh-client-ui-session-search":   { id: "search", label: "cheeco 会话内容检索", pkg: "@cheeco/dsh-client-ui-session-search" },
   "dsh-tool-dsh-plugin-exec":       { id: "dshcmd", label: "cheeco DSH功能命令", pkg: "@cheeco/dsh-tool-dsh-plugin-exec" },
   "dsh-client-ui-plugin-manager":   { id: "pmgr",   label: "cheeco 插件管理器", pkg: "@cheeco/dsh-client-ui-plugin-manager" },
+  "dsh-client-ui-session-deeplink": { id: "deeplink", label: "cheeco 会话深链接", pkg: "@cheeco/dsh-client-ui-session-deeplink" },
 };
 
 // ---- 参数解析 --------------------------------------------------------------
@@ -91,11 +94,11 @@ function bumpPkgVersion(folder, next) {
 
 /** 提升 dsh-web-ui-cheeco-style 里 PLUGIN_VERSION 常量（与 package.json 同步）。 */
 function bumpPluginVersionConst(next) {
-  let s = readFileSync(FEATURE_FILE, "utf8");
+  let s = readFileSync(PLUGIN_FILE, "utf8");
   const re = /(const\s+PLUGIN_VERSION\s*=\s*)"[^"]*"/;
   if (!re.test(s)) fail("未找到 PLUGIN_VERSION 常量（dsh-web-ui-cheeco-style/lib/index.js）");
   s = s.replace(re, `$1"${next}"`);
-  writeText(FEATURE_FILE, s);
+  writeText(PLUGIN_FILE, s);
 }
 
 /** 刷新功能列表里某插件的 install 下载 URL，指向新 release 的资产 URL。返回是否命中。 */
@@ -298,7 +301,7 @@ async function main() {
   const packed = pack(folder, version);
 
   // 4) 提交 + 推送（让 main 上的 package.json/功能列表反映新版本，release tag 指向这次提交）
-  const filesToCommit = [join(folder, "package.json"), FEATURE_FILE];
+  const filesToCommit = [join(folder, "package.json"), PLUGIN_FILE, FEATURE_FILE];
   log(`\n[4/5] 提交并推送`);
   let styleVersion = null;
   if (willShipStyle) {
@@ -307,7 +310,7 @@ async function main() {
     log(`  联动：${STYLE_FOLDER} ${readPkgVersion(STYLE_FOLDER)} -> ${styleVersion}（为让新 install URL 生效）`);
     bumpPkgVersion(STYLE_FOLDER, styleVersion);
     bumpPluginVersionConst(styleVersion);
-    filesToCommit.push(join(STYLE_FOLDER, "package.json"), FEATURE_FILE);
+    filesToCommit.push(join(STYLE_FOLDER, "package.json"), PLUGIN_FILE, FEATURE_FILE);
   }
   const commitMsg = `chore(${folder}): v${version} 发布（npm pack + GitHub release 资产 + 更新功能推荐 install URL${willShipStyle ? "；联动重发 " + STYLE_FOLDER + " v" + styleVersion : ""}）`;
   commitAndPush([...new Set(filesToCommit)], commitMsg);

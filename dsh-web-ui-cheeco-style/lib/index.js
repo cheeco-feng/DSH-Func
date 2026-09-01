@@ -21,6 +21,7 @@ import { fileURLToPath } from "node:url";
 import { spawnSync, spawn } from "node:child_process";
 import { tmpdir } from "node:os";
 import { createRequire } from "node:module";
+import { CHEECO_FEATURES } from "./cheeco-features.js";
 
 /** Route the browser half fetches (same-origin, served by our own webServer). */
 const CONFIG_PATH = "/cheeco-style/config";
@@ -61,13 +62,7 @@ const RESTART_PATH = "/cheeco-style/plugin/restart";
 /** 功能推荐：手写的列表（以后有新插件/推荐插件直接加到这里）。
  *  `pkg` 判断是否已安装；`install` 为**可安装来源**（真实下载 URL，`dsh plugin add <此URL>` 即从 GitHub release 下载安装）；
  *  `url` 为“查看介绍”跳转；`folder` 为本机 release tgz 的子目录名（开发便利）。 */
-const CHEECO_FEATURES = [
-	{ id: "style", name: "界面/声音设置", pkg: "@cheeco/dsh-web-ui-cheeco-style", install: "https://github.com/cheeco-feng/DSH-Func/releases/download/v0.8.7/cheeco-dsh-web-ui-cheeco-style-0.8.7.tgz", folder: "dsh-web-ui-cheeco-style", url: "https://github.com/cheeco-feng/DSH-Func" },
-	{ id: "sound", name: "AI 回复提示音", pkg: "@cheeco/dsh-client-ui-message-sound", install: "https://github.com/cheeco-feng/DSH-Func/releases/download/v0.3.0/cheeco-dsh-client-ui-message-sound-0.3.0.tgz", folder: "dsh-client-ui-message-sound", url: "https://github.com/cheeco-feng/DSH-Func" },
-	{ id: "search", name: "会话内容检索", pkg: "@cheeco/dsh-client-ui-session-search", install: "https://github.com/cheeco-feng/DSH-Func/releases/download/v0.2.0/cheeco-dsh-client-ui-session-search-0.2.0.tgz", folder: "dsh-client-ui-session-search", url: "https://github.com/cheeco-feng/DSH-Func" },
-	{ id: "dshcmd", name: "DSH功能命令", pkg: "@cheeco/dsh-tool-dsh-plugin-exec", install: "https://github.com/cheeco-feng/DSH-Func/releases/download/v0.1.6/cheeco-dsh-tool-dsh-plugin-exec-0.1.6.tgz", folder: "dsh-tool-dsh-plugin-exec", url: "https://github.com/cheeco-feng/DSH-Func" },
-	{ id: "pmgr", name: "插件管理（cheeco 插件管理器）", pkg: "@cheeco/dsh-client-ui-plugin-manager", install: "https://github.com/cheeco-feng/DSH-Func/releases/download/v0.1.0/cheeco-dsh-client-ui-plugin-manager-0.1.0.tgz", folder: "dsh-client-ui-plugin-manager", url: "https://github.com/cheeco-feng/DSH-Func" }
-];
+/** 功能推荐列表已迁移到 ./cheeco-features.js（改该文件即可新增/显示插件）。 */
 /** DSH 官方程序（功能推荐列表最上方，仅列出 + 查看介绍，不提供安装）。
  *  以后有新官方程序/官方插件直接加到这里；发布时也可顺手更新。 */
 const DSH_OFFICIAL = [

@@ -1,0 +1,5 @@
+# dsh-client-ui-session-deeplink —— 浏览器插件 roster 行。
+# 作为 overlay bundle patch 组合（该包列在 dsh.profile.bundles），此处仅 ADD 一行，不碰现有行。
+- insert:
+    - id: ui-session-deeplink
+      name: '@cheeco/dsh-client-ui-session-deeplink'
