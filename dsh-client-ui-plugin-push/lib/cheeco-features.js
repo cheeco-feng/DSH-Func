@@ -3,11 +3,13 @@
  *  版本 5 处同号；发版时 publish.mjs 会刷新这里对应条目的 install URL。
  */
 export const CHEECO_FEATURES = [
-	{ id: "style", name: "界面/声音设置", pkg: "@cheeco/dsh-web-ui-cheeco-style", install: "https://github.com/cheeco-feng/DSH-Func/releases/download/v0.8.10/cheeco-dsh-web-ui-cheeco-style-0.8.10.tgz", folder: "dsh-web-ui-cheeco-style", url: "https://github.com/cheeco-feng/DSH-Func" },
+	{ id: "style", name: "界面/声音设置", pkg: "@cheeco/dsh-web-ui-cheeco-style", install: "https://github.com/cheeco-feng/DSH-Func/releases/download/v0.8.10/cheeco-dsh-web-ui-cheeco-style-0.8.11.tgz", folder: "dsh-web-ui-cheeco-style", url: "https://github.com/cheeco-feng/DSH-Func" },
 	{ id: "sound", name: "AI 回复提示音", pkg: "@cheeco/dsh-client-ui-message-sound", install: "https://github.com/cheeco-feng/DSH-Func/releases/download/v0.3.0/cheeco-dsh-client-ui-message-sound-0.3.0.tgz", folder: "dsh-client-ui-message-sound", url: "https://github.com/cheeco-feng/DSH-Func" },
 	{ id: "search", name: "会话内容检索", pkg: "@cheeco/dsh-client-ui-session-search", install: "https://github.com/cheeco-feng/DSH-Func/releases/download/v0.2.0/cheeco-dsh-client-ui-session-search-0.2.0.tgz", folder: "dsh-client-ui-session-search", url: "https://github.com/cheeco-feng/DSH-Func" },
 	{ id: "dshcmd", name: "DSH功能命令", pkg: "@cheeco/dsh-tool-dsh-plugin-exec", install: "https://github.com/cheeco-feng/DSH-Func/releases/download/v0.1.6/cheeco-dsh-tool-dsh-plugin-exec-0.1.6.tgz", folder: "dsh-tool-dsh-plugin-exec", url: "https://github.com/cheeco-feng/DSH-Func" },
 	{ id: "pmgr", name: "插件管理（cheeco 插件管理器）", pkg: "@cheeco/dsh-client-ui-plugin-manager", install: "https://github.com/cheeco-feng/DSH-Func/releases/download/v0.1.0/cheeco-dsh-client-ui-plugin-manager-0.1.0.tgz", folder: "dsh-client-ui-plugin-manager", url: "https://github.com/cheeco-feng/DSH-Func" },
 	{ id: "deeplink", name: "会话深链接", pkg: "@cheeco/dsh-client-ui-session-deeplink", install: "https://github.com/cheeco-feng/DSH-Func/releases/download/v0.1.1/cheeco-dsh-client-ui-session-deeplink-0.1.1.tgz", folder: "dsh-client-ui-session-deeplink", url: "https://github.com/cheeco-feng/DSH-Func" },
-	{ id: "timeline", name: "会话时间轴", pkg: "@cheeco/dsh-client-ui-timeline-rail", install: "https://github.com/cheeco-feng/DSH-Func/releases/download/v0.1.0/cheeco-dsh-client-ui-timeline-rail-0.1.0.tgz", folder: "dsh-client-ui-timeline-rail", url: "https://github.com/cheeco-feng/DSH-Func" }
+	{ id: "timeline", name: "会话时间轴", pkg: "@cheeco/dsh-client-ui-timeline-rail", install: "https://github.com/cheeco-feng/DSH-Func/releases/download/v0.1.0/cheeco-dsh-client-ui-timeline-rail-0.1.0.tgz", folder: "dsh-client-ui-timeline-rail", url: "https://github.com/cheeco-feng/DSH-Func" },
+	{ id: "systeminfo", name: "系统信息", pkg: "@cheeco/dsh-client-ui-system-info", install: "https://github.com/cheeco-feng/DSH-Func/releases/download/v0.1.0/cheeco-dsh-client-ui-system-info-0.1.0.tgz", folder: "dsh-client-ui-system-info", url: "https://github.com/cheeco-feng/DSH-Func" },
+	{ id: "usercenter", name: "用户中心", pkg: "@cheeco/dsh-web-ui-web_user_center", install: "", folder: "dsh-web-ui-web_user_center", url: "https://github.com/cheeco-feng/DSH-Func" }
 ];

@@ -61,7 +61,7 @@ window.__ModuleLoader__.load({
 		/** Pre-filled logo URL for this instance (change or clear in the card; leave empty for the official brand). */
 		const DEFAULT_LOGO_URL = "https://yc1971.com/ico.png";
 		/** Bump this in sync with package.json version so the UI reflects the build. */
-		const PLUGIN_VERSION = "0.8.10";
+		const PLUGIN_VERSION = "0.8.11";
 
 		/** Host endpoints (same-origin, served by our own webServer):
 		 *    GET/POST /cheeco-style/config  -> read/write the config file
@@ -440,7 +440,14 @@ window.__ModuleLoader__.load({
 			const [tab, setTab] = react.useState("panel");
 			const tabBtn = (key, label) => react_jsx_runtime.jsx("button", {
 				type: "button",
-				onClick: () => setTab(key),
+				onClick: (e) => {
+					setTab(key);
+					// 当前 tab 居中聚焦（横向滚动容器下滚动到中间）。
+					const el = e && e.currentTarget;
+					if (el) requestAnimationFrame(() => {
+						try { el.scrollIntoView({ inline: "center", behavior: "smooth", block: "nearest" }); } catch (err) { /* ignore */ }
+					});
+				},
 				style: {
 					padding: "6px 14px",
 					background: "transparent",
@@ -450,19 +457,44 @@ window.__ModuleLoader__.load({
 					font: "inherit",
 					fontWeight: tab === key ? 600 : 400,
 					borderBottom: tab === key ? "2px solid #4a90d9" : "2px solid transparent",
-					opacity: tab === key ? 1 : 0.6
+					opacity: tab === key ? 1 : 0.6,
+					flex: "0 0 auto"   // 横向滚动：不收缩
 				},
 				children: label
+			});
+			// 通过 cheeco-style.tab（list）槽位注入的额外 tab（如「系统信息」）。兼容数组/单个返回。
+			const injected = (renderSlot ? renderSlot("cheeco-style.tab", {}) : null) || [];
+			const injectedArr = Array.isArray(injected) ? injected : injected ? [injected] : [];
+			// 标题从注册项配置读取：与 settings 外壳一致，取 e.options.label（可能为函数，需解析）。
+			const slotEntries = (typeof window !== "undefined" && window.__slots && window.__slots.entries) ? (window.__slots.entries("cheeco-style.tab") || []) : [];
+			const entryOk = Array.isArray(slotEntries) && slotEntries.length > 0;
+			const extraTabs = (entryOk ? slotEntries : injectedArr).map((item, idx) => {
+				const opts = (item && typeof item === "object" && item.options && typeof item.options === "object")
+					? item.options
+					: ((typeof item === "object" && item !== null && !react.isValidElement(item)) ? item : {});
+				let rawLabel = opts.label;
+				if (typeof rawLabel === "function") { try { rawLabel = rawLabel(); } catch (e) { rawLabel = void 0; } }
+				var lbl = (typeof rawLabel === "string" && rawLabel.length > 0) ? rawLabel : "Tab";
+				return {
+					key: opts.id || opts.name || "extra" + idx,
+					label: lbl,
+					component: null,
+					node: injectedArr[idx] || null,
+					raw: item
+				};
 			});
 			const footer = react_jsx_runtime.jsx("div", { style: { marginTop: "30px", borderTop: "1px solid rgba(128,128,128,0.45)", paddingTop: "12px", textAlign: "center" }, children: [
 				react_jsx_runtime.jsx(SectionFooter, {})
 			] });
+			// 非内置 tab（来自 cheeco-style.tab）的内容。
+			const extra = extraTabs.find((t) => t.key === tab);
 			return react_jsx_runtime.jsx("div", { className: "dsh-web-ui-cheeco-style", children: [
-				react_jsx_runtime.jsx("div", { style: { display: "flex", gap: "8px", borderBottom: "1px solid rgba(128,128,128,0.3)", marginBottom: "14px" }, children: [
+				react_jsx_runtime.jsx("div", { style: { display: "flex", gap: "8px", borderBottom: "1px solid rgba(128,128,128,0.3)", marginBottom: "14px", overflowX: "auto", whiteSpace: "nowrap", WebkitOverflowScrolling: "touch", scrollbarWidth: "thin" }, children: [
 					tabBtn("panel", "面版修改"),
 					tabBtn("manage", "功能管理"),
 					tabBtn("features", "功能推荐"),
-					tabBtn("pluginmanager", "插件管理")
+					tabBtn("pluginmanager", "插件管理"),
+					...extraTabs.map((t) => tabBtn(t.key, t.label))
 				] }),
 				tab === "panel"
 					? react_jsx_runtime.jsx("div", { children: [
@@ -484,13 +516,17 @@ window.__ModuleLoader__.load({
 										: out
 								] });
 							})()
-							: (() => {
-								const out = renderSlot ? renderSlot("cheeco-style.features", {}) : null;
-								const empty = out === null || out === void 0 || (Array.isArray(out) && out.length === 0);
-								return react_jsx_runtime.jsx("div", { children: [
-									empty ? react_jsx_runtime.jsx("p", { style: { padding: "12px 0", color: "var(--dsw-alias-label-tertiary,#999)" }, children: "该插件未处于安装状态" }) : out
-								] });
-							})(),
+							: tab === "features"
+								? (() => {
+									const out = renderSlot ? renderSlot("cheeco-style.features", {}) : null;
+									const empty = out === null || out === void 0 || (Array.isArray(out) && out.length === 0);
+									return react_jsx_runtime.jsx("div", { children: [
+										empty ? react_jsx_runtime.jsx("p", { style: { padding: "12px 0", color: "var(--dsw-alias-label-tertiary,#999)" }, children: "该插件未处于安装状态" }) : out
+									] });
+								})()
+								: extra
+									? react_jsx_runtime.jsx("div", { children: renderSlot ? renderSlot("cheeco-style.tab", {}, { only: tab }) : null })
+									: null,
 				footer
 			] });
 		}
@@ -501,6 +537,7 @@ window.__ModuleLoader__.load({
 		/** Register the section into the Settings panel's settings.section slot. */
 		function apply(ctx) {
 			const t = ctx.locale.bind(NS);
+			window.__slots = ctx.slots;
 			ctx.effect(() => ctx.locale.register(NS, { zh, en: zh }), "dsh-web-ui-cheeco-style: dictionaries");
 			ctx.slots.inject("settings.section", () => ctx.slots.register({
 				name: "settings.section",
@@ -510,7 +547,7 @@ window.__ModuleLoader__.load({
 				locale: NS,
 				// 声明第 4 个 tab（插件管理）用到的子 slot，否则 settings.section
 				// 不会把 renderSlot 能力传给 Section，导致 renderSlot(...) === undefined。
-				children: { "cheeco-style.plugin-manager": { kind: "single", scope: "root" }, "cheeco-style.features": { kind: "single", scope: "root" } }
+				children: { "cheeco-style.plugin-manager": { kind: "single", scope: "root" }, "cheeco-style.features": { kind: "single", scope: "root" }, "cheeco-style.tab": { kind: "list", scope: "root" } }
 			}, Section));
 			// Own the top-left brand row so the user can swap the title/logo from settings.
 			// The shipped brand-official plugin occupies these single slots at priority 0;

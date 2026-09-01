@@ -1,0 +1,21 @@
+{
+  "name": "@cheeco/dsh-web-ui-web_user_center",
+  "version": "0.1.0",
+  "description": "Cheeco 用户中心（测试）：注册「用户中心」tab，显示维护中占位页。",
+  "license": "MIT",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": { "default": "./lib/index.js" },
+    "./client": { "default": "./lib/client.js" },
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": { "patch": "./cordis.patch.yml" },
+    "client": {
+      "platform": "web",
+      "inject": ["@deepseek-ai/dsh-client-runtime", "@deepseek-ai/dsh-client-ui-slots", "@deepseek-ai/dsh-client-locale"]
+    }
+  },
+  "files": ["lib", "cordis.patch.yml"]
+}

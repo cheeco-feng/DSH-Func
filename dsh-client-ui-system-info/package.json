@@ -1,0 +1,31 @@
+{
+  "name": "@cheeco/dsh-client-ui-system-info",
+  "version": "0.1.0",
+  "description": "Cheeco 系统信息：在「功能推荐」Tab 中显示当前 profile / DSH_HOME / 已运行实例（心跳 + pid 存活检测）。",
+  "license": "MIT",
+  "keywords": ["dsh", "deepseek-harness", "dsh-plugin", "system-info"],
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": { "default": "./lib/index.js" },
+    "./client": { "default": "./lib/client.js" },
+    "./package.json": "./package.json"
+  },
+  "repository": { "type": "git", "url": "https://github.com/cheeco-feng/DSH-Func.git" },
+  "homepage": "https://github.com/cheeco-feng/DSH-Func#readme",
+  "scripts": {},
+  "dsh": {
+    "bundle": { "patch": "./cordis.patch.yml" },
+    "client": {
+      "platform": "web",
+      "inject": ["@deepseek-ai/dsh-client-runtime", "@deepseek-ai/dsh-client-ui-slots", "@deepseek-ai/dsh-client-locale"]
+    }
+  },
+  "files": ["lib", "cordis.patch.yml", "README.md", "LICENSE"],
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "@types/react": "^18.3.31",
+    "esbuild": "^0.28.2",
+    "typescript": "^5.9.3"
+  }
+}

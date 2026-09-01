@@ -55,6 +55,8 @@ const META = {
   "dsh-client-ui-task-status":     { id: "taskstatus", label: "cheeco 后台任务状态条", pkg: "@cheeco/dsh-client-ui-task-status" },
   "dsh-cmdwatch":                  { id: "cmdwatch",  label: "cheeco 命令窗", pkg: "@cheeco/dsh-cmdwatch" },
   "dsh-client-ui-mobile":          { id: "mobile",    label: "cheeco 移动端适配", pkg: "@cheeco/dsh-client-ui-mobile" },
+  "dsh-client-ui-system-info":     { id: "systeminfo", label: "cheeco 系统信息", pkg: "@cheeco/dsh-client-ui-system-info" },
+  "dsh-web-ui-web_user_center":    { id: "usercenter", label: "cheeco 用户中心", pkg: "@cheeco/dsh-web-ui-web_user_center" },
 };
 
 // ---- 参数解析 --------------------------------------------------------------

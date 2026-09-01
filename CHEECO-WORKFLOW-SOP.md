@@ -34,6 +34,8 @@
 ---
 
 ## 3. 发布&更新版本 标准流程（每发一版）
+**0. 新插件必须先在 `publish.mjs` 的 `META` 表注册**（`folder -> { id, label, pkg }`），否则 `node publish.mjs <folder>` 会直接报「未知插件 folder」。`id` 必须与该插件在功能推荐清单 `CHEECO_FEATURES` 里的条目 `id` **一致**（publish.mjs 靠 `meta.id` 去刷新该条目的 install URL、并给 release 起名）。发布**已有**插件无需此步；只有**新增**插件要。→ 此坑我实踩：`system-info` / `user-center` 两次报「未知插件 folder」才补上。
+
 **一致性检查点：以下 5 处版本必须同号，缺一即不一致：**
 1. `package.json` 的 `version`
 2. `lib/index.js` 的 `PLUGIN_VERSION`
@@ -109,6 +111,7 @@
 - [ ] 读本 SOP。
 - [ ] 确认各 profile store 都是 `F:\.pnpm-store`。
 - [ ] 确认改动只落在 `DSH-Func`（唯一真源），无副本。
+- [ ] （新增插件）该插件已注册进 `publish.mjs` 的 `META`，且 `id` 与功能推荐清单一致。
 **执行后**
 - [ ] 版本 5 处同号。
 - [ ] `cheeco-dsh-plugins.json` 已更新并 push。

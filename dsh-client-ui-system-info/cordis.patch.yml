@@ -1,0 +1,4 @@
+# cheeco dsh-client-ui-system-info bundle patch: 注册「系统信息」
+- insert:
+    - id: sysinfo
+      name: '@cheeco/dsh-client-ui-system-info'

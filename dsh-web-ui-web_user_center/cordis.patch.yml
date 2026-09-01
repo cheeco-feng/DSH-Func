@@ -1,0 +1,4 @@
+# cheeco dsh-web-ui-web_user_center bundle patch: 注册「用户中心」
+- insert:
+    - id: web-user-center
+      name: '@cheeco/dsh-web-ui-web_user_center'
