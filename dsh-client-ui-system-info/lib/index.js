@@ -139,7 +139,7 @@ export default class DshClientUiSystemInfo {
 						port,
 						pid,
 						dshVersion: dshVersion(),
-						pluginVersion: "0.2.2",
+						pluginVersion: "0.2.3",
 						instances
 					});
 					res.statusCode = 200;
@@ -203,6 +203,45 @@ export default class DshClientUiSystemInfo {
 				}
 			};
 
+			// 关闭：直接读心跳拿目标 pid，用 Node process.kill 杀掉（不依赖外部 powershell 脚本，更可靠）。
+			const closeHandler = async (req, res) => {
+				const send = (code, payload) => {
+					const b = JSON.stringify(payload);
+					res.writeHead(code, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+					res.end(b);
+				};
+				let body = {};
+				try { body = JSON.parse((await readBody(req)) || "{}"); } catch (e) { body = {}; }
+				const targetProfile = typeof body.profile === "string" ? body.profile.trim() : "";
+				const targetPort = Number(body.port);
+				if (!targetProfile || !(Number.isFinite(targetPort) && targetPort > 0)) {
+					actionLog(`[close] 参数错误 profile=${JSON.stringify(targetProfile)} port=${body.port}`);
+					send(400, { ok: false, action: "close", error: "缺少 profile 或 port 参数" });
+					return;
+				}
+				const target = readHeartbeatDir(heartbeatDir).find((h) => Number(h.port) === targetPort && h.profile === targetProfile);
+				if (!target || typeof target.pid !== "number") {
+					actionLog(`[close] 功能不可用：未发现运行实例 profile=${targetProfile} port=${targetPort}`);
+					send(200, { ok: false, action: "close", error: "功能不可用：未发现运行中的 " + targetProfile + "（端口 " + targetPort + "）" });
+					return;
+				}
+				if (!isAlive(target.pid, pid)) {
+					actionLog(`[close] 功能不可用：pid=${target.pid} 已失效 profile=${targetProfile} port=${targetPort}`);
+					send(200, { ok: false, action: "close", error: "该实例已不在运行（pid " + target.pid + "）" });
+					return;
+				}
+				try {
+					process.kill(target.pid, "SIGKILL");
+					const message = "已关闭 " + targetProfile + "（端口 " + targetPort + "）…进程已停止（pid " + target.pid + "）";
+					actionLog(`[close] ok profile=${targetProfile} port=${targetPort} pid=${target.pid} killed`);
+					send(202, { ok: true, status: "closed", action: "close", profile: targetProfile, port: targetPort, pid: target.pid, message });
+				} catch (e) {
+					const msg = String(e && e.message || e);
+					actionLog(`[close] kill 失败 profile=${targetProfile} port=${targetPort} pid=${target.pid}: ${msg}`);
+					send(500, { ok: false, action: "close", error: "关闭失败：" + msg });
+				}
+			};
+
 			const disposeRestart = ctx.webServer.register({
 				kind: "exact",
 				path: "/sysinfo/restart",
@@ -211,7 +250,7 @@ export default class DshClientUiSystemInfo {
 			const disposeClose = ctx.webServer.register({
 				kind: "exact",
 				path: "/sysinfo/close",
-				handler: actionHandler("close-dsh-profile.ps1", "close")
+				handler: closeHandler
 			});
 
 			// 功能可用性检查：打开页面时前端 GET 本接口，依据 restart/close 脚本是否存在决定按钮是否置灰。
@@ -220,7 +259,8 @@ export default class DshClientUiSystemInfo {
 				path: "/sysinfo/actions/status",
 				handler: (req, res) => {
 					const probe = (name) => ({ available: existsSync(join(dshHome, "profiles", name)), script: join(dshHome, "profiles", name) });
-					const body = JSON.stringify({ ok: true, restart: probe("restart-dsh-profile.ps1"), close: probe("close-dsh-profile.ps1") });
+					// close 改为 host 直接 Node kill（读心跳 pid），不再依赖 close 脚本，故恒可用。
+					const body = JSON.stringify({ ok: true, restart: probe("restart-dsh-profile.ps1"), close: { available: true, script: "", note: "Node kill (heartbeat pid)" } });
 					res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
 					res.end(body);
 				}
