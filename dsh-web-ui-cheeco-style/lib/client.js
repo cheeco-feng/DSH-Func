@@ -61,7 +61,7 @@ window.__ModuleLoader__.load({
 		/** Pre-filled logo URL for this instance (change or clear in the card; leave empty for the official brand). */
 		const DEFAULT_LOGO_URL = "https://yc1971.com/ico.png";
 		/** Bump this in sync with package.json version so the UI reflects the build. */
-		const PLUGIN_VERSION = "0.8.16";
+		const PLUGIN_VERSION = "0.8.17";
 
 		/** Host endpoints (same-origin, served by our own webServer):
 		 *    GET/POST /cheeco-style/config  -> read/write the config file
@@ -567,7 +567,8 @@ window.__ModuleLoader__.load({
 					"cheeco-style.plugin-manager": { kind: "single", scope: "root" },
 					"cheeco-style.features": { kind: "single", scope: "root" },
 					"cheeco-style.page.system-info": { kind: "single", scope: "root" },
-					"cheeco-style.page.user-center": { kind: "single", scope: "root" }
+					"cheeco-style.page.user-center": { kind: "single", scope: "root" },
+					"cheeco-style.page.model-settings": { kind: "single", scope: "root" }
 				}
 			}, Section));
 			// Own the top-left brand row so the user can swap the title/logo from settings.
