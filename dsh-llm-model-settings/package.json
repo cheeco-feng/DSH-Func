@@ -1,0 +1,43 @@
+{
+  "name": "@cheeco/dsh-llm-model-settings",
+  "version": "0.1.1",
+  "description": "Cheeco「模型设置」：通用 per-model 参数管理（temperature/topP/topK/maxTokens/contextWindow/推理等级/默认档），读写 settings.yaml，在「功能设置」页提供「模型设置」tab。",
+  "license": "MIT",
+  "keywords": ["dsh", "deepseek-harness", "dsh-plugin", "cheeco", "model-settings", "llm"],
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": { "default": "./lib/index.js" },
+    "./client": { "default": "./lib/client.js" },
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "cheecoPanel": {
+      "addPage": {
+        "id": "model-settings",
+        "label": "模型设置",
+        "page": "@cheeco/dsh-llm-model-settings",
+        "blocks": []
+      }
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-ui-slots",
+        "@deepseek-ai/dsh-client-locale"
+      ]
+    }
+  },
+  "files": ["lib", "cordis.patch.yml", "README.md"],
+  "dependencies": {
+    "js-yaml": "^4.1.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cheeco-feng/DSH-Func.git"
+  }
+}
