@@ -131,6 +131,35 @@ dsh plugin --profile <profile> add ./my-plugin        # 或 git 地址
 - 通用设置 = 0、模型 = 1、插件 = 1。
 - 想让你的排最前 → 设 `order: -1`；想靠后 → 设更大值。
 
+## 七之二、新增一个插件页（重要：已动态化，无需改 cheeco-style）
+
+要在「功能设置 / Cheeco的小功能」里新增一个插件 tab 页，**只用声明，不用碰 `dsh-web-ui-cheeco-style`**：
+
+1. 在插件 `package.json` 里声明：
+   ```jsonc
+   "dsh": {
+     "cheecoPanel": {
+       "addPage": {
+         "id": "你的页面id",
+         "label": "页面标题",
+         "page": "@你的作用域/dsh-你的插件",
+         "blocks": []      // 可选：静态文字卡片；复杂交互页留空，改用下面的 page slot
+       }
+     }
+   }
+   ```
+2. 客户端 `lib/client.js` 里，往 `cheeco-style.page.<页面id>` 这个 **slot** 注入组件（复杂交互页用这个；纯静态文字页用 `blocks` 即可）：
+   ```js
+   ctx.slots.inject("cheeco-style.page.<页面id>", () => ctx.slots.register({
+     name: "cheeco-style.page.<页面id>", id: "<页面id>", label: "<页面标题>"
+   }, YourTabComponent));
+   ```
+
+**核心约定（cheeco-style ≥ 0.8.18）**：
+- cheeco-style **从 `/cheeco-style/panel-config` 动态读取所有插件页**，自动为每个 `cheeco-style.page.<id>` 声明好子 slot 并渲染。
+- 所以**新增/卸载任何插件页**，cheeco-style **自动识别**，**不需要为每个插件升级 cheeco-style**，也不需要在 cheeco-style 里硬编码页面。
+- 若新页不显示，先确认 `panel-config.json` 里已出现对应 page（说明 `addPage` 声明生效、profile 已重启）；客户端 slot 名必须是 `cheeco-style.page.<页面id>`，与 `page.id` 完全一致。
+
 ## 八、读写用户状态
 > 这里如实说明：**只有 `localStorage` 是实测跑通的**；DSH 设置系统那套我**试过但没成功**，下方如实标注。
 
