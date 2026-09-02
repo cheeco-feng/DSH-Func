@@ -61,7 +61,7 @@ window.__ModuleLoader__.load({
 		/** Pre-filled logo URL for this instance (change or clear in the card; leave empty for the official brand). */
 		const DEFAULT_LOGO_URL = "https://yc1971.com/ico.png";
 		/** Bump this in sync with package.json version so the UI reflects the build. */
-		const PLUGIN_VERSION = "0.8.17";
+		const PLUGIN_VERSION = "0.8.18";
 
 		/** Host endpoints (same-origin, served by our own webServer):
 		 *    GET/POST /cheeco-style/config  -> read/write the config file
@@ -553,28 +553,50 @@ window.__ModuleLoader__.load({
 		function apply(ctx) {
 			const t = ctx.locale.bind(NS);
 			ctx.effect(() => ctx.locale.register(NS, { zh, en: zh }), "dsh-web-ui-cheeco-style: dictionaries");
-			ctx.slots.inject("settings.section", () => ctx.slots.register({
-				name: "settings.section",
-				id: "cheeco-style",
-				order: -1,
-				label: () => config.label || t("nav"),
-				locale: NS,
-				// 声明「功能推荐/插件管理」两个 tab 用到的子 slot，否则 settings.section
-				// 不会把 renderSlot 能力传给 Section，导致 renderSlot(...) === undefined。
-				// 另外给「插件自有组件页」预留通用 slot：cheeco-style.page.<pageId>，
-				// 插件用 dsh.cheecoPanel.addPage 声明页面后向它注入组件（如 system-info 的 /sysinfo 页）。
-				children: {
-					"cheeco-style.plugin-manager": { kind: "single", scope: "root" },
-					"cheeco-style.features": { kind: "single", scope: "root" },
-					"cheeco-style.page.system-info": { kind: "single", scope: "root" },
-					"cheeco-style.page.user-center": { kind: "single", scope: "root" },
-					"cheeco-style.page.model-settings": { kind: "single", scope: "root" }
-				}
-			}, Section));
+
+			// 基础子 slot：功能推荐 / 插件管理两个内置 tab 用到，始终存在。
+			const baseChildren = {
+				"cheeco-style.plugin-manager": { kind: "single", scope: "root" },
+				"cheeco-style.features": { kind: "single", scope: "root" }
+			};
+
+			// 注册 settings.section 的唯一 occupant。children 用注入的完整子 slot 表。
+			const registerSection = (children) => {
+				ctx.slots.inject("settings.section", () => ctx.slots.register({
+					name: "settings.section",
+					id: "cheeco-style",
+					order: -1,
+					label: () => config.label || t("nav"),
+					locale: NS,
+					// 声明「功能推荐/插件管理/各插件自有组件页」用到的子 slot，否则 settings.section
+					// 不会把 renderSlot 能力传给 Section，导致 renderSlot(...) === undefined。
+					children
+				}, Section));
+			};
+
+			// 面板子 slot 全部来自 /cheeco-style/panel-config（由宿主端 syncPanelConfig 汇总各插件
+			// dsh.cheecoPanel.addPage 声明生成）。这里从 panel-config 读出所有 page，为每个「插件页」
+			// (page != cheeco-internal) 动态生成一个 cheeco-style.page.<id> 子 slot 声明。
+			// 因此新增任何插件 tab 页都无需再改本文件 —— cheeco-style 只做面板框架，不绑定具体插件。
+			// DSH 要求子 slot 必须先声明、且一旦注册便不能追加，所以 settings.section 的唯一注册
+			// 放在拿到完整 children 之后进行（异步），避免二次注册 single slot 的冲突。
+			const registerWithPanel = () => {
+				fetch("/cheeco-style/panel-config", { cache: "no-store" })
+					.then((r) => (r.ok ? r.json() : {}))
+					.then((data) => {
+						const extra = {};
+						for (const p of (Array.isArray(data && data.pages) ? data.pages : [])) {
+							if (p && p.page && p.page !== "cheeco-internal") {
+								extra["cheeco-style.page." + p.id] = { kind: "single", scope: "root" };
+							}
+						}
+						registerSection({ ...baseChildren, ...extra });
+					})
+					.catch(() => registerSection(baseChildren));
+			};
+			registerWithPanel();
+
 			// Own the top-left brand row so the user can swap the title/logo from settings.
-			// The shipped brand-official plugin occupies these single slots at priority 0;
-			// registering at a LOWER priority makes this the winning occupant (lowest renders),
-			// and the components fall back to the official brand when nothing is configured.
 			ctx.slots.inject("sidebar.brand.name", () => ctx.slots.register({
 				name: "sidebar.brand.name",
 				priority: -1
