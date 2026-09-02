@@ -1,6 +1,6 @@
 {
   "name": "@cheeco/dsh-client-ui-system-info",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Cheeco 系统信息：显示当前 profile / DSH_HOME / 端口 / dsh版本 / 已运行实例（心跳 + pid 存活检测）。",
   "license": "MIT",
   "keywords": ["dsh", "deepseek-harness", "dsh-plugin", "system-info"],
