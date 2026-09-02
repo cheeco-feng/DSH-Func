@@ -1,0 +1,4 @@
+# @cheeco/dsh-llm-model-settings bundle patch：注册「模型设置」宿主插件
+- insert:
+    - id: model-settings
+      name: '@cheeco/dsh-llm-model-settings'
