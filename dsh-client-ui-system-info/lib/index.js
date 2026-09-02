@@ -139,7 +139,7 @@ export default class DshClientUiSystemInfo {
 						port,
 						pid,
 						dshVersion: dshVersion(),
-						pluginVersion: "0.2.0",
+						pluginVersion: "0.2.1",
 						instances
 					});
 					res.statusCode = 200;
@@ -149,44 +149,51 @@ export default class DshClientUiSystemInfo {
 				}
 			});
 
-			// 重启所选实例：前端「系统信息”页点【重启】→ POST body {profile, port} → spawn 调用
-			// <DSH_HOME>\profiles\restart-dsh-profile.ps1。detached + unref，立即返回，由脚本负责停旧起新。
+			// 重启/关闭命令：前端传 {profile, port} → spawn 调用 <DSH_HOME>\profiles\<script>。
+			// restart：停旧+起新；close：仅停（不拉起）。detached + unref，立即返回。
+			const actionHandler = (scriptName, okMessage) => async (req, res) => {
+				const send = (code, payload) => {
+					const b = JSON.stringify(payload);
+					res.writeHead(code, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+					res.end(b);
+				};
+				let body = {};
+				try { body = JSON.parse((await readBody(req)) || "{}"); } catch (e) { body = {}; }
+				const targetProfile = typeof body.profile === "string" ? body.profile.trim() : "";
+				const targetPort = Number(body.port);
+				if (!targetProfile || !(Number.isFinite(targetPort) && targetPort > 0)) {
+					send(400, { ok: false, error: "缺少 profile 或 port 参数" });
+					return;
+				}
+				const script = join(dshHome, "profiles", scriptName);
+				if (!existsSync(script)) {
+					send(500, { ok: false, error: "未找到脚本：" + script });
+					return;
+				}
+				try {
+					const child = spawn("powershell", [
+						"-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script,
+						"-Profile", targetProfile, "-Port", String(targetPort)
+					], { detached: true, stdio: "ignore" });
+					child.unref();
+					send(202, { ok: true, profile: targetProfile, port: targetPort, message: okMessage });
+				} catch (e) {
+					send(500, { ok: false, error: String(e && e.message || e) });
+				}
+			};
+
 			const disposeRestart = ctx.webServer.register({
 				kind: "exact",
 				path: "/sysinfo/restart",
-				handler: async (req, res) => {
-					const send = (code, payload) => {
-						const b = JSON.stringify(payload);
-						res.writeHead(code, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
-						res.end(b);
-					};
-					let body = {};
-					try { body = JSON.parse((await readBody(req)) || "{}"); } catch (e) { body = {}; }
-					const targetProfile = typeof body.profile === "string" ? body.profile.trim() : "";
-					const targetPort = Number(body.port);
-					if (!targetProfile || !(Number.isFinite(targetPort) && targetPort > 0)) {
-						send(400, { ok: false, error: "缺少 profile 或 port 参数" });
-						return;
-					}
-					const script = join(dshHome, "profiles", "restart-dsh-profile.ps1");
-					if (!existsSync(script)) {
-						send(500, { ok: false, error: "未找到重启脚本：" + script });
-						return;
-					}
-					try {
-						const child = spawn("powershell", [
-							"-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script,
-							"-Profile", targetProfile, "-Port", String(targetPort)
-						], { detached: true, stdio: "ignore" });
-						child.unref();
-						send(202, { ok: true, profile: targetProfile, port: targetPort, message: "重启已触发，请稍后刷新页面" });
-					} catch (e) {
-						send(500, { ok: false, error: String(e && e.message || e) });
-					}
-				}
+				handler: actionHandler("restart-dsh-profile.ps1", "重启已触发，请稍后刷新页面")
+			});
+			const disposeClose = ctx.webServer.register({
+				kind: "exact",
+				path: "/sysinfo/close",
+				handler: actionHandler("close-dsh-profile.ps1", "关闭指令已触发，该实例进程已停止")
 			});
 
-			return () => { disposeSysinfo(); disposeRestart(); };
+			return () => { disposeSysinfo(); disposeRestart(); disposeClose(); };
 		}, "dsh-client-ui-system-info: /sysinfo");
 	}
 }

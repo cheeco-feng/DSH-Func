@@ -44,7 +44,7 @@ window.__ModuleLoader__.load({
       // 展开的 profile 名（点击「正在运行的实例」某一行展开/收起）。
       var openedPair = react.useState(null);
       var opened = openedPair[0], setOpened = openedPair[1];
-      // 二次确认：待「确认重启」的 profile key（避免误触，无需宿主原生 confirm）
+      // 二次确认：待确认的动作 {op, profile}（避免误触，无需宿主原生 confirm）
       var armedPair = react.useState(null);
       var armed = armedPair[0], setArmed = armedPair[1];
       // 重启指令的提示文案
@@ -64,20 +64,22 @@ window.__ModuleLoader__.load({
         return function () { cancelled = true; };
       }, []);
 
-      // 重启指定实例：POST /sysinfo/restart 交给宿主 spawn 执行 restart-dsh-profile.ps1。
-      // 若重启的就是当前页面对应的实例，宿主会被脚本停掉、连接可能中断，故这里不依赖响应成功，
-      // 只提示「请稍后刷新页面」。
-      function doRestart(profile, port) {
-        setMsg("正在重启 " + profile + "（端口 " + port + "）…请稍后刷新页面");
-        fetch("/sysinfo/restart", {
+      // 重启/关闭指定实例：POST /sysinfo/close|restart 交给宿主 spawn 执行对应 .ps1。
+      // 若操作的就是当前页面对应的实例，宿主会被脚本停掉、连接可能中断，故这里不依赖响应成功，只提示。
+      function doAction(op, profile, port) {
+        var isClose = op === "close";
+        setMsg(isClose
+          ? "正在关闭 " + profile + "（端口 " + port + "）…该实例进程将停止，不再自动拉起"
+          : "正在重启 " + profile + "（端口 " + port + "）…请稍后刷新页面");
+        fetch(isClose ? "/sysinfo/close" : "/sysinfo/restart", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ profile: profile, port: port })
-        }).catch(function () { /* 重启当前实例时请求可能被断开，忽略 */ });
+        }).catch(function () { /* 操作当前实例时请求可能被断开，忽略 */ });
       }
-      function onRestartClick(profile, port) {
-        if (armed === profile) { setArmed(null); doRestart(profile, port); }
-        else { setArmed(profile); setTimeout(function () { setArmed(null); }, 4000); }
+      function onActionClick(op, profile, port) {
+        if (armed && armed.op === op && armed.profile === profile) { setArmed(null); doAction(op, profile, port); }
+        else { setArmed({ op: op, profile: profile }); setTimeout(function () { setArmed(null); }, 4000); }
       }
 
       if (loading) return rx.jsx("p", { children: zh.loading });
@@ -116,15 +118,26 @@ window.__ModuleLoader__.load({
                       rx.jsx("span", { style: { display: "inline-flex", alignItems: "center", gap: "8px" }, children: [
                         rx.jsx("span", { style: { fontSize: "12px", color: "#888" }, children: "运行中（" + alive.length + "） " + (collapsed ? "▸" : "▾") }),
                         rx.jsx("button", {
-                          onClick: function (e) { e.stopPropagation(); onRestartClick(k, alive[0].port); },
+                          onClick: function (e) { e.stopPropagation(); onActionClick("restart", k, alive[0].port); },
                           style: {
                             padding: "2px 10px", fontSize: "12px", cursor: "pointer", fontFamily: "inherit",
-                            background: armed === k ? "rgba(255,0,0,0.12)" : "rgba(0,122,255,0.12)",
-                            border: armed === k ? "1px solid rgba(255,0,0,0.5)" : "1px solid rgba(0,122,255,0.4)",
+                            background: (armed && armed.op === "restart" && armed.profile === k) ? "rgba(255,0,0,0.12)" : "rgba(0,122,255,0.12)",
+                            border: (armed && armed.op === "restart" && armed.profile === k) ? "1px solid rgba(255,0,0,0.5)" : "1px solid rgba(0,122,255,0.4)",
                             borderRadius: "4px",
-                            color: armed === k ? "#d93025" : "#1a73e8"
+                            color: (armed && armed.op === "restart" && armed.profile === k) ? "#d93025" : "#1a73e8"
                           },
-                          children: armed === k ? "确认重启？" : "重启"
+                          children: (armed && armed.op === "restart" && armed.profile === k) ? "确认重启？" : "重启"
+                        }),
+                        rx.jsx("button", {
+                          onClick: function (e) { e.stopPropagation(); onActionClick("close", k, alive[0].port); },
+                          style: {
+                            padding: "2px 10px", fontSize: "12px", cursor: "pointer", fontFamily: "inherit",
+                            background: (armed && armed.op === "close" && armed.profile === k) ? "rgba(255,0,0,0.2)" : "rgba(255,0,0,0.08)",
+                            border: (armed && armed.op === "close" && armed.profile === k) ? "1px solid rgba(255,0,0,0.7)" : "1px solid rgba(255,0,0,0.4)",
+                            borderRadius: "4px",
+                            color: "#d93025"
+                          },
+                          children: (armed && armed.op === "close" && armed.profile === k) ? "确认关闭？" : "关闭"
                         })
                       ]})
                     ]
