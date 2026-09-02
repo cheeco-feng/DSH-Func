@@ -121,6 +121,7 @@ export default class DshClientUiSystemInfo {
 				kind: "exact",
 				path: "/sysinfo",
 				handler: (req, res) => {
+					pruneHeartbeats();
 					const instances = readHeartbeatDir(heartbeatDir).map((h) => ({
 						pid: h.pid,
 						port: h.port,
@@ -139,7 +140,7 @@ export default class DshClientUiSystemInfo {
 						port,
 						pid,
 						dshVersion: dshVersion(),
-						pluginVersion: "0.2.3",
+						pluginVersion: "0.2.4",
 						instances
 					});
 					res.statusCode = 200;
@@ -154,6 +155,19 @@ export default class DshClientUiSystemInfo {
 			// 每次请求写日志 logs\dsh-systeminfo-action.log，并把结构化的「状态返回」给前端，便于确认「点击了什么、返回了什么」。
 			const actionLog = (line) => {
 				try { appendFileSync(join(dshHome, "logs", "dsh-systeminfo-action.log"), new Date().toISOString() + " " + line + "\n", "utf8"); } catch (e) { /* ignore */ }
+			};
+			// 清理历史残留心跳：Stop-Process 强杀导致 exit 清理未跑，.dsh-runtime 里会堆积已死 pid 的心跳文件。
+			// 删除「非本进程且已死」的心跳，避免 /sysinfo 列表与 close/restart 命中错误 pid。
+			const pruneHeartbeats = () => {
+				try {
+					readdirSync(heartbeatDir).filter((f) => f.endsWith(".json")).forEach((f) => {
+						try {
+							const p = join(heartbeatDir, f);
+							const h = JSON.parse(readFileSync(p, "utf8"));
+							if (typeof h.pid === "number" && h.pid !== pid && !isAlive(h.pid, pid)) rmSync(p, { force: true });
+						} catch (e) { /* ignore */ }
+					});
+				} catch (e) { /* ignore */ }
 			};
 			const actionHandler = (scriptName, actionLabel) => async (req, res) => {
 				const send = (code, payload) => {
@@ -177,7 +191,8 @@ export default class DshClientUiSystemInfo {
 					send(500, { ok: false, action: actionLabel, error: "功能不可用：未找到脚本 " + script });
 					return;
 				}
-				const target = readHeartbeatDir(heartbeatDir).find((h) => Number(h.port) === targetPort && h.profile === targetProfile);
+				pruneHeartbeats();
+				const target = readHeartbeatDir(heartbeatDir).find((h) => Number(h.port) === targetPort && h.profile === targetProfile && isAlive(h.pid, pid));
 				if (!target) {
 					actionLog(`[${actionLabel}] 功能不可用：未发现运行实例 profile=${targetProfile} port=${targetPort}`);
 					send(200, { ok: false, action: actionLabel, error: "功能不可用：未发现运行中的 " + targetProfile + "（端口 " + targetPort + "）" });
@@ -219,7 +234,7 @@ export default class DshClientUiSystemInfo {
 					send(400, { ok: false, action: "close", error: "缺少 profile 或 port 参数" });
 					return;
 				}
-				const target = readHeartbeatDir(heartbeatDir).find((h) => Number(h.port) === targetPort && h.profile === targetProfile);
+				const target = readHeartbeatDir(heartbeatDir).find((h) => Number(h.port) === targetPort && h.profile === targetProfile && isAlive(h.pid, pid));
 				if (!target || typeof target.pid !== "number") {
 					actionLog(`[close] 功能不可用：未发现运行实例 profile=${targetProfile} port=${targetPort}`);
 					send(200, { ok: false, action: "close", error: "功能不可用：未发现运行中的 " + targetProfile + "（端口 " + targetPort + "）" });
