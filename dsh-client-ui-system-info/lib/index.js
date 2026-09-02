@@ -9,10 +9,11 @@
  *
  * 心跳目录放在 DSH_HOME 下（跨实例可读），是「系统信息」与后续「会话互斥」共同的地基。
  */
-import { readFileSync, writeFileSync, mkdirSync, readdirSync, rmSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, readdirSync, rmSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
+import { spawn } from "node:child_process";
 
 const HERE = dirname(fileURLToPath(import.meta.url)).replace(/\\/g, "/");
 
@@ -70,6 +71,16 @@ function isAlive(pid, selfPid) {
 	catch (e) { return e.code === "EPERM"; }
 }
 
+/** 读请求体（POST JSON）。 */
+function readBody(req) {
+	return new Promise((resolve, reject) => {
+		let data = "";
+		req.on("data", (c) => { data += c; });
+		req.on("end", () => resolve(data));
+		req.on("error", reject);
+	});
+}
+
 export default class DshClientUiSystemInfo {
 	static name = "dsh-client-ui-system-info";
 	static inject = ["webServer"];
@@ -104,37 +115,78 @@ export default class DshClientUiSystemInfo {
 			}
 		}
 
-		// /sysinfo 数据接口。
-		ctx.effect(() => ctx.webServer.register({
-			kind: "exact",
-			path: "/sysinfo",
-			handler: (req, res) => {
-				const instances = readHeartbeatDir(heartbeatDir).map((h) => ({
-					pid: h.pid,
-					port: h.port,
-					profile: h.profile,
-					dshHome: h.dshHome,
-					startedAt: h.startedAt,
-					alive: typeof h.pid === "number" ? isAlive(h.pid, pid) : false
-				}))/* 只保留「运行中」的实例：每个 profile 唯一，最多 3 台（mobile/test/web）。
-				   失效的残留心跳（Stop-Process 强杀导致 exit 清理未跑）不再返回，避免列表被一堆旧 PID 占满。*/
-				.filter((h) => h.alive)
-				.sort((a, b) => String(a.port).localeCompare(String(b.port)));
-				const body = JSON.stringify({
-					ok: true,
-					profileName,
-					dshHome,
-					port,
-					pid,
-					dshVersion: dshVersion(),
-					pluginVersion: "0.1.2",
-					instances
-				});
-				res.statusCode = 200;
-				res.setHeader("Content-Type", "application/json; charset=utf-8");
-				res.setHeader("Cache-Control", "no-store");
-				res.end(body);
-			}
-		}), "dsh-client-ui-system-info: /sysinfo");
+		// /sysinfo 数据接口 + /sysinfo/restart 重启命令路由。
+		ctx.effect(() => {
+			const disposeSysinfo = ctx.webServer.register({
+				kind: "exact",
+				path: "/sysinfo",
+				handler: (req, res) => {
+					const instances = readHeartbeatDir(heartbeatDir).map((h) => ({
+						pid: h.pid,
+						port: h.port,
+						profile: h.profile,
+						dshHome: h.dshHome,
+						startedAt: h.startedAt,
+						alive: typeof h.pid === "number" ? isAlive(h.pid, pid) : false
+					}))/* 只保留「运行中」的实例：每个 profile 唯一，最多 3 台（mobile/test/web）。
+					   失效的残留心跳（Stop-Process 强杀导致 exit 清理未跑）不再返回，避免列表被一堆旧 PID 占满。*/
+					.filter((h) => h.alive)
+					.sort((a, b) => String(a.port).localeCompare(String(b.port)));
+					const body = JSON.stringify({
+						ok: true,
+						profileName,
+						dshHome,
+						port,
+						pid,
+						dshVersion: dshVersion(),
+						pluginVersion: "0.2.0",
+						instances
+					});
+					res.statusCode = 200;
+					res.setHeader("Content-Type", "application/json; charset=utf-8");
+					res.setHeader("Cache-Control", "no-store");
+					res.end(body);
+				}
+			});
+
+			// 重启所选实例：前端「系统信息”页点【重启】→ POST body {profile, port} → spawn 调用
+			// <DSH_HOME>\profiles\restart-dsh-profile.ps1。detached + unref，立即返回，由脚本负责停旧起新。
+			const disposeRestart = ctx.webServer.register({
+				kind: "exact",
+				path: "/sysinfo/restart",
+				handler: async (req, res) => {
+					const send = (code, payload) => {
+						const b = JSON.stringify(payload);
+						res.writeHead(code, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+						res.end(b);
+					};
+					let body = {};
+					try { body = JSON.parse((await readBody(req)) || "{}"); } catch (e) { body = {}; }
+					const targetProfile = typeof body.profile === "string" ? body.profile.trim() : "";
+					const targetPort = Number(body.port);
+					if (!targetProfile || !(Number.isFinite(targetPort) && targetPort > 0)) {
+						send(400, { ok: false, error: "缺少 profile 或 port 参数" });
+						return;
+					}
+					const script = join(dshHome, "profiles", "restart-dsh-profile.ps1");
+					if (!existsSync(script)) {
+						send(500, { ok: false, error: "未找到重启脚本：" + script });
+						return;
+					}
+					try {
+						const child = spawn("powershell", [
+							"-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script,
+							"-Profile", targetProfile, "-Port", String(targetPort)
+						], { detached: true, stdio: "ignore" });
+						child.unref();
+						send(202, { ok: true, profile: targetProfile, port: targetPort, message: "重启已触发，请稍后刷新页面" });
+					} catch (e) {
+						send(500, { ok: false, error: String(e && e.message || e) });
+					}
+				}
+			});
+
+			return () => { disposeSysinfo(); disposeRestart(); };
+		}, "dsh-client-ui-system-info: /sysinfo");
 	}
 }

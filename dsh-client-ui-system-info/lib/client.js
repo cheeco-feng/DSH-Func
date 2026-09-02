@@ -44,6 +44,12 @@ window.__ModuleLoader__.load({
       // 展开的 profile 名（点击「正在运行的实例」某一行展开/收起）。
       var openedPair = react.useState(null);
       var opened = openedPair[0], setOpened = openedPair[1];
+      // 二次确认：待「确认重启」的 profile key（避免误触，无需宿主原生 confirm）
+      var armedPair = react.useState(null);
+      var armed = armedPair[0], setArmed = armedPair[1];
+      // 重启指令的提示文案
+      var msgPair = react.useState("");
+      var msg = msgPair[0], setMsg = msgPair[1];
       react.useEffect(function () {
         var cancelled = false;
         (async function () {
@@ -57,6 +63,22 @@ window.__ModuleLoader__.load({
         })();
         return function () { cancelled = true; };
       }, []);
+
+      // 重启指定实例：POST /sysinfo/restart 交给宿主 spawn 执行 restart-dsh-profile.ps1。
+      // 若重启的就是当前页面对应的实例，宿主会被脚本停掉、连接可能中断，故这里不依赖响应成功，
+      // 只提示「请稍后刷新页面」。
+      function doRestart(profile, port) {
+        setMsg("正在重启 " + profile + "（端口 " + port + "）…请稍后刷新页面");
+        fetch("/sysinfo/restart", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ profile: profile, port: port })
+        }).catch(function () { /* 重启当前实例时请求可能被断开，忽略 */ });
+      }
+      function onRestartClick(profile, port) {
+        if (armed === profile) { setArmed(null); doRestart(profile, port); }
+        else { setArmed(profile); setTimeout(function () { setArmed(null); }, 4000); }
+      }
 
       if (loading) return rx.jsx("p", { children: zh.loading });
       if (error) return rx.jsx("p", { style: { color: "#c00" }, children: zh.error + "：" + error });
@@ -79,6 +101,7 @@ window.__ModuleLoader__.load({
           cell(zh.dshVersion, d.dshVersion || "-"),
           cell(zh.pluginVersion, d.pluginVersion || "-"),
           rx.jsx("h3", { style: { marginTop: "18px" }, children: zh.running + "（" + profileNames.length + "）" }),
+          msg ? rx.jsx("div", { style: { padding: "6px 0", fontFamily: "monospace", fontSize: "12px", color: "#1a73e8" }, children: msg }) : null,
           profileNames.length === 0
             ? rx.jsx("p", { style: { color: "#999" }, children: zh.none })
             : rx.jsx("div", { children: profileNames.map(function (k) {
@@ -90,7 +113,20 @@ window.__ModuleLoader__.load({
                     style: { cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", fontFamily: "monospace", fontSize: "13px" },
                     children: [
                       rx.jsx("span", { children: alive[0].port + " | " + k + " | " + alive[0].dshHome }),
-                      rx.jsx("span", { style: { fontSize: "12px", color: "#888" }, children: "运行中（" + alive.length + "） " + (collapsed ? "▸" : "▾") })
+                      rx.jsx("span", { style: { display: "inline-flex", alignItems: "center", gap: "8px" }, children: [
+                        rx.jsx("span", { style: { fontSize: "12px", color: "#888" }, children: "运行中（" + alive.length + "） " + (collapsed ? "▸" : "▾") }),
+                        rx.jsx("button", {
+                          onClick: function (e) { e.stopPropagation(); onRestartClick(k, alive[0].port); },
+                          style: {
+                            padding: "2px 10px", fontSize: "12px", cursor: "pointer", fontFamily: "inherit",
+                            background: armed === k ? "rgba(255,0,0,0.12)" : "rgba(0,122,255,0.12)",
+                            border: armed === k ? "1px solid rgba(255,0,0,0.5)" : "1px solid rgba(0,122,255,0.4)",
+                            borderRadius: "4px",
+                            color: armed === k ? "#d93025" : "#1a73e8"
+                          },
+                          children: armed === k ? "确认重启？" : "重启"
+                        })
+                      ]})
                     ]
                   }),
                   collapsed ? null : rx.jsx("div", { style: { marginTop: "6px", paddingLeft: "10px", fontFamily: "monospace", fontSize: "12px" }, children: alive.map(function (h) {
