@@ -44,12 +44,12 @@ window.__ModuleLoader__.load({
       // 展开的 profile 名（点击「正在运行的实例」某一行展开/收起）。
       var openedPair = react.useState(null);
       var opened = openedPair[0], setOpened = openedPair[1];
-      // 二次确认：待确认的动作 {op, profile}（避免误触，无需宿主原生 confirm）
-      var armedPair = react.useState(null);
-      var armed = armedPair[0], setArmed = armedPair[1];
-      // 重启指令的提示文案
+      // 操作指令的提示文案
       var msgPair = react.useState("");
       var msg = msgPair[0], setMsg = msgPair[1];
+      // 功能可用性：restart/close 脚本是否可用（决定按钮是否置灰）。默认可用，避免未取到前误灰。
+      var featPair = react.useState({ restart: true, close: true });
+      var feat = featPair[0], setFeat = featPair[1];
       react.useEffect(function () {
         var cancelled = false;
         (async function () {
@@ -60,26 +60,42 @@ window.__ModuleLoader__.load({
           } catch (e) {
             if (!cancelled) state[1]({ loading: false, error: String(e && e.message || e) });
           }
+          // 功能可用性检查：依据 host 探测 restart/close 脚本是否存在，设置按钮可用/置灰。
+          try {
+            var rs = await fetch("/sysinfo/actions/status", { cache: "no-store" });
+            var js = await rs.json();
+            if (!cancelled && js) setFeat({ restart: js.restart ? js.restart.available !== false : true, close: js.close ? js.close.available !== false : true });
+          } catch (e) { /* 拿不到则保持默认可用 */ }
         })();
         return function () { cancelled = true; };
       }, []);
 
       // 重启/关闭指定实例：POST /sysinfo/close|restart 交给宿主 spawn 执行对应 .ps1。
-      // 若操作的就是当前页面对应的实例，宿主会被脚本停掉、连接可能中断，故这里不依赖响应成功，只提示。
+      // 宿主会先「检查是否可用」并返回状态（功能可用 / 错误），前端据此显示，便于定位问题在哪一环。
       function doAction(op, profile, port) {
         var isClose = op === "close";
-        setMsg(isClose
-          ? "正在关闭 " + profile + "（端口 " + port + "）…该实例进程将停止，不再自动拉起"
-          : "正在重启 " + profile + "（端口 " + port + "）…请稍后刷新页面");
-        fetch(isClose ? "/sysinfo/close" : "/sysinfo/restart", {
+        var endpoint = isClose ? "/sysinfo/close" : "/sysinfo/restart";
+        var verb = isClose ? "关闭" : "重启";
+        setMsg("正在" + verb + " " + profile + "（端口 " + port + "）…");
+        fetch(endpoint, {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ profile: profile, port: port })
-        }).catch(function () { /* 操作当前实例时请求可能被断开，忽略 */ });
+        }).then(function (r) {
+          return r.json().catch(function () { return {}; }).then(function (j) {
+            if (j && j.ok === false && j.error) { setMsg("失败：" + j.error); return; }
+            if (j && j.message) { setMsg(j.message); return; }
+            setMsg("已发送：HTTP " + r.status);
+          });
+        }).catch(function () {
+          setMsg(isClose
+            ? "已发送关闭指令；若关闭的是当前实例，本页会断开，刷新即可确认"
+            : "请求可能被断开（重启当前实例时），请稍后刷新");
+        });
       }
+      // 一次点击即执行（重启/关闭）。
       function onActionClick(op, profile, port) {
-        if (armed && armed.op === op && armed.profile === profile) { setArmed(null); doAction(op, profile, port); }
-        else { setArmed({ op: op, profile: profile }); setTimeout(function () { setArmed(null); }, 4000); }
+        doAction(op, profile, port);
       }
 
       if (loading) return rx.jsx("p", { children: zh.loading });
@@ -119,25 +135,27 @@ window.__ModuleLoader__.load({
                         rx.jsx("span", { style: { fontSize: "12px", color: "#888" }, children: "运行中（" + alive.length + "） " + (collapsed ? "▸" : "▾") }),
                         rx.jsx("button", {
                           onClick: function (e) { e.stopPropagation(); onActionClick("restart", k, alive[0].port); },
+                          disabled: !feat.restart,
                           style: {
-                            padding: "2px 10px", fontSize: "12px", cursor: "pointer", fontFamily: "inherit",
-                            background: (armed && armed.op === "restart" && armed.profile === k) ? "rgba(255,0,0,0.12)" : "rgba(0,122,255,0.12)",
-                            border: (armed && armed.op === "restart" && armed.profile === k) ? "1px solid rgba(255,0,0,0.5)" : "1px solid rgba(0,122,255,0.4)",
+                            padding: "2px 10px", fontSize: "12px", cursor: feat.restart ? "pointer" : "not-allowed", fontFamily: "inherit",
+                            background: feat.restart ? "rgba(0,122,255,0.12)" : "rgba(128,128,128,0.12)",
+                            border: feat.restart ? "1px solid rgba(0,122,255,0.4)" : "1px solid rgba(128,128,128,0.4)",
                             borderRadius: "4px",
-                            color: (armed && armed.op === "restart" && armed.profile === k) ? "#d93025" : "#1a73e8"
+                            color: feat.restart ? "#1a73e8" : "#999"
                           },
-                          children: (armed && armed.op === "restart" && armed.profile === k) ? "确认重启？" : "重启"
+                          children: "重启"
                         }),
                         rx.jsx("button", {
                           onClick: function (e) { e.stopPropagation(); onActionClick("close", k, alive[0].port); },
+                          disabled: !feat.close,
                           style: {
-                            padding: "2px 10px", fontSize: "12px", cursor: "pointer", fontFamily: "inherit",
-                            background: (armed && armed.op === "close" && armed.profile === k) ? "rgba(255,0,0,0.2)" : "rgba(255,0,0,0.08)",
-                            border: (armed && armed.op === "close" && armed.profile === k) ? "1px solid rgba(255,0,0,0.7)" : "1px solid rgba(255,0,0,0.4)",
+                            padding: "2px 10px", fontSize: "12px", cursor: feat.close ? "pointer" : "not-allowed", fontFamily: "inherit",
+                            background: feat.close ? "rgba(255,0,0,0.08)" : "rgba(128,128,128,0.12)",
+                            border: feat.close ? "1px solid rgba(255,0,0,0.4)" : "1px solid rgba(128,128,128,0.4)",
                             borderRadius: "4px",
-                            color: "#d93025"
+                            color: feat.close ? "#d93025" : "#999"
                           },
-                          children: (armed && armed.op === "close" && armed.profile === k) ? "确认关闭？" : "关闭"
+                          children: "关闭"
                         })
                       ]})
                     ]

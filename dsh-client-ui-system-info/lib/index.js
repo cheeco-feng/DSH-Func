@@ -9,7 +9,7 @@
  *
  * 心跳目录放在 DSH_HOME 下（跨实例可读），是「系统信息」与后续「会话互斥」共同的地基。
  */
-import { readFileSync, writeFileSync, mkdirSync, readdirSync, rmSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, readdirSync, rmSync, existsSync, appendFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
@@ -139,7 +139,7 @@ export default class DshClientUiSystemInfo {
 						port,
 						pid,
 						dshVersion: dshVersion(),
-						pluginVersion: "0.2.1",
+						pluginVersion: "0.2.2",
 						instances
 					});
 					res.statusCode = 200;
@@ -151,7 +151,11 @@ export default class DshClientUiSystemInfo {
 
 			// 重启/关闭命令：前端传 {profile, port} → spawn 调用 <DSH_HOME>\profiles\<script>。
 			// restart：停旧+起新；close：仅停（不拉起）。detached + unref，立即返回。
-			const actionHandler = (scriptName, okMessage) => async (req, res) => {
+			// 每次请求写日志 logs\dsh-systeminfo-action.log，并把结构化的「状态返回」给前端，便于确认「点击了什么、返回了什么」。
+			const actionLog = (line) => {
+				try { appendFileSync(join(dshHome, "logs", "dsh-systeminfo-action.log"), new Date().toISOString() + " " + line + "\n", "utf8"); } catch (e) { /* ignore */ }
+			};
+			const actionHandler = (scriptName, actionLabel) => async (req, res) => {
 				const send = (code, payload) => {
 					const b = JSON.stringify(payload);
 					res.writeHead(code, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
@@ -162,38 +166,67 @@ export default class DshClientUiSystemInfo {
 				const targetProfile = typeof body.profile === "string" ? body.profile.trim() : "";
 				const targetPort = Number(body.port);
 				if (!targetProfile || !(Number.isFinite(targetPort) && targetPort > 0)) {
-					send(400, { ok: false, error: "缺少 profile 或 port 参数" });
+					actionLog(`[${actionLabel}] 参数错误 profile=${JSON.stringify(targetProfile)} port=${body.port}`);
+					send(400, { ok: false, action: actionLabel, error: "缺少 profile 或 port 参数" });
 					return;
 				}
+				// 步骤 2：检查功能是否可用（脚本存在 + 目标实例是否登记在运行）
 				const script = join(dshHome, "profiles", scriptName);
 				if (!existsSync(script)) {
-					send(500, { ok: false, error: "未找到脚本：" + script });
+					actionLog(`[${actionLabel}] 功能不可用：脚本缺失 ${script}`);
+					send(500, { ok: false, action: actionLabel, error: "功能不可用：未找到脚本 " + script });
 					return;
 				}
+				const target = readHeartbeatDir(heartbeatDir).find((h) => Number(h.port) === targetPort && h.profile === targetProfile);
+				if (!target) {
+					actionLog(`[${actionLabel}] 功能不可用：未发现运行实例 profile=${targetProfile} port=${targetPort}`);
+					send(200, { ok: false, action: actionLabel, error: "功能不可用：未发现运行中的 " + targetProfile + "（端口 " + targetPort + "）" });
+					return;
+				}
+				// 步骤 3：先返回「功能可用」
+				const verb = actionLabel === "close" ? "关闭" : "重启";
+				const message = "功能可用，正在" + verb + " " + targetProfile + "（端口 " + targetPort + "）…" + (actionLabel === "close" ? "该实例进程将停止，不再自动拉起" : "请稍后刷新页面");
+				actionLog(`[${actionLabel}] 功能可用 profile=${targetProfile} port=${targetPort} script=${scriptName} targetAlive=true`);
+				send(202, { ok: true, status: "available", action: actionLabel, profile: targetProfile, port: targetPort, script: scriptName, message });
+				// 步骤 4：再异步执行（detached，不阻塞已返回的响应）
 				try {
 					const child = spawn("powershell", [
 						"-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script,
 						"-Profile", targetProfile, "-Port", String(targetPort)
 					], { detached: true, stdio: "ignore" });
 					child.unref();
-					send(202, { ok: true, profile: targetProfile, port: targetPort, message: okMessage });
+					child.on("error", (e) => actionLog(`[${actionLabel}] spawn error profile=${targetProfile} port=${targetPort}: ${e && e.message || e}`));
+					child.on("exit", (code) => actionLog(`[${actionLabel}] exit code=${code} profile=${targetProfile} port=${targetPort}`));
+					actionLog(`[${actionLabel}] 已发起 pid=${child.pid}`);
 				} catch (e) {
-					send(500, { ok: false, error: String(e && e.message || e) });
+					actionLog(`[${actionLabel}] spawn throw profile=${targetProfile} port=${targetPort}: ${e && e.message || e}`);
 				}
 			};
 
 			const disposeRestart = ctx.webServer.register({
 				kind: "exact",
 				path: "/sysinfo/restart",
-				handler: actionHandler("restart-dsh-profile.ps1", "重启已触发，请稍后刷新页面")
+				handler: actionHandler("restart-dsh-profile.ps1", "restart")
 			});
 			const disposeClose = ctx.webServer.register({
 				kind: "exact",
 				path: "/sysinfo/close",
-				handler: actionHandler("close-dsh-profile.ps1", "关闭指令已触发，该实例进程已停止")
+				handler: actionHandler("close-dsh-profile.ps1", "close")
 			});
 
-			return () => { disposeSysinfo(); disposeRestart(); disposeClose(); };
+			// 功能可用性检查：打开页面时前端 GET 本接口，依据 restart/close 脚本是否存在决定按钮是否置灰。
+			const disposeStatus = ctx.webServer.register({
+				kind: "exact",
+				path: "/sysinfo/actions/status",
+				handler: (req, res) => {
+					const probe = (name) => ({ available: existsSync(join(dshHome, "profiles", name)), script: join(dshHome, "profiles", name) });
+					const body = JSON.stringify({ ok: true, restart: probe("restart-dsh-profile.ps1"), close: probe("close-dsh-profile.ps1") });
+					res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+					res.end(body);
+				}
+			});
+
+			return () => { disposeSysinfo(); disposeStatus(); disposeRestart(); disposeClose(); };
 		}, "dsh-client-ui-system-info: /sysinfo");
 	}
 }
