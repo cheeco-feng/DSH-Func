@@ -1,6 +1,6 @@
 {
   "name": "@cheeco/dsh-client-ui-schedule-panel",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "多 AI 调度执行面板：对话页输入区上方常驻面板，可视化主控 AI 派单的子代理/后台任务进度、状态、归属与明细，实现在官方 dock 槽。",
   "type": "module",
   "main": "lib/index.mjs",
