@@ -16,7 +16,7 @@
 ---
 
 ## 1. 唯一真源（严禁副本散落）
-- 源码只在 `DSH-Func`（5 插件，含 `lib/`、`cordis.patch.yml`、`package.json`）。**无 `src/`（AI 直接改 `lib/` 正式代码，不需要 TS 源）。**
+- 源码只在 `DSH-Func`（所有插件，含 `lib/`、`cordis.patch.yml`、`package.json`）。**无 `src/`（AI 直接改 `lib/` 正式代码，不需要 TS 源）。**
 - 禁止副本：`DSH-Src`、`dsh-switch-search-src`、engine `node_modules\@cheeco`、profile `link:`、`downloads` 里的旧 tgz、`_tmp_*` 临时产物。发现即清理。
 - **版本 + 最新下载地址唯一真源 = `DSH-Func/cheeco-dsh-plugins.json`**（仓库根单文件）。
 
@@ -26,7 +26,8 @@
 - **宿主（host，`lib/index.js`）**：Cordis 插件（class 形状），用 `webServer` 注册 HTTP 路由（`/cheeco-style/*`）；用 `require.resolve` 定位官方 dsh 跑 `dsh plugin`；config 读写走文件。
 - **浏览器端（client，`lib/client.js`）**：`window.__ModuleLoader__.load`，用 `slots`（`settings.section`、`settings.plugins.tab`）注册；用 `react_jsx_runtime.jsx` 写 JSX（已打包、**不是**手写 .tsx）。
 - **插件声明**：`package.json` 里 `dsh.bundle.patch`（指向 `cordis.patch.yml`）+ `dsh.client.inject`（声明 client 依赖的服务）。
-- **功能推荐列表**：`CHEECO_FEATURES`（手写元数据：id/name/pkg/folder/install/url）+ `DSH_OFFICIAL`（官方条目，仅列出）。每个条目每条目都要有稳定 `id`。
+- **功能推荐列表（数据源，关键）**：插件中心页（`dsh-client-ui-plugin-push`）的 `featureList()` **优先读外部清单** = GitHub main 上的仓库根 `cheeco-dsh-plugins.json`（`MANIFEST_URL = raw.githubusercontent.com/cheeco-feng/DSH-Func/main/cheeco-dsh-plugins.json`），只有取不到才回退内置 `CHEECO_FEATURES`（手写元数据：id/name/pkg/folder/install/url）+ `DSH_OFFICIAL`（官方条目，仅列出）。每个条目每条目都要有稳定 `id`。
+  - **所以新增/更新插件必须 `git push` 到 GitHub 让该清单文件更新，功能推荐才会显示**；仅改本地内置 `CHEECO_FEATURES` 或本地清单文件而不 push，面板看不到。且 `getManifest()` 每 60s 缓存 + raw.githubusercontent 有 CDN 缓存滞后（新条目要等 CDN 刷新才出现，验证用 GitHub API `contents?ref=main` 读 base64 解码而非 raw）。
 - **版本显示**：当前版本读本地 `node_modules/@cheeco/<folder>/package.json`；最新版本读清单 `cheeco-dsh-plugins.json`（`latestVersionOf`）。
 - **启用/停用**：只读显示（从 `/pmgr/list` 的 `enabled` 读取），开关放 plugin-manager。
 - **按钮/文案**：主操作（我要安装）用主题蓝 `#3498db` 白字；文本用中文；删除括号等冗余说明。
@@ -49,6 +50,13 @@
 3. `git add` + `git commit`（中文、`feat/fix/refactor(dsh-xxx-…):…`）+ `git push origin main`。
 4. 用 GitHub API（token 在 `_fixreleases.ps1` / 用户 .npmrc）建 release（`tag v<ver>`）+ 上传新 tgz。
 5. 安装到目标 profile（§4）；若引用了最新版下载，**清单里版本已更新 → 下载地址自动指向新版本**（动态拼接）。
+
+> **⚠️ 新增插件（非已有插件升级）四步缺一不可，否则功能推荐不显示 / 安装失败：**
+> 1. 改 5 处版本 + 清单（`package.json`/`PLUGIN_VERSION`/`cheeco-dsh-plugins.json`/`CHEECO_FEATURES` 主副副本）+ `publish.mjs` 的 `META`；
+> 2. `npm pack` 出 tgz；
+> 3. **`git push` 到 GitHub**（功能推荐显示源 = GitHub main 上的 `cheeco-dsh-plugins.json`，不 push 面板看不到；见 §2）；
+> 4. **建 GitHub release 并上传 tgz 资产**（否则"我要安装"的 download URL 无该 tgz → 下载失败）。
+> 我实踩过：只改本地清单没 push → 面板看不到；只 push 源码不传 release 资产 → 安装失败。
 
 ---
 
@@ -103,6 +111,7 @@
 13. **`我要安装`只对可安装项显示**：dsh 官方（`installable:false`）不出现安装按钮。
 14. **`resolveDshBin`** 用 `require.resolve('@deepseek-ai/dsh/lib/bin.js')`（无需 PATH）；若 profile 内也装了 @deepseek-ai/dsh 会优先用它（注意版本是否一致）。
 15. **npm pack 产物**不含 `config/`（那是运行时生成的默认配置模板）；`files` 只含 `lib`、`cordis.patch.yml`、`README.md`。
+16. **功能推荐不显示新插件**：大多因为没 `git push`（显示源是 GitHub main 的 `cheeco-dsh-plugins.json`，见 §2/§3），或 raw CDN 缓存滞后（等几分钟刷新）；验证用 GitHub API `contents?ref=main` 读 base64 而非 raw。
 
 ---
 
@@ -112,9 +121,10 @@
 - [ ] 确认各 profile store 都是 `F:\.pnpm-store`。
 - [ ] 确认改动只落在 `DSH-Func`（唯一真源），无副本。
 - [ ] （新增插件）该插件已注册进 `publish.mjs` 的 `META`，且 `id` 与功能推荐清单一致。
+- [ ] （新增插件）四步齐：5 处版本+清单 / npm pack / **git push（让 GitHub 外部清单更新）** / **建 release + 上传 tgz 资产**（见 §3）。
 **执行后**
 - [ ] 版本 5 处同号。
-- [ ] `cheeco-dsh-plugins.json` 已更新并 push。
-- [ ] npm pack 生成新 tgz；GitHub release + 资产已建。
+- [ ] `cheeco-dsh-plugins.json` 已更新**并 push**（功能推荐显示源 = GitHub 上的该文件）。
+- [ ] npm pack 生成新 tgz；GitHub release + 资产已建（"我要安装"依赖资产 URL 存在）。
 - [ ] 目标 profile 已安装新版本；config 未丢失。
 - [ ] 用户已重启工作台。
