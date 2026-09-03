@@ -52,7 +52,7 @@ dsh plugin --profile <profile> add https://github.com/cheeco-feng/DSH-Func/relea
 dsh plugin --profile <profile> add https://github.com/cheeco-feng/DSH-Func/releases/download/v0.1.0/cheeco-dsh-client-ui-plugin-manager-0.1.0.tgz
 
 # 多AI调度执行面板
-dsh plugin --profile <profile> add https://github.com/cheeco-feng/DSH-Func/releases/download/v0.1.0/cheeco-dsh-client-ui-schedule-panel-0.1.0.tgz
+dsh plugin --profile <profile> add https://github.com/cheeco-feng/DSH-Func/releases/download/v0.1.1/cheeco-dsh-client-ui-schedule-panel-0.1.1.tgz
 ```
 
 > 上面 URL 均为**各插件最新的 GitHub Release 资产**。`dsh plugin add` 会自动把每个带 `dsh.bundle.patch` 的插件写进该 profile 的 `dsh.profile.bundles`。

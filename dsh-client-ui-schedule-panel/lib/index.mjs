@@ -1,5 +1,10 @@
 import * as fs from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 //#region src/index.mjs
+/** 插件安装目录（`<profile>/node_modules/@cheeco`）：配置/分配持久化文件写在这，
+ *  随 @cheeco 目录一起迁移（本目录是 dsh-client-ui-schedule-panel 的上级上级上级）。 */
+const CHEECO_DIR = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
 /** 调度面板只读状态路由（client 轮询地址，与 client.js 一致）。 */
 const STATE_PATH = "/plugins/dsh-schedule-panel/state";
 /** 任务输出读取路由（tail：返回 shadow 缓冲累积全文，full: true 契约）。 */
@@ -9,7 +14,7 @@ const ASSIGN_PATH = "/plugins/dsh-schedule-panel/assign";
 /** sessionId -> { task: { provider, model } }（进程内运行时指定，不写死全局）。 */
 const assignments = /* @__PURE__ */ new Map();
 const DSH_HOME = process.env.DSH_HOME ?? "F:/DeepSeekHarnessDataOriginal";
-const ASSIGN_FILE = `${DSH_HOME}/schedule-panel-assign.json`;
+const ASSIGN_FILE = join(CHEECO_DIR, "schedule-panel-assign.json");
 const SETTINGS_FILE = `${DSH_HOME}/settings.yaml`;
 const MODELS_PATH = "/plugins/dsh-schedule-panel/models";
 /** 最近压缩运行记录（实际传给 llm 的 provider/model）。 */
