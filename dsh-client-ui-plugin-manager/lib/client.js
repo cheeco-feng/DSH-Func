@@ -856,13 +856,13 @@ function apply(ctx) {
   const t = ctx.locale.bind(NS);
   const slots = ctx.get("slots");
   if (slots === void 0) return;
-  // 注册进 cheeco 小功能 section 的第 4 个 tab（面板修改/功能管理/功能推荐/插件管理），
-  // 由 cheeco 小功能的 Section 用 renderSlot("cheeco-style.plugin-manager") 渲染。
+  // 注册进 dsh-web-ui-PluginPackagePanel（DSH插件包）预留的「插件管理」子 slot，
+  // 由 DSH插件包 的 Section 用 renderSlot("dsh-plugin-package.plugin-manager") 渲染。
   slots.inject(
-    "cheeco-style.plugin-manager",
+    "dsh-plugin-package.plugin-manager",
     () => slots.register(
       {
-        name: "cheeco-style.plugin-manager",
+        name: "dsh-plugin-package.plugin-manager",
         id: "pm-manage",
         order: 20,
         label: () => t("tabLabel")

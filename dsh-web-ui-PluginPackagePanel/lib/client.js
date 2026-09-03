@@ -121,14 +121,16 @@ window.__ModuleLoader__.load({
       });
     }
 
-    /** 内页：tab 结构，「功能表」「功能推荐」「面版管理」三个 tab。
+    /** 内页：tab 结构，「功能表」「功能推荐」「插件管理」「面版管理」四个 tab。
      *  「功能推荐」页内容由 dsh-client-ui-plugin-push 经子 slot `dsh-plugin-package.features`
-     *  注入（已在 apply() 的 settings.section 注册里声明该子 slot），本页只负责渲染。 */
+     *  注入、「插件管理」页由 dsh-client-ui-plugin-manager 经子 slot `dsh-plugin-package.plugin-manager`
+     *  注入（两个子 slot 已在 apply() 的 settings.section 注册里声明），本页只负责渲染。 */
     function Section({ renderSlot }) {
       const [tab, setTab] = react.useState("functions");
       const tabs = [
         { id: "functions", label: "功能表" },
         { id: "features", label: "功能推荐" },
+        { id: "pmgr", label: "插件管理" },
         { id: "panel", label: "面版管理" }
       ];
       const tabBtn = (key, label) => react_jsx_runtime.jsx("button", {
@@ -166,6 +168,14 @@ window.__ModuleLoader__.load({
         content = react_jsx_runtime.jsx("div", { children: [
           empty ? react_jsx_runtime.jsx("p", { style: { padding: "12px 0", color: "var(--dsw-alias-label-tertiary,#999)" }, children: "该插件未处于安装状态" }) : out
         ] });
+      } else if (tab === "pmgr") {
+        // 「插件管理」内容来自 plugin-manager 注入的子 slot；判空同功能推荐。
+        const out = renderSlot ? renderSlot("dsh-plugin-package.plugin-manager", {}) : null;
+        const renderedChildren = (out === null || out === void 0) ? [] : react.Children.toArray(out);
+        const empty = renderedChildren.length === 0;
+        content = react_jsx_runtime.jsx("div", { children: [
+          empty ? react_jsx_runtime.jsx("p", { style: { padding: "12px 0", color: "var(--dsw-alias-label-tertiary,#999)" }, children: "该插件未处于安装状态" }) : out
+        ] });
       } else {
         content = react_jsx_runtime.jsx(RenameCard, {});
       }
@@ -187,10 +197,11 @@ window.__ModuleLoader__.load({
     function apply(ctx) {
       const t = ctx.locale.bind(NS);
       ctx.effect(() => ctx.locale.register(NS, { zh, en: zh }), "dsh-web-ui-plugin-package: dictionaries");
-      // 「功能推荐」tab 用到的基础子 slot，必须在此声明，settings.section 才会把 renderSlot
-      // 传给 Section（否则 renderSlot(...) === undefined，功能推荐内容渲染不出来）。
+      // 「功能推荐」「插件管理」tab 用到的基础子 slot，必须在此声明，settings.section 才会把
+      // renderSlot 传给 Section（否则 renderSlot(...) === undefined，内容渲染不出来）。
       const baseChildren = {
-        "dsh-plugin-package.features": { kind: "single", scope: "root" }
+        "dsh-plugin-package.features": { kind: "single", scope: "root" },
+        "dsh-plugin-package.plugin-manager": { kind: "single", scope: "root" }
       };
       const registerSection = () => ctx.slots.inject("settings.section", () => ctx.slots.register({
         name: "settings.section",

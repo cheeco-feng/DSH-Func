@@ -24,10 +24,12 @@ const CHEECO_DIR = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
 /** GitHub 仓库（raw package.json on main）用于"检查更新"。 */
 const GITHUB_RAW = "https://raw.githubusercontent.com/cheeco-feng/DSH-Func/main";
 
-/** 「功能推荐」自 v0.1.4 起改为寄宿在 DSH插件包（dsh-web-ui-PluginPackagePanel）侧边栏内，
- *  因此安装本插件前必须先装 DSH插件包，否则功能推荐没有宿主页面。 */
+/** 「功能推荐」「插件管理」自相关版本起改为寄宿在 DSH插件包（dsh-web-ui-PluginPackagePanel）
+ *  侧边栏内，因此安装这两个插件前必须先装 DSH插件包，否则它们没有宿主页面。 */
 const PUSH_HOST_PKG = "@cheeco/dsh-web-ui-PluginPackagePanel";
 const PUSH_DEP_MSG = "请先完成 DSH插件包 的面板安装";
+/** 依赖 DSH插件包 宿主的功能（plugin-push 提供的列表里，这些 id 的插件安装前需已装 DSH插件包）。 */
+const HOST_DEPENDENT_IDS = ["push", "pmgr"];
 
 /** 管理列表（内置兜底：更新检查/卸载/注册表同步用到；外部清单优先见 managedPlugins）。 */
 const CHEECO_PLUGINS = [
@@ -122,14 +124,14 @@ function isInstalled(pkg) {
 		return existsSync(join(p, "package.json"));
 	} catch (e) { return false; }
 }
-/** 「功能推荐」安装前置条件：必须已安装 DSH插件包（宿主页面）。未满足返回错误文案，满足返回 ""。 */
-function pushHostReady() {
+/** 安装前置条件：必须已安装 DSH插件包（宿主页面）。未满足返回错误文案，满足返回 ""。 */
+function hostDepReady() {
 	return isInstalled(PUSH_HOST_PKG) ? "" : PUSH_DEP_MSG;
 }
-/** 目标是否是「功能推荐」本身（需要 DSH插件包 宿主）；是则返回前置校验文案，否则返回 ""。 */
-function pushDependencyError(target) {
-	if (!target || target.id !== "push") return "";
-	return pushHostReady();
+/** 目标是否是依赖 DSH插件包 宿主的插件（功能推荐/插件管理）；是则返回前置校验文案，否则返回 ""。 */
+function hostDependencyError(target) {
+	if (!target || !HOST_DEPENDENT_IDS.includes(target.id)) return "";
+	return hostDepReady();
 }
 function latestCheecoTgz(folder) {
 	try {
@@ -258,7 +260,7 @@ export default class DshClientUiPluginPush {
 			const installed = isInstalled(f.pkg);
 			const current = installed ? installedVersion(f.folder) : "";
 			const latest = f.folder ? await latestVersionOf(f.folder) : "";
-			return { ...f, installed, installable: true, official: false, current, latest, hasUpdate: Boolean(current && latest && latest !== current), enabled: installed, depErr: pushDependencyError(f) };
+			return { ...f, installed, installable: true, official: false, current, latest, hasUpdate: Boolean(current && latest && latest !== current), enabled: installed, depErr: hostDependencyError(f) };
 		}));
 		this.json(res, 200, { ok: true, items: [...cheeco, ...official] });
 	}
@@ -268,7 +270,7 @@ export default class DshClientUiPluginPush {
 		try { body = JSON.parse((await readBody(req)) || "{}"); } catch (e) { body = {}; }
 		const target = (await featureList()).find((f) => f.id === body.id);
 		if (!target) { this.json(res, 400, { ok: false, error: "未知的功能 id" }); return; }
-		const depErr = pushDependencyError(target);
+		const depErr = hostDependencyError(target);
 		if (depErr) { this.json(res, 400, { ok: false, error: depErr }); return; }
 		const force = body.force === true;
 		if (!force && isInstalled(target.pkg)) { this.json(res, 200, { ok: true, alreadyInstalled: true }); return; }
@@ -292,7 +294,7 @@ export default class DshClientUiPluginPush {
 		try { body = JSON.parse((await readBody(req)) || "{}"); } catch (e) { body = {}; }
 		const target = (await featureList()).find((f) => f.id === body.id);
 		if (!target) { this.json(res, 400, { ok: false, error: "未知的功能 id" }); return; }
-		const depErr = pushDependencyError(target);
+		const depErr = hostDependencyError(target);
 		if (depErr) { this.json(res, 400, { ok: false, error: depErr }); return; }
 		const force = body.force === true;
 		if (!force && isInstalled(target.pkg)) { this.json(res, 200, { ok: true, alreadyInstalled: true, installPath: pkgDir(target.pkg) }); return; }
@@ -312,7 +314,7 @@ export default class DshClientUiPluginPush {
 		try { body = JSON.parse((await readBody(req)) || "{}"); } catch (e) { body = {}; }
 		const target = (await featureList()).find((f) => f.id === body.id);
 		if (!target) { this.json(res, 400, { ok: false, error: "未知的功能 id" }); return; }
-		const depErr = pushDependencyError(target);
+		const depErr = hostDependencyError(target);
 		if (depErr) { this.json(res, 400, { ok: false, error: depErr }); return; }
 		const force = body.force === true;
 		if (!force && isInstalled(target.pkg)) { this.json(res, 200, { ok: true, alreadyInstalled: true }); return; }

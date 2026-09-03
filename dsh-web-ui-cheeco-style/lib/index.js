@@ -91,12 +91,12 @@ function writePanelConfig(cfg) {
 /** 内页本体（cheeco-style）自带的基础页面(tab)，始终存在，与插件声明无关。
  *  插件用 `dsh.cheecoPanel.addPage` 追加新页、`addBlocks` 往已有页加卡片。
  *  注：「功能推荐」页已独立为 @cheeco/dsh-client-ui-plugin-push，并移至 DSH插件包
- *  （dsh-web-ui-PluginPackagePanel）侧边栏内（经其 dsh-plugin-package.features 子 slot），
- *  故不再作为 cheeco-style 的内置页。 */
+ *  （dsh-web-ui-PluginPackagePanel）侧边栏内（经其 dsh-plugin-package.features 子 slot）；
+ *  「插件管理」页同样已移出，改为由 @cheeco/dsh-client-ui-plugin-manager 经其
+ *  dsh-plugin-package.plugin-manager 子 slot 寄宿。故两者均不再作为 cheeco-style 的内置页。 */
 const BASE_PANEL_PAGES = [
 	{ id: "panel", label: "面版修改", page: "cheeco-internal", blocks: [] },
-	{ id: "manage", label: "功能管理", page: "cheeco-internal", blocks: [] },
-	{ id: "pluginmanager", label: "插件管理", page: "cheeco-internal", blocks: [] }
+	{ id: "manage", label: "功能管理", page: "cheeco-internal", blocks: [] }
 ];
 
 /** 面板配置自同步：扫描所有已装 cheeco 插件的 `dsh.cheecoPanel` 声明，重建 `panel-config.json`。
@@ -239,7 +239,7 @@ function renderConfigFile(v) {
 }
 
 /** In sync with package.json so the config records which plugin version produced it. */
-const PLUGIN_VERSION = "0.8.19";
+const PLUGIN_VERSION = "0.8.20";
 /** Resolve the dsh CLI package version (from @deepseek-ai/dsh/package.json). */
 function dshVersion() {
 	try {
