@@ -19,7 +19,8 @@
     { "id": "func-package", "name": "DSH功能包", "pkg": "@cheeco/dsh-web-ui-FuncPackagePanel", "folder": "dsh-web-ui-FuncPackagePanel", "version": "0.1.1", "url": "https://github.com/cheeco-feng/DSH-Func" },
     { "id": "system-package", "name": "DSH系统包", "pkg": "@cheeco/dsh-web-ui-SystemPackagePanel", "folder": "dsh-web-ui-SystemPackagePanel", "version": "0.1.0", "url": "https://github.com/cheeco-feng/DSH-Func" },
     { "id": "patch-package", "name": "DSH补丁包", "pkg": "@cheeco/dsh-web-ui-patchPackagePanel", "folder": "dsh-web-ui-patchPackagePanel", "version": "0.1.0", "url": "https://github.com/cheeco-feng/DSH-Func" },
-    { "id": "plugin-package", "name": "DSH插件包", "pkg": "@cheeco/dsh-web-ui-PluginPackagePanel", "folder": "dsh-web-ui-PluginPackagePanel", "version": "0.1.0", "url": "https://github.com/cheeco-feng/DSH-Func" }
+    { "id": "plugin-package", "name": "DSH插件包", "pkg": "@cheeco/dsh-web-ui-PluginPackagePanel", "folder": "dsh-web-ui-PluginPackagePanel", "version": "0.1.0", "url": "https://github.com/cheeco-feng/DSH-Func" },
+    { "id": "webapp-package", "name": "服务商应用包", "pkg": "@cheeco/dsh-web-ui-WebAppPackagePanel", "folder": "dsh-web-ui-WebAppPackagePanel", "version": "0.1.0", "url": "https://github.com/cheeco-feng/DSH-Func" }
   ],
   "official": [
     { "id": "dsh-main", "name": "DeepSeek Harness（官方主程序）", "url": "https://github.com/deepseek-ai/deepseek-harness" },

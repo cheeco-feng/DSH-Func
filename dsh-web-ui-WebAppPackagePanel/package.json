@@ -1,0 +1,46 @@
+{
+  "name": "@cheeco/dsh-web-ui-WebAppPackagePanel",
+  "version": "0.1.0",
+  "description": "服务商应用包：设置侧边栏新增槽位，内页含「功能表」（占位维护中）与「面版管理」（面版改名）两个 tab。配置文件为 DSH-WebApp-config.json（置于 @cheeco/setting 下），不使用 cheeco-config.json。",
+  "license": "MIT",
+  "keywords": ["dsh", "deepseek-harness", "dsh-plugin", "cheeco", "webapp-package", "settings-section"],
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": { "default": "./lib/index.js" },
+    "./client": { "default": "./lib/client.js" },
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "compatibility": {
+      "desktop": {
+        "range": ">=2.0.0",
+        "api": "^1.0.0"
+      },
+      "runtime": {
+        "range": ">=0.1.0",
+        "evidence": {
+          "providerId": "dsh-cli-provider-v1",
+          "runtime": "0.1.0",
+          "desktop": "2.0.0",
+          "verifiedAt": "2026-09-03",
+          "matrixArtifact": "runtime-support/supported-runtimes.json"
+        }
+      },
+      "surfaces": ["main"]
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-ui-slots",
+        "@deepseek-ai/dsh-client-locale"
+      ]
+    }
+  },
+  "files": ["lib", "cordis.patch.yml", "README.md"],
+  "dependencies": {}
+}
