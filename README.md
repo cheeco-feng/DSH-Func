@@ -14,6 +14,7 @@ Cheeco 的 DSH 插件集合。本仓库包含**五个独立插件**（各自是�
 | `dsh-client-ui-schedule-panel` | `@cheeco/dsh-client-ui-schedule-panel` | **多AI调度执行面板**（对话页新增「调度」Tab，可视化主控 AI 派单的子代理/后台任务进度、状态、归属与明细，并支持按会话指定压缩用模型） |
 | `dsh-web-ui-FuncPackagePanel` | `@cheeco/dsh-web-ui-FuncPackagePanel` | **DSH功能包**（设置侧边栏新增槽位，内页含「功能表」维护中占位与「面版管理」面版改名两个 tab；配置用独立的 DSH-Func-config.json） |
 | `dsh-web-ui-SystemPackagePanel` | `@cheeco/dsh-web-ui-SystemPackagePanel` | **DSH系统包**（设置侧边栏新增槽位，内页含「功能表」维护中占位与「面版管理」面版改名两个 tab；配置用独立的 DSH-System-config.json） |
+| `dsh-web-ui-patchPackagePanel` | `@cheeco/dsh-web-ui-patchPackagePanel` | **DSH补丁包**（设置侧边栏新增槽位，内页含「功能表」维护中占位与「面版管理」面版改名两个 tab；配置用独立的 DSH-Patch-config.json） |
 
 ## 安装（先克隆，再按需添加子目录）
 
@@ -32,7 +33,8 @@ dsh plugin --profile <profile> add \
   ./dsh-client-ui-plugin-manager \
   ./dsh-client-ui-schedule-panel \
   ./dsh-web-ui-FuncPackagePanel \
-  ./dsh-web-ui-SystemPackagePanel
+  ./dsh-web-ui-SystemPackagePanel \
+  ./dsh-web-ui-patchPackagePanel
 ```
 
 ### 按插件单独安装（各插件独立的 GitHub Release 下载 URL）
@@ -63,6 +65,9 @@ dsh plugin --profile <profile> add https://github.com/cheeco-feng/DSH-Func/relea
 
 # DSH系统包
 dsh plugin --profile <profile> add https://github.com/cheeco-feng/DSH-Func/releases/download/v0.1.0/cheeco-dsh-web-ui-SystemPackagePanel-0.1.0.tgz
+
+# DSH补丁包
+dsh plugin --profile <profile> add https://github.com/cheeco-feng/DSH-Func/releases/download/v0.1.0/cheeco-dsh-web-ui-patchPackagePanel-0.1.0.tgz
 ```
 
 > 上面 URL 均为**各插件最新的 GitHub Release 资产**。`dsh plugin add` 会自动把每个带 `dsh.bundle.patch` 的插件写进该 profile 的 `dsh.profile.bundles`。
@@ -78,7 +83,8 @@ dsh plugin --profile <profile> remove \
   @cheeco/dsh-client-ui-plugin-manager \
   @cheeco/dsh-client-ui-schedule-panel \
   @cheeco/dsh-web-ui-FuncPackagePanel \
-  @cheeco/dsh-web-ui-SystemPackagePanel
+  @cheeco/dsh-web-ui-SystemPackagePanel \
+  @cheeco/dsh-web-ui-patchPackagePanel
 ```
 > `dsh plugin remove` 会同时把它们从 `dsh.profile.bundles` 移除。
 
@@ -107,6 +113,9 @@ dsh plugin --profile <profile> add ./dsh-web-ui-FuncPackagePanel
 
 # 只装 DSH系统包
 dsh plugin --profile <profile> add ./dsh-web-ui-SystemPackagePanel
+
+# 只装 DSH补丁包
+dsh plugin --profile <profile> add ./dsh-web-ui-patchPackagePanel
 ```
 
 > `dsh plugin` 也可换成在 **设置 → 插件 → 用户插件** 的安装框里粘贴对应的本地/仓库路径。
@@ -217,7 +226,7 @@ node publish.mjs <插件目录> <新版本> --dry-run
 node publish.mjs dsh-web-ui-cheeco-style 0.8.0
 ```
 
-- `<插件目录>` 目前支持：`dsh-web-ui-cheeco-style` / `dsh-client-ui-message-sound` / `dsh-client-ui-session-search` / `dsh-tool-dsh-plugin-exec` / `dsh-client-ui-plugin-manager` / `dsh-client-ui-schedule-panel` / `dsh-web-ui-FuncPackagePanel` / `dsh-web-ui-SystemPackagePanel`。
+- `<插件目录>` 目前支持：`dsh-web-ui-cheeco-style` / `dsh-client-ui-message-sound` / `dsh-client-ui-session-search` / `dsh-tool-dsh-plugin-exec` / `dsh-client-ui-plugin-manager` / `dsh-client-ui-schedule-panel` / `dsh-web-ui-FuncPackagePanel` / `dsh-web-ui-SystemPackagePanel` / `dsh-web-ui-patchPackagePanel`。
 - **安装源永远走 GitHub release 资产 URL，不走 npm**（产品「功能推荐」里每个功能的 `install` 就是 release 下载 URL）。
 - 功能列表 `CHEECO_FEATURES` 是**手写**的（在 `dsh-web-ui-cheeco-style/lib/index.js`），发布某插件后脚本会把该功能的 `install` 指向新 release 资产 URL。
 - 因为功能列表随 `dsh-web-ui-cheeco-style` 一起打包，**发布「非 style」插件时脚本默认会顺手把 `dsh-web-ui-cheeco-style` 升一个小 patch 并重发一次**（让新 install URL 真正送达用户）；不想要就加 `--no-ship-style`。
