@@ -11,6 +11,7 @@ Cheeco 的 DSH 插件集合。本仓库包含**五个独立插件**（各自是�
 | `dsh-client-ui-session-search` | `@cheeco/dsh-client-ui-session-search` | **会话内容检索**（标题/内容切换，按用户/回复/工具筛选） |
 | `dsh-tool-dsh-plugin-exec` | `@cheeco/dsh-tool-dsh-plugin-exec` | **`dsh_plugin_exec` agent 工具**（执行 `dsh plugin` 管理命令：装/卸/列/查某 profile 的插件） |
 | `dsh-client-ui-plugin-manager` | `@cheeco/dsh-client-ui-plugin-manager` | **插件管理（Cheeco 插件管理器）**（列出内置/三方插件，支持安装、卸载、启动、停用，并直跳三方插件 GitHub 仓库） |
+| `dsh-client-ui-schedule-panel` | `@cheeco/dsh-client-ui-schedule-panel` | **多AI调度执行面板**（对话页新增「调度」Tab，可视化主控 AI 派单的子代理/后台任务进度、状态、归属与明细，并支持按会话指定压缩用模型） |
 
 ## 安装（先克隆，再按需添加子目录）
 
@@ -20,13 +21,14 @@ Cheeco 的 DSH 插件集合。本仓库包含**五个独立插件**（各自是�
 git clone <本仓库地址>
 cd <仓库目录>
 
-# 一条命令把 DSH-Func 的 5 个插件全部装进 <profile>
+# 一条命令把 DSH-Func 的全部插件装进 <profile>
 dsh plugin --profile <profile> add \
   ./dsh-client-ui-message-sound \
   ./dsh-client-ui-session-search \
   ./dsh-web-ui-cheeco-style \
   ./dsh-tool-dsh-plugin-exec \
-  ./dsh-client-ui-plugin-manager
+  ./dsh-client-ui-plugin-manager \
+  ./dsh-client-ui-schedule-panel
 ```
 
 ### 按插件单独安装（各插件独立的 GitHub Release 下载 URL）
@@ -48,11 +50,14 @@ dsh plugin --profile <profile> add https://github.com/cheeco-feng/DSH-Func/relea
 
 # 插件管理（Cheeco 插件管理器）
 dsh plugin --profile <profile> add https://github.com/cheeco-feng/DSH-Func/releases/download/v0.1.0/cheeco-dsh-client-ui-plugin-manager-0.1.0.tgz
+
+# 多AI调度执行面板
+dsh plugin --profile <profile> add https://github.com/cheeco-feng/DSH-Func/releases/download/v0.1.0/cheeco-dsh-client-ui-schedule-panel-0.1.0.tgz
 ```
 
 > 上面 URL 均为**各插件最新的 GitHub Release 资产**。`dsh plugin add` 会自动把每个带 `dsh.bundle.patch` 的插件写进该 profile 的 `dsh.profile.bundles`。
 
-**卸载（与上面安装对应）**——一条命令卸掉这 5 个插件（用安装后的 package 名）：
+**卸载（与上面安装对应）**——一条命令卸掉这些插件（用安装后的 package 名）：
 
 ```bash
 dsh plugin --profile <profile> remove \
@@ -60,7 +65,8 @@ dsh plugin --profile <profile> remove \
   @cheeco/dsh-client-ui-session-search \
   @cheeco/dsh-web-ui-cheeco-style \
   @cheeco/dsh-tool-dsh-plugin-exec \
-  @cheeco/dsh-client-ui-plugin-manager
+  @cheeco/dsh-client-ui-plugin-manager \
+  @cheeco/dsh-client-ui-schedule-panel
 ```
 > `dsh plugin remove` 会同时把它们从 `dsh.profile.bundles` 移除。
 
@@ -80,6 +86,9 @@ dsh plugin --profile <profile> add ./dsh-tool-dsh-plugin-exec
 
 # 只装插件管理器
 dsh plugin --profile <profile> add ./dsh-client-ui-plugin-manager
+
+# 只装多AI调度执行面板
+dsh plugin --profile <profile> add ./dsh-client-ui-schedule-panel
 ```
 
 > `dsh plugin` 也可换成在 **设置 → 插件 → 用户插件** 的安装框里粘贴对应的本地/仓库路径。

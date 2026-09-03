@@ -1,0 +1,4 @@
+# dsh-client-ui-schedule-panel bundle：向组合挂 Node half（调度状态数据路由）
+- insert:
+    - id: schedule-panel
+      name: '@cheeco/dsh-client-ui-schedule-panel'

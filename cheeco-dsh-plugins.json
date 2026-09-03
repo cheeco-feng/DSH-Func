@@ -14,7 +14,8 @@
     { "id": "mobile", "name": "移动端适配", "pkg": "@cheeco/dsh-client-ui-mobile", "folder": "dsh-client-ui-mobile", "version": "0.1.0", "url": "https://github.com/cheeco-feng/DSH-Func" },
     { "id": "systeminfo", "name": "系统信息", "pkg": "@cheeco/dsh-client-ui-system-info", "folder": "dsh-client-ui-system-info", "version": "0.2.4", "url": "https://github.com/cheeco-feng/DSH-Func" },
     { "id": "usercenter", "name": "用户中心", "pkg": "@cheeco/dsh-web-ui-web_user_center", "folder": "dsh-web-ui-web_user_center", "version": "0.1.1", "url": "https://github.com/cheeco-feng/DSH-Func" },
-    { "id": "model-settings", "name": "模型设置", "pkg": "@cheeco/dsh-llm-model-settings", "folder": "dsh-llm-model-settings", "version": "0.1.1", "url": "https://github.com/cheeco-feng/DSH-Func" }
+    { "id": "model-settings", "name": "模型设置", "pkg": "@cheeco/dsh-llm-model-settings", "folder": "dsh-llm-model-settings", "version": "0.1.1", "url": "https://github.com/cheeco-feng/DSH-Func" },
+    { "id": "schedule", "name": "多AI调度执行面板", "pkg": "@cheeco/dsh-client-ui-schedule-panel", "folder": "dsh-client-ui-schedule-panel", "version": "0.1.0", "url": "https://github.com/cheeco-feng/DSH-Func" }
   ],
   "official": [
     { "id": "dsh-main", "name": "DeepSeek Harness（官方主程序）", "url": "https://github.com/deepseek-ai/deepseek-harness" },
