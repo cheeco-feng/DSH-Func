@@ -60,6 +60,7 @@ const META = {
   "dsh-llm-model-settings":       { id: "model-settings", label: "cheeco 模型设置", pkg: "@cheeco/dsh-llm-model-settings" },
   "dsh-client-ui-schedule-panel": { id: "schedule", label: "cheeco 多AI调度执行面板", pkg: "@cheeco/dsh-client-ui-schedule-panel" },
   "dsh-web-ui-FuncPackagePanel": { id: "func-package", label: "cheeco DSH功能包", pkg: "@cheeco/dsh-web-ui-FuncPackagePanel" },
+  "dsh-web-ui-SystemPackagePanel": { id: "system-package", label: "cheeco DSH系统包", pkg: "@cheeco/dsh-web-ui-SystemPackagePanel" },
 };
 
 // ---- 参数解析 --------------------------------------------------------------

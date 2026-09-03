@@ -16,7 +16,8 @@
     { "id": "usercenter", "name": "用户中心", "pkg": "@cheeco/dsh-web-ui-web_user_center", "folder": "dsh-web-ui-web_user_center", "version": "0.1.1", "url": "https://github.com/cheeco-feng/DSH-Func" },
     { "id": "model-settings", "name": "模型设置", "pkg": "@cheeco/dsh-llm-model-settings", "folder": "dsh-llm-model-settings", "version": "0.1.1", "url": "https://github.com/cheeco-feng/DSH-Func" },
     { "id": "schedule", "name": "多AI调度执行面板", "pkg": "@cheeco/dsh-client-ui-schedule-panel", "folder": "dsh-client-ui-schedule-panel", "version": "0.1.1", "url": "https://github.com/cheeco-feng/DSH-Func" },
-    { "id": "func-package", "name": "DSH功能包", "pkg": "@cheeco/dsh-web-ui-FuncPackagePanel", "folder": "dsh-web-ui-FuncPackagePanel", "version": "0.1.1", "url": "https://github.com/cheeco-feng/DSH-Func" }
+    { "id": "func-package", "name": "DSH功能包", "pkg": "@cheeco/dsh-web-ui-FuncPackagePanel", "folder": "dsh-web-ui-FuncPackagePanel", "version": "0.1.1", "url": "https://github.com/cheeco-feng/DSH-Func" },
+    { "id": "system-package", "name": "DSH系统包", "pkg": "@cheeco/dsh-web-ui-SystemPackagePanel", "folder": "dsh-web-ui-SystemPackagePanel", "version": "0.1.0", "url": "https://github.com/cheeco-feng/DSH-Func" }
   ],
   "official": [
     { "id": "dsh-main", "name": "DeepSeek Harness（官方主程序）", "url": "https://github.com/deepseek-ai/deepseek-harness" },
