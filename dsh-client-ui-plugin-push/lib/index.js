@@ -24,12 +24,23 @@ const CHEECO_DIR = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
 /** GitHub 仓库（raw package.json on main）用于"检查更新"。 */
 const GITHUB_RAW = "https://raw.githubusercontent.com/cheeco-feng/DSH-Func/main";
 
-/** 「功能推荐」「插件管理」自相关版本起改为寄宿在 DSH插件包（dsh-web-ui-PluginPackagePanel）
- *  侧边栏内，因此安装这两个插件前必须先装 DSH插件包，否则它们没有宿主页面。 */
-const PUSH_HOST_PKG = "@cheeco/dsh-web-ui-PluginPackagePanel";
-const PUSH_DEP_MSG = "请先完成 DSH插件包 的面板安装";
-/** 依赖 DSH插件包 宿主的功能（plugin-push 提供的列表里，这些 id 的插件安装前需已装 DSH插件包）。 */
-const HOST_DEPENDENT_IDS = ["push", "pmgr"];
+/** 重新组织：宿主依赖改为按功能 id 映射（见 HOST_DEP_MAP / HOST_DEP_MSG）。
+ *  「功能推荐」「插件管理」寄宿 DSH插件包；「系统信息」寄宿 DSH系统包；「模型设置」寄宿 DSH功能包。
+ *  这些插件安装前必须先装对应宿主包，否则没有宿主页面。 */
+/** 依赖 DSH系宿主包 的功能映射（功能推荐列表里，这些 id 的插件安装前需已装对应宿主包侧边栏）。
+ *  每个宿主包都需要先装，否则对应插件页没有宿主展示位置。 */
+const HOST_DEP_MAP = {
+	"push": "@cheeco/dsh-web-ui-PluginPackagePanel",
+	"pmgr": "@cheeco/dsh-web-ui-PluginPackagePanel",
+	"systeminfo": "@cheeco/dsh-web-ui-SystemPackagePanel",
+	"model-settings": "@cheeco/dsh-web-ui-FuncPackagePanel"
+};
+/** 各宿主包对应的"先行安装"提示文案（面板名不同）。 */
+const HOST_DEP_MSG = {
+	"@cheeco/dsh-web-ui-PluginPackagePanel": "请先完成 DSH插件包 的面板安装",
+	"@cheeco/dsh-web-ui-SystemPackagePanel": "请先完成 DSH系统包 的面板安装",
+	"@cheeco/dsh-web-ui-FuncPackagePanel": "请先完成 DSH功能包 的面板安装"
+};
 
 /** 管理列表（内置兜底：更新检查/卸载/注册表同步用到；外部清单优先见 managedPlugins）。 */
 const CHEECO_PLUGINS = [
@@ -124,14 +135,16 @@ function isInstalled(pkg) {
 		return existsSync(join(p, "package.json"));
 	} catch (e) { return false; }
 }
-/** 安装前置条件：必须已安装 DSH插件包（宿主页面）。未满足返回错误文案，满足返回 ""。 */
-function hostDepReady() {
-	return isInstalled(PUSH_HOST_PKG) ? "" : PUSH_DEP_MSG;
+/** 目标功能 id 若依赖某个 DSH系宿主包，返回对应宿主包名；否则返回 ""。 */
+function hostPkgOf(target) {
+	if (!target || !target.id) return "";
+	return HOST_DEP_MAP[target.id] || "";
 }
-/** 目标是否是依赖 DSH插件包 宿主的插件（功能推荐/插件管理）；是则返回前置校验文案，否则返回 ""。 */
+/** 安装前置条件：对应宿主包必须已安装。未满足返回错误文案，满足返回 ""。 */
 function hostDependencyError(target) {
-	if (!target || !HOST_DEPENDENT_IDS.includes(target.id)) return "";
-	return hostDepReady();
+	const hostPkg = hostPkgOf(target);
+	if (!hostPkg) return "";
+	return isInstalled(hostPkg) ? "" : (HOST_DEP_MSG[hostPkg] || "请先完成对应宿主包 的面板安装");
 }
 function latestCheecoTgz(folder) {
 	try {

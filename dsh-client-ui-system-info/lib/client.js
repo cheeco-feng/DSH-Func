@@ -170,10 +170,10 @@ window.__ModuleLoader__.load({
     }
 
     function apply(ctx) {
-      // 向 cheeco 内页的「插件自有组件页」槽位注入：内页选中 system-info 页时
-      // 通过 renderSlot("cheeco-style.page.system-info") 渲染本组件（/sysinfo 内容）。
-      ctx.slots.inject("cheeco-style.page.system-info", function () {
-        return ctx.slots.register({ name: "cheeco-style.page.system-info", id: "sysinfo", label: "系统信息" }, SystemInfoTab);
+      // 向 DSH系统包（设置侧边栏）的「系统信息」页槽位注入：内页选中 system-info 页时
+      // 通过 renderSlot("dsh-system-package.system-info") 渲染本组件（/sysinfo 内容）。
+      ctx.slots.inject("dsh-system-package.system-info", function () {
+        return ctx.slots.register({ name: "dsh-system-package.system-info", id: "sysinfo", label: "系统信息" }, SystemInfoTab);
       });
     }
 

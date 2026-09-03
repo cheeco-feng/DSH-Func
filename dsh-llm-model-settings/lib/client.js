@@ -246,8 +246,10 @@ window.__ModuleLoader__.load({
     }
 
     function apply(ctx) {
-      ctx.slots.inject("cheeco-style.page.model-settings", function () {
-        return ctx.slots.register({ name: "cheeco-style.page.model-settings", id: "model-settings", label: "模型设置" }, ModelSettingsTab);
+      // 向 DSH功能包（设置侧边栏）的「模型设置」页槽位注入：内页选中 model-settings 页时
+      // 通过 renderSlot("dsh-func-package.model-settings") 渲染本组件。
+      ctx.slots.inject("dsh-func-package.model-settings", function () {
+        return ctx.slots.register({ name: "dsh-func-package.model-settings", id: "model-settings", label: "模型设置" }, ModelSettingsTab);
       });
     }
 
