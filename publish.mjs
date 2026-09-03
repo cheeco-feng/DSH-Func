@@ -62,6 +62,7 @@ const META = {
   "dsh-web-ui-FuncPackagePanel": { id: "func-package", label: "cheeco DSH功能包", pkg: "@cheeco/dsh-web-ui-FuncPackagePanel" },
   "dsh-web-ui-SystemPackagePanel": { id: "system-package", label: "cheeco DSH系统包", pkg: "@cheeco/dsh-web-ui-SystemPackagePanel" },
   "dsh-web-ui-patchPackagePanel": { id: "patch-package", label: "cheeco DSH补丁包", pkg: "@cheeco/dsh-web-ui-patchPackagePanel" },
+  "dsh-web-ui-PluginPackagePanel": { id: "plugin-package", label: "cheeco DSH插件包", pkg: "@cheeco/dsh-web-ui-PluginPackagePanel" },
 };
 
 // ---- 参数解析 --------------------------------------------------------------
