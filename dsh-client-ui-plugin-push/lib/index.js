@@ -24,6 +24,11 @@ const CHEECO_DIR = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
 /** GitHub 仓库（raw package.json on main）用于"检查更新"。 */
 const GITHUB_RAW = "https://raw.githubusercontent.com/cheeco-feng/DSH-Func/main";
 
+/** 「功能推荐」自 v0.1.4 起改为寄宿在 DSH插件包（dsh-web-ui-PluginPackagePanel）侧边栏内，
+ *  因此安装本插件前必须先装 DSH插件包，否则功能推荐没有宿主页面。 */
+const PUSH_HOST_PKG = "@cheeco/dsh-web-ui-PluginPackagePanel";
+const PUSH_DEP_MSG = "请先完成 DSH插件包 的面板安装";
+
 /** 管理列表（内置兜底：更新检查/卸载/注册表同步用到；外部清单优先见 managedPlugins）。 */
 const CHEECO_PLUGINS = [
 	{ folder: "dsh-web-ui-cheeco-style", name: "@cheeco/dsh-web-ui-cheeco-style", label: "界面/声音设置" },
@@ -116,6 +121,15 @@ function isInstalled(pkg) {
 		const p = parts.length > 1 ? join(dirname(CHEECO_DIR), parts[0], parts[1]) : join(dirname(CHEECO_DIR), parts[0]);
 		return existsSync(join(p, "package.json"));
 	} catch (e) { return false; }
+}
+/** 「功能推荐」安装前置条件：必须已安装 DSH插件包（宿主页面）。未满足返回错误文案，满足返回 ""。 */
+function pushHostReady() {
+	return isInstalled(PUSH_HOST_PKG) ? "" : PUSH_DEP_MSG;
+}
+/** 目标是否是「功能推荐」本身（需要 DSH插件包 宿主）；是则返回前置校验文案，否则返回 ""。 */
+function pushDependencyError(target) {
+	if (!target || target.id !== "push") return "";
+	return pushHostReady();
 }
 function latestCheecoTgz(folder) {
 	try {
@@ -244,7 +258,7 @@ export default class DshClientUiPluginPush {
 			const installed = isInstalled(f.pkg);
 			const current = installed ? installedVersion(f.folder) : "";
 			const latest = f.folder ? await latestVersionOf(f.folder) : "";
-			return { ...f, installed, installable: true, official: false, current, latest, hasUpdate: Boolean(current && latest && latest !== current), enabled: installed };
+			return { ...f, installed, installable: true, official: false, current, latest, hasUpdate: Boolean(current && latest && latest !== current), enabled: installed, depErr: pushDependencyError(f) };
 		}));
 		this.json(res, 200, { ok: true, items: [...cheeco, ...official] });
 	}
@@ -254,6 +268,8 @@ export default class DshClientUiPluginPush {
 		try { body = JSON.parse((await readBody(req)) || "{}"); } catch (e) { body = {}; }
 		const target = (await featureList()).find((f) => f.id === body.id);
 		if (!target) { this.json(res, 400, { ok: false, error: "未知的功能 id" }); return; }
+		const depErr = pushDependencyError(target);
+		if (depErr) { this.json(res, 400, { ok: false, error: depErr }); return; }
 		const force = body.force === true;
 		if (!force && isInstalled(target.pkg)) { this.json(res, 200, { ok: true, alreadyInstalled: true }); return; }
 		let spec;
@@ -276,6 +292,8 @@ export default class DshClientUiPluginPush {
 		try { body = JSON.parse((await readBody(req)) || "{}"); } catch (e) { body = {}; }
 		const target = (await featureList()).find((f) => f.id === body.id);
 		if (!target) { this.json(res, 400, { ok: false, error: "未知的功能 id" }); return; }
+		const depErr = pushDependencyError(target);
+		if (depErr) { this.json(res, 400, { ok: false, error: depErr }); return; }
 		const force = body.force === true;
 		if (!force && isInstalled(target.pkg)) { this.json(res, 200, { ok: true, alreadyInstalled: true, installPath: pkgDir(target.pkg) }); return; }
 		const install = await resolveDownloadUrl(target);
@@ -294,6 +312,8 @@ export default class DshClientUiPluginPush {
 		try { body = JSON.parse((await readBody(req)) || "{}"); } catch (e) { body = {}; }
 		const target = (await featureList()).find((f) => f.id === body.id);
 		if (!target) { this.json(res, 400, { ok: false, error: "未知的功能 id" }); return; }
+		const depErr = pushDependencyError(target);
+		if (depErr) { this.json(res, 400, { ok: false, error: depErr }); return; }
 		const force = body.force === true;
 		if (!force && isInstalled(target.pkg)) { this.json(res, 200, { ok: true, alreadyInstalled: true }); return; }
 		const d = await downloadFeature(target);

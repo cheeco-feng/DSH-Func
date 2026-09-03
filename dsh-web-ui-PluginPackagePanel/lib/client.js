@@ -121,11 +121,14 @@ window.__ModuleLoader__.load({
       });
     }
 
-    /** 内页：tab 结构，仅有「功能表」「面版管理」两个 tab。 */
-    function Section() {
+    /** 内页：tab 结构，「功能表」「功能推荐」「面版管理」三个 tab。
+     *  「功能推荐」页内容由 dsh-client-ui-plugin-push 经子 slot `dsh-plugin-package.features`
+     *  注入（已在 apply() 的 settings.section 注册里声明该子 slot），本页只负责渲染。 */
+    function Section({ renderSlot }) {
       const [tab, setTab] = react.useState("functions");
       const tabs = [
         { id: "functions", label: "功能表" },
+        { id: "features", label: "功能推荐" },
         { id: "panel", label: "面版管理" }
       ];
       const tabBtn = (key, label) => react_jsx_runtime.jsx("button", {
@@ -154,6 +157,15 @@ window.__ModuleLoader__.load({
       let content = null;
       if (tab === "functions") {
         content = react_jsx_runtime.jsx(MaintenanceCard, {});
+      } else if (tab === "features") {
+        // 「功能推荐」内容来自 plugin-push 注入的子 slot；判空用 react.Children.toArray，
+        // 否则 slot 已有声明但无 occupant 时 renderSlot 返回的"空容器"会被误判为非空。
+        const out = renderSlot ? renderSlot("dsh-plugin-package.features", {}) : null;
+        const renderedChildren = (out === null || out === void 0) ? [] : react.Children.toArray(out);
+        const empty = renderedChildren.length === 0;
+        content = react_jsx_runtime.jsx("div", { children: [
+          empty ? react_jsx_runtime.jsx("p", { style: { padding: "12px 0", color: "var(--dsw-alias-label-tertiary,#999)" }, children: "该插件未处于安装状态" }) : out
+        ] });
       } else {
         content = react_jsx_runtime.jsx(RenameCard, {});
       }
@@ -175,12 +187,18 @@ window.__ModuleLoader__.load({
     function apply(ctx) {
       const t = ctx.locale.bind(NS);
       ctx.effect(() => ctx.locale.register(NS, { zh, en: zh }), "dsh-web-ui-plugin-package: dictionaries");
+      // 「功能推荐」tab 用到的基础子 slot，必须在此声明，settings.section 才会把 renderSlot
+      // 传给 Section（否则 renderSlot(...) === undefined，功能推荐内容渲染不出来）。
+      const baseChildren = {
+        "dsh-plugin-package.features": { kind: "single", scope: "root" }
+      };
       const registerSection = () => ctx.slots.inject("settings.section", () => ctx.slots.register({
         name: "settings.section",
         id: "dsh-plugin-package",
         order: -0.5,              // 放在「Cheeco的小功能」(-1) 之后、通用设置(0) 之前
         label: () => config.label || t("nav"),
-        locale: NS
+        locale: NS,
+        children: baseChildren
       }, Section));
       // 等配置加载完成再注册，保证侧边栏 label 读到文件里的值。
       loadConfig().then(() => registerSection());

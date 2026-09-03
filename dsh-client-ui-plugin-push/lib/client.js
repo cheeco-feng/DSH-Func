@@ -164,17 +164,19 @@ window.__ModuleLoader__.load({
 				const isOff = !!f.official;
 				const enabled = isOff ? true : (enabledMap[f.pkg] !== void 0 ? enabledMap[f.pkg] : f.enabled);
 				const ver = isOff ? "dsh 版本 " + (f.current || "") : "当前 " + (f.current || "(未装)") + (f.latest ? " / 最新 " + f.latest : "") + (f.hasUpdate ? "　（有更新）" : (f.installed ? "　（已是最新）" : ""));
+				const depErr = f.depErr || "";
 				return react_jsx_runtime.jsx("div", { key: f.id, className: "dsh-web-ui-cheeco-style-section", style: { padding: "10px 14px", marginBottom: "8px" }, children: [
 					react_jsx_runtime.jsx("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" }, children: [
 						react_jsx_runtime.jsx("span", { style: { fontWeight: 600 }, children: [f.name, isOff ? react_jsx_runtime.jsx("span", { style: { marginLeft: "8px", fontSize: "12px", color: "#8e44ad" }, children: "官方" }) : null] }),
 						react_jsx_runtime.jsx("span", { style: { fontSize: "12.5px", color: enabled ? "#2ecc71" : "#999" }, children: enabled ? "● 启用" : "● 停用" })
 					] }),
 					react_jsx_runtime.jsx("p", { className: "dsh-web-ui-cheeco-style-state", style: { marginBottom: "6px" }, children: ver }),
+					depErr ? react_jsx_runtime.jsx("p", { className: "dsh-web-ui-cheeco-style-state", style: { marginBottom: "6px", color: "#e67e22" }, children: "⚠ " + depErr }) : null,
 					react_jsx_runtime.jsx("div", { className: "dsh-web-ui-cheeco-style-actions", children: [
-						!isOff && (f.installed ? react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: () => uninstall(f), disabled: busyId === f.id, children: "卸载" }) : react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: () => setWizard(f), disabled: busyId === f.id, style: { background: "#3498db", borderColor: "#3498db", color: "#fff" }, children: "我要安装" })),
+						!isOff && (f.installed ? react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: () => uninstall(f), disabled: busyId === f.id, children: "卸载" }) : react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: () => setWizard(f), disabled: busyId === f.id || !!depErr, style: { background: "#3498db", borderColor: "#3498db", color: "#fff" }, children: "我要安装" })),
 						react_jsx_runtime.jsx("a", { href: f.url, target: "_blank", rel: "noreferrer", className: "dsh-web-ui-cheeco-style-action", style: { textDecoration: "none" }, children: "查看介绍" }),
 						!isOff && react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: () => checkUpdate(f), disabled: busyId === f.id, children: "检查更新" }),
-						!isOff && f.installed && f.hasUpdate && react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: () => setWizard(f), disabled: busyId === f.id, style: { background: "#3498db", borderColor: "#3498db", color: "#fff" }, children: "更新" })
+						!isOff && f.installed && f.hasUpdate && react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: () => setWizard(f), disabled: busyId === f.id || !!depErr, style: { background: "#3498db", borderColor: "#3498db", color: "#fff" }, children: "更新" })
 					] })
 				] });
 			};
@@ -191,9 +193,9 @@ window.__ModuleLoader__.load({
 		const inject = ["slots", "locale"];
 		function apply(ctx) {
 			ctx.effect(() => ctx.locale.register(NS, { zh: {}, en: {} }), "cheeco-push: dictionaries");
-			// 注册进 dsh-web-ui-cheeco-style 预留的「功能推荐」子 slot。
-			ctx.slots.inject("cheeco-style.features", () => ctx.slots.register({
-				name: "cheeco-style.features",
+			// 注册进 dsh-web-ui-PluginPackagePanel（DSH插件包）预留的「功能推荐」子 slot。
+			ctx.slots.inject("dsh-plugin-package.features", () => ctx.slots.register({
+				name: "dsh-plugin-package.features",
 				id: "push",
 				order: 100,
 				locale: NS
