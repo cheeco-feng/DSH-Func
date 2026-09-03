@@ -13,9 +13,15 @@
 - 配置文件：`DSH-Func-config.json`
 - 位置：`<home>/profiles/<profile>/node_modules/@cheeco/setting/DSH-Func-config.json`
   （即 `@cheeco` 目录下新增 `setting/` 子目录）
-- 内容形如：`{ "label": "DSH功能包", "dsh": { "profileName": "...", "dshHome": "...", "pluginVersion": "0.1.0", "dshVersion": "..." } }`
+- 内容形如：`{ "label": "DSH功能包", "dsh": { "profileName": "...", "dshHome": "...", "pluginVersion": "0.1.1", "dshVersion": "..." } }`
 - 读写走宿主路由：`GET /dsh-func/config`（读） / `POST /dsh-func/config`（写，浏览器点「保存」时）。
-- 该文件可手工编辑；首次预置空 `label`，缺失时以空配置回退默认「DSH功能包」。安装/升级/卸载**不覆盖**。
+- 该文件可手工编辑；首次预置空 `label`，缺失时以空配置回退默认「DSH功能包」。
+
+### 配置文件保留约定（与 cheeco-config.json 一致）
+`DSH-Func-config.json` 位于 `@cheeco/setting/` **独立子目录**，**不属于**插件包目录 `@cheeco/dsh-web-ui-FuncPackagePanel/`。
+
+- **安装 / 升级 / 卸载 都不会删除它**：`dsh plugin remove` 只移除 `node_modules/@cheeco/dsh-web-ui-FuncPackagePanel/` 这一个包目录，不触碰 `@cheeco/` 下的 `setting/` 子目录。
+- 卸载后配置文件**原样保留**，留待**用户手动删除**（如需彻底清理，手动删 `node_modules/@cheeco/setting/DSH-Func-config.json` 即可）。这也保证卸载后再装，之前改的面板名不丢失。
 
 ## 安装
 ```bash

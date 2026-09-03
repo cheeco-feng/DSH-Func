@@ -48,8 +48,9 @@ window.__ModuleLoader__.load({
     /** 宿主端点：读/写 DSH-Func-config.json。 */
     const CONFIG_ENDPOINT = "/dsh-func/config";
 
-    /** 文件配置的内存缓存（浏览器端唯一真源），GET 载入、POST 持久化。 */
-    let config = { label: "" };
+    /** 文件配置的内存缓存（浏览器端唯一真源），GET 载入、POST 持久化。
+     *  与 cheeco-style 一致：仅读/写文件配置，改名靠重启后重新读取生效。 */
+    let config = { label: "", dsh: {} };
     let configLoad = null;
     function loadConfig() {
       if (configLoad) return configLoad;
@@ -59,14 +60,15 @@ window.__ModuleLoader__.load({
           if (res.ok) {
             const data = (await res.json()) || {};
             config = {
-              label: typeof data.label === "string" ? data.label : ""
+              label: typeof data.label === "string" ? data.label : "",
+              dsh: (typeof data.dsh === "object" && data.dsh) ? data.dsh : {}
             };
           }
         } catch (e) {}
       })();
       return configLoad;
     }
-    /** 合并 patch 并 POST 全量到宿主，写入 DSH-Func-config.json。 */
+    /** 合并 patch 并 POST 全量到宿主，写入 DSH-Func-config.json（与 cheeco-style 相同，纯写配置）。 */
     async function saveConfig(patch = {}) {
       config = { ...config, ...patch };
       try {
@@ -164,17 +166,24 @@ window.__ModuleLoader__.load({
     /** 所需服务（cordis fiber inject）：slot 系统与 locale。 */
     const inject = ["slots", "locale"];
 
-    /** 将本插件注册为设置侧边栏的一个 settings.section 槽位。 */
+    /** 将本插件注册为设置侧边栏的一个 settings.section 槽位。
+     *  与 cheeco-style 一致：label 用 `() => config.label || t("nav")`（thunk）。
+     *  关键：必须在 `loadConfig()` 完成后再注册，否则侧边栏在 config.label 尚未从文件读出时
+     *  就对其求值（读到空 -> 显示默认名），且此后 settings.section 版本不再变化、侧边栏 label
+     *  定格在空值，导致"改名后重启也不生效"。cheeco-style 靠异步取 panel-config 附带达成此时序，
+     *  这里显式 `await loadConfig()` 保证同样效果。 */
     function apply(ctx) {
       const t = ctx.locale.bind(NS);
       ctx.effect(() => ctx.locale.register(NS, { zh, en: zh }), "dsh-web-ui-func-package: dictionaries");
-      ctx.slots.inject("settings.section", () => ctx.slots.register({
+      const registerSection = () => ctx.slots.inject("settings.section", () => ctx.slots.register({
         name: "settings.section",
         id: "dsh-func-package",
         order: -0.5,              // 放在「Cheeco的小功能」(-1) 之后、通用设置(0) 之前
         label: () => config.label || t("nav"),
         locale: NS
       }, Section));
+      // 等配置加载完成再注册，保证侧边栏 label 读到文件里的值。
+      loadConfig().then(() => registerSection());
     }
 
     exports.apply = apply;
