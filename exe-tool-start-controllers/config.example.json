@@ -1,0 +1,1 @@
+﻿{"Paths":{"NodeExe":"","EngineHome":"","BinJs":"","WorkDir":"","DshHome":"","NpcDir":""},"Workbenches":[{"Name":"工作台 1 · Web","Profile":"web","Port":"49982","Desc":"主工作台","Args":"{binJs} web --port {port} --no-open","Enabled":true}],"Nps":{"Enabled":true}}
