@@ -1335,10 +1335,12 @@ namespace StartControllers
 
         private void ImportProfiles()
         {
+            // 规则：已存在的 profile 直接复用其当前端口（不改动）；只有真正的新 profile 才用 NextPort 顺延分配。
             string[] profs = Tool.DetectProfiles(appConfig.Paths != null ? appConfig.Paths.DshHome : Tool.DshHome);
             int added = 0;
             foreach (var p in profs)
             {
+                // 已存在 → 复用原端口（跳过，不重新分配）
                 bool exists = appConfig.Workbenches.Exists(zz => zz.Profile == p);
                 if (exists) continue;
                 var wb = new WbCfg();
@@ -1357,12 +1359,16 @@ namespace StartControllers
         }
 
         private string DefaultPort() { return NextPort(); }
+        // 取 >=49982 的最小「未被占用」端口：基于当前已配置端口，新 profile 顺延，避免碰撞/空洞
         private string NextPort()
         {
-            int max = 49981;
+            int basePort = 49982;
+            var used = new HashSet<int>();
             foreach (var w in appConfig.Workbenches)
-            { int p; if (int.TryParse(w.Port, out p) && p > max) max = p; }
-            return (max + 1).ToString();
+            { int p; if (int.TryParse(w.Port, out p)) used.Add(p); }
+            int port = basePort;
+            while (used.Contains(port)) port++;
+            return port.ToString();
         }
 
         // ---------- 分页 3：NPS端口管理 ----------
