@@ -1,0 +1,8 @@
+[common]
+server_addr=YOUR_NPS_SERVER_IP:YOUR_PORT
+conn_type=tcp
+vkey=YOUR_VKEY
+auto_reconnection=true
+crypt=true
+compress=true
+disconnect_timeout=60

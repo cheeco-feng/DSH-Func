@@ -337,7 +337,7 @@ namespace StartControllers
     // ============ NPS 外网访问（参照 NpcTray：控制 npc.exe）============
     static class Nps
     {
-        public static string NpcDir = "";   // 去敏：值来自 config.json
+        public static string NpcDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "npc");   // 默认：工具同目录 npc（自包含）；空则用此默认
         public static string NpcExe = Path.Combine(NpcDir, "npc.exe");
         public static bool Enabled = true;
 
@@ -347,6 +347,57 @@ namespace StartControllers
             if (cfg.Paths != null && !string.IsNullOrEmpty(cfg.Paths.NpcDir)) NpcDir = cfg.Paths.NpcDir;
             NpcExe = Path.Combine(NpcDir, "npc.exe");
             if (cfg.Nps != null) Enabled = cfg.Nps.Enabled;
+            EnsureConfig();
+        }
+
+        // 若 conf/npc.conf 不存在，自动生成一份「空白模板」（不自动复制其它 .conf，避免旧值被找回；由用户用配置对话框填写）
+        public static void EnsureConfig()
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(NpcDir)) return;
+                string confDir = Path.Combine(NpcDir, "conf");
+                string conf = Path.Combine(confDir, "npc.conf");
+                if (File.Exists(conf)) return;
+                Directory.CreateDirectory(confDir);
+                File.WriteAllText(conf,
+                    "[common]\r\nserver_addr=\r\nconn_type=tcp\r\nvkey=\r\nauto_reconnection=true\r\ncrypt=true\r\ncompress=true\r\ndisconnect_timeout=60\r\n",
+                    Encoding.UTF8);
+            }
+            catch { }
+        }
+
+        // 解析 npc.conf 里的 server_addr / vkey（供配置对话框预填）
+        public static string ReadConfigValue(string key)
+        {
+            try
+            {
+                string conf = Path.Combine(NpcDir, "conf", "npc.conf");
+                if (!File.Exists(conf)) return "";
+                foreach (var line in File.ReadAllLines(conf))
+                {
+                    string t = line.Trim();
+                    if (t.StartsWith(key + "=")) return t.Substring(key.Length + 1).Trim();
+                }
+            }
+            catch { }
+            return "";
+        }
+
+        // 把 server / vkey / conn_type 写入 conf/npc.conf
+        public static bool WriteConfig(string server, string vkey, string connType, string autoRecon, string crypt, string compress, string disconnectTimeout)
+        {
+            try
+            {
+                string confDir = Path.Combine(NpcDir, "conf");
+                Directory.CreateDirectory(confDir);
+                File.WriteAllText(Path.Combine(confDir, "npc.conf"),
+                    "[common]\r\nserver_addr=" + server + "\r\nconn_type=" + connType + "\r\nvkey=" + vkey
+                    + "\r\nauto_reconnection=" + autoRecon + "\r\ncrypt=" + crypt + "\r\ncompress=" + compress + "\r\ndisconnect_timeout=" + disconnectTimeout + "\r\n",
+                    Encoding.UTF8);
+                return true;
+            }
+            catch { return false; }
         }
 
         public static bool IsRunning()
@@ -594,7 +645,7 @@ namespace StartControllers
             ss.SizingGrip = false;
             ss.Font = new Font("Microsoft YaHei", 10F);
             statusLabel = new ToolStripStatusLabel();
-            statusLabel.Text = "版本 1.3   ·   StartControllers";
+            statusLabel.Text = "版本 1.4   ·   StartControllers";
             ss.Items.Add(statusLabel);
             monitorStatusLabel = new ToolStripStatusLabel();
             monitorStatusLabel.Text = (appConfig.Ui != null && appConfig.Ui.RealtimeMonitor) ? "实时监听" : "未实时监听";
@@ -1359,7 +1410,9 @@ namespace StartControllers
             Button startBtn = MakeNpsBtn("开启外网", 28, 180, "start");
             Button stopBtn = MakeNpsBtn("关闭外网", 158, 180, "stop");
             Button statBtn = MakeNpsBtn("状态", 288, 180, "status");
+            Button cfgBtn = MakeNpsBtn("配置", 418, 180, "config");
             page.Controls.Add(startBtn); page.Controls.Add(stopBtn); page.Controls.Add(statBtn);
+            page.Controls.Add(cfgBtn);
 
             npsLog = new System.Windows.Forms.TextBox();
             npsLog.Multiline = true; npsLog.ReadOnly = true;
@@ -1396,8 +1449,33 @@ namespace StartControllers
                 });
                 return;
             }
+            if (action == "config")
+            {
+                OpenNpsConfig();
+                return;
+            }
             string sm = "[ " + DateTime.Now.ToString("HH:mm:ss") + " ] 状态  " + (Nps.IsRunning() ? "运行中" : "已停止") + "\r\n";
             AppendNpsLog(sm);
+        }
+
+        // 打开 NPS 配置对话框，填写服务器地址/vkey 并生成 conf/npc.conf
+        private void OpenNpsConfig()
+        {
+            using (var dlg = new NpsConfigDialog(
+                "", "",   // server_addr / vkey 默认空（敏感，每次自己填）
+                Nps.ReadConfigValue("conn_type"),
+                Nps.ReadConfigValue("auto_reconnection"),
+                Nps.ReadConfigValue("crypt"),
+                Nps.ReadConfigValue("compress"),
+                Nps.ReadConfigValue("disconnect_timeout")))
+            {
+                if (dlg.ShowDialog(this) == DialogResult.OK)
+                {
+                    bool ok = Nps.WriteConfig(dlg.Server, dlg.Vkey, dlg.ConnType, dlg.AutoRecon, dlg.Crypt, dlg.Compress, dlg.DisconnectTimeout);
+                    AppendNpsLog("[ " + DateTime.Now.ToString("HH:mm:ss") + " ] 配置 " + (ok ? "已写入 conf/npc.conf" : "写入失败") + "\r\n");
+                    try { RefreshAllTabs(); } catch { }
+                }
+            }
         }
 
         private void AppendNpsLog(string text) { if (npsLog != null) { npsLog.Text = text + npsLog.Text; npsLog.SelectionStart = 0; npsLog.ScrollToCaret(); } }
@@ -1881,6 +1959,57 @@ namespace StartControllers
             Label l = new Label(); l.Text = label; l.AutoSize = true; l.Font = new Font("Microsoft YaHei", 12F);
             l.ForeColor = Color.FromArgb(40, 50, 75); l.Location = new Point(24, y); Controls.Add(l);
             TextBox tb = new TextBox(); tb.Font = new Font("Microsoft YaHei", 12F); tb.Width = 270; tb.Left = 130; tb.Top = y - 2; Controls.Add(tb);
+            return tb;
+        }
+    }
+
+    // NPS 配置对话框：显示全部参数（字段名中英文）；server_addr / vkey 默认空，其它显示默认值
+    public class NpsConfigDialog : Form
+    {
+        public string Server, Vkey, ConnType, AutoRecon, Crypt, Compress, DisconnectTimeout;
+        private TextBox tbServer, tbVkey, tbConn, tbAuto, tbCrypt, tbCompress, tbTimeout;
+        public NpsConfigDialog(string curServer, string curVkey, string curConn, string curAuto, string curCrypt, string curCompress, string curTimeout)
+        {
+            Text = "配置 NPS 服务器"; FormBorderStyle = FormBorderStyle.FixedDialog;
+            StartPosition = FormStartPosition.CenterParent; MaximizeBox = false; MinimizeBox = false;
+            ClientSize = new Size(580, 420); BackColor = Color.White;
+
+            Label hint = new Label();
+            hint.Text = "填写后点「确定」生成 conf/npc.conf（npc.exe 读取此配置）。";
+            hint.AutoSize = true; hint.Font = new Font("Microsoft YaHei", 11F); hint.ForeColor = Color.FromArgb(120, 125, 135);
+            hint.Location = new Point(24, 16); Controls.Add(hint);
+
+            int y = 48;
+            tbServer = NpsAddField("服务器地址 (server_addr)", y); tbServer.Text = curServer ?? ""; y += 40;
+            tbVkey = NpsAddField("隧道密钥 (vkey)", y); tbVkey.Text = curVkey ?? ""; y += 40;
+            tbConn = NpsAddField("连接方式 (conn_type)", y); tbConn.Text = string.IsNullOrEmpty(curConn) ? "tcp" : curConn; y += 40;
+            tbAuto = NpsAddField("自动重连 (auto_reconnection)", y); tbAuto.Text = string.IsNullOrEmpty(curAuto) ? "true" : curAuto; y += 40;
+            tbCrypt = NpsAddField("加密 (crypt)", y); tbCrypt.Text = string.IsNullOrEmpty(curCrypt) ? "true" : curCrypt; y += 40;
+            tbCompress = NpsAddField("压缩 (compress)", y); tbCompress.Text = string.IsNullOrEmpty(curCompress) ? "true" : curCompress; y += 40;
+            tbTimeout = NpsAddField("断线超时(秒) (disconnect_timeout)", y); tbTimeout.Text = string.IsNullOrEmpty(curTimeout) ? "60" : curTimeout; y += 40;
+
+            RoundedButton ok = new RoundedButton();
+            ok.Text = "确定"; ok.Width = 110; ok.Height = 42; ok.Location = new Point(230, y + 6);
+            ok.NormalColor = Color.FromArgb(50, 90, 250); ok.HoverColor = Color.FromArgb(70, 110, 255); ok.ForeColor = Color.White;
+            ok.Click += (s, e) =>
+            {
+                Server = tbServer.Text.Trim(); Vkey = tbVkey.Text.Trim(); ConnType = tbConn.Text.Trim();
+                AutoRecon = tbAuto.Text.Trim(); Crypt = tbCrypt.Text.Trim(); Compress = tbCompress.Text.Trim(); DisconnectTimeout = tbTimeout.Text.Trim();
+                if (Server == "" || Vkey == "") { MessageBox.Show("服务器地址 (server_addr) 与 vkey 必填"); return; }
+                DialogResult = DialogResult.OK;
+            };
+            Controls.Add(ok);
+            RoundedButton cancel = new RoundedButton();
+            cancel.Text = "取消"; cancel.Width = 110; cancel.Height = 42; cancel.Location = new Point(350, y + 6);
+            cancel.NormalColor = Color.FromArgb(240, 242, 246); cancel.HoverColor = Color.FromArgb(221, 226, 233); cancel.ForeColor = Color.FromArgb(58, 68, 88);
+            cancel.Click += (s, e) => { DialogResult = DialogResult.Cancel; };
+            Controls.Add(cancel);
+        }
+        private TextBox NpsAddField(string label, int y)
+        {
+            Label l = new Label(); l.Text = label; l.AutoSize = true; l.Font = new Font("Microsoft YaHei", 11F);
+            l.ForeColor = Color.FromArgb(40, 50, 75); l.Location = new Point(24, y); Controls.Add(l);
+            TextBox tb = new TextBox(); tb.Font = new Font("Microsoft YaHei", 11F); tb.Width = 280; tb.Left = 240; tb.Top = y - 2; Controls.Add(tb);
             return tb;
         }
     }

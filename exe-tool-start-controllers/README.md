@@ -33,6 +33,8 @@ exe-tool-start-controllers/
 ├─ config.example.json      配置示例（空占位，公开模板）
 ├─ config.json              你的本地实际配置（机器专属，通常不入库，已 gitignore）
 ├─ start-controllers.log    运行日志（运行时生成，已 gitignore）
+├─ npc/                     本地运行资源：npc.exe(第三方 NPS 客户端) + conf/npc.conf(含真 vkey) —— 不入库
+├─ npc.conf.example         公开示例：NPS 配置模板（vkey/IP 为空占位）
 └─ README.md                说明文档
 ```
 
@@ -108,6 +110,12 @@ build.bat
 
 ## 版本记录
 
+- **v1.4**（2026-09）：
+  - **NPS 自包含**：把 `npc.exe`(第三方) + `conf/npc.conf` 并入工具同目录 `npc/`，`npcDir` 支持在配置里指到该处，为空时默认用工具同目录 `npc`，不再依赖外部 E: 路径。
+  - **NPS 配置对话框**：NPS 页新增「配置」按钮，弹窗显示全部参数（服务器地址、vkey、conn_type、auto_reconnection、crypt、compress、disconnect_timeout，字段名中英文）；`server_addr`/`vkey` 默认空（敏感项自行填写），其它显示默认值，确定后写入 `conf/npc.conf`。
+  - **缺配置自动生成**：`conf/npc.conf` 缺失时自动生成**空白模板**（不复制旧值），配合配置对话框填写；不再自动找回被删/改名的旧配置。
+  - 新增 `npc.conf.example` 公开模板（vkey/IP 占位）；`npc/`（真 vkey + 12MB exe）gitignore 不入库。
+  - 底部状态栏新增「实时监听 / 未实时监听」指示。
 - **v1.3**（2026-09）：
   - 工作台列表改为**配置驱动 + 动态管理**（新增 / 从 profiles 导入 / 删除当前，实时重建 tab）。
   - 新增「**重启**」按钮（先停后启，日志拆两条：关闭 / 开启）。
