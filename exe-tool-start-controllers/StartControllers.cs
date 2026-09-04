@@ -21,6 +21,7 @@ namespace StartControllers
     public class Workbench
     {
         public string Name, Profile, Port, Url, Desc, Args;
+        public bool Participate = true;   // 是否参与「全部启动/全部停止」（对应「一键开关控制」小勾，持久化到 config）
         public Workbench(string name, string profile, string port, string url, string desc, string args)
         {
             Name = name; Profile = profile; Port = port; Url = url; Desc = desc; Args = args;
@@ -29,6 +30,7 @@ namespace StartControllers
         public Process[] FindProcesses() { return Tool.FindDshWeb(Port); }
         public bool Start() { return Tool.StartDsh(this); }
         public bool Stop() { return Tool.StopDsh(this); }
+        public bool Restart() { try { if (IsRunning()) { if (!Stop()) return false; } return Start(); } catch { return false; } }
         public void OpenBrowser() { try { Process.Start(Url); } catch (Exception ex) { Tool.Log(Name + " 打开浏览器失败：" + ex.Message); } }
         public string StateLabel() { return IsRunning() ? "运行中" : "已停止"; }
     }
@@ -39,6 +41,11 @@ namespace StartControllers
         public PathCfg Paths { get; set; }
         public List<WbCfg> Workbenches { get; set; }
         public NpsCfg Nps { get; set; }
+        public UiCfg Ui { get; set; }
+    }
+    public class UiCfg
+    {
+        public bool RealtimeMonitor { get; set; }
     }
     public class PathCfg
     {
@@ -57,10 +64,12 @@ namespace StartControllers
         public string Desc { get; set; }
         public string Args { get; set; }
         public bool Enabled { get; set; }
+        public bool? Participate { get; set; }   // 一键开关控制（是否参与全部启动/停止），持久化
     }
     public class NpsCfg
     {
         public bool Enabled { get; set; }
+        public bool? Participate { get; set; }   // 一键开关控制，持久化
     }
 
     // ============ 配置加载/保存（JSON，框架自带 JavaScriptSerializer，零额外依赖）============
@@ -108,11 +117,10 @@ namespace StartControllers
             };
             cfg.Workbenches = new List<WbCfg>()
             {
-                new WbCfg(){ Name="工作台 1 · Web", Profile="web", Port="49982", Desc="主工作台", Args="{binJs} web --port {port} --no-open", Enabled=true },
-                new WbCfg(){ Name="工作台 2 · Mobile", Profile="mobile", Port="49983", Desc="第二工作台（按需启动）", Args="{binJs} --profile {profile} --port {port} --no-open", Enabled=true },
-                new WbCfg(){ Name="工作台 3 · 测试", Profile="test", Port="49984", Desc="插件安装测试台", Args="{binJs} --profile {profile} --port {port} --no-open", Enabled=true }
+                new WbCfg(){ Name="工作台 1 · Web", Profile="web", Port="49982", Desc="主工作台", Args="{binJs} web --port {port} --no-open", Enabled=true }
             };
             cfg.Nps = new NpsCfg() { Enabled = true };
+            cfg.Ui = new UiCfg();
             return cfg;
         }
 
@@ -122,6 +130,7 @@ namespace StartControllers
             if (cfg.Paths == null) cfg.Paths = new PathCfg();
             if (cfg.Workbenches == null) cfg.Workbenches = new List<WbCfg>();
             if (cfg.Nps == null) cfg.Nps = new NpsCfg();
+            if (cfg.Ui == null) cfg.Ui = new UiCfg();
             foreach (var w in cfg.Workbenches)
             {
                 if (w.Name == null) w.Name = "";
@@ -129,7 +138,9 @@ namespace StartControllers
                 if (w.Port == null) w.Port = "";
                 if (w.Desc == null) w.Desc = "";
                 if (w.Args == null) w.Args = "";
+                if (w.Participate == null) w.Participate = true;
             }
+            if (cfg.Nps.Participate == null) cfg.Nps.Participate = true;
         }
 
         // 公开示例模板（空占位，不含本机路径）
@@ -142,6 +153,7 @@ namespace StartControllers
                 new WbCfg(){ Name="工作台 1 · Web", Profile="web", Port="49982", Desc="主工作台", Args="{binJs} web --port {port} --no-open", Enabled=true }
             };
             cfg.Nps = new NpsCfg() { Enabled = true };
+            cfg.Ui = new UiCfg();
             var jss = new JavaScriptSerializer();
             return jss.Serialize(cfg);
         }
@@ -533,10 +545,12 @@ namespace StartControllers
         private Dictionary<string, CheckBox> overviewChecks = new Dictionary<string, CheckBox>();  // 总览里各工作台的"一键开关控制"
         private CheckBox npsOverviewCheck;      // 总览里 NPS 的"一键开关控制"
         private List<Label> overviewStatus = new List<Label>();   // 总览里各工作台状态标签
+        private Dictionary<string, Label> cardStatus = new Dictionary<string, Label>();   // 各工作台子tab状态标签（按工作台名）
         private Label npsOverviewStatus;       // 总览里 NPS 状态标签
         private Label npsStatusLabel;          // NPS 页里状态标签
         private System.Windows.Forms.TextBox npsLog;
         private ToolStripStatusLabel statusLabel;
+        private ToolStripStatusLabel monitorStatusLabel;   // 状态栏「实时监听/未实时监听」指示
         private NotifyIcon tray;
         private Icon trayIcon;
         private ContextMenuStrip trayMenu;
@@ -547,6 +561,9 @@ namespace StartControllers
         private System.Windows.Forms.TextBox txtNodeExe, txtEngineHome, txtBinJs, txtWorkDir, txtDshHome, txtNpcDir;
         private Label lblCfgStatus;
         private System.Windows.Forms.TextBox txtDetectOut;
+        private System.Windows.Forms.CheckBox chkRealtime;
+        private Label lblRealtimeStatus;
+        private System.Windows.Forms.Timer monitorTimer;
 
         public MainForm()
         {
@@ -579,6 +596,11 @@ namespace StartControllers
             statusLabel = new ToolStripStatusLabel();
             statusLabel.Text = "版本 1.3   ·   StartControllers";
             ss.Items.Add(statusLabel);
+            monitorStatusLabel = new ToolStripStatusLabel();
+            monitorStatusLabel.Text = (appConfig.Ui != null && appConfig.Ui.RealtimeMonitor) ? "实时监听" : "未实时监听";
+            monitorStatusLabel.ForeColor = (appConfig.Ui != null && appConfig.Ui.RealtimeMonitor) ? Color.FromArgb(40, 120, 60) : Color.FromArgb(120, 125, 135);
+            ss.Items.Add(new ToolStripStatusLabel() { Text = "   " });   // 间隔
+            ss.Items.Add(monitorStatusLabel);
             Controls.Add(ss);
 
             mainTabs.TabPages.Add(BuildOverviewTab());
@@ -711,16 +733,52 @@ namespace StartControllers
                     if (string.IsNullOrEmpty(w.Profile)) continue;
                     string args = Tool.BuildArgs(w.Args, w);
                     string url = "http://127.0.0.1:" + w.Port;
-                    list.Add(new Workbench(w.Name, w.Profile, w.Port, url, w.Desc, args));
+                    Workbench wb = new Workbench(w.Name, w.Profile, w.Port, url, w.Desc, args);
+                    wb.Participate = w.Participate ?? true;
+                    list.Add(wb);
                 }
             }
             return list.ToArray();
         }
 
-        // ---------- 分页：设置（去敏/环境检测）----------
+        // 增删工作台后：重建工作台相关 tab（整组重建，避免 RemoveAt 索引问题）
+        private void ReloadWorkbenchTabs()
+        {
+            benches = BuildBenches(appConfig);
+            overviewStatus.Clear(); overviewChecks.Clear(); cardStatus.Clear(); oneClickChecks.Clear();
+            string sel = mainTabs.SelectedTab != null ? mainTabs.SelectedTab.Text : "";
+            mainTabs.TabPages.Clear();
+            mainTabs.TabPages.Add(BuildOverviewTab());
+            mainTabs.TabPages.Add(BuildAgentMgmtTab());
+            mainTabs.TabPages.Add(BuildNpsTab());
+            mainTabs.TabPages.Add(BuildSettingsTab());
+            WireCheckSync();
+            RecomputeTabSize(mainTabs, 46);
+            foreach (TabPage t in mainTabs.TabPages) if (t.Text == sel) { mainTabs.SelectedTab = t; break; }
+            RefreshAllTabs();
+        }
+
+        // ---------- 分页：设置（内部再分「运行环境」/「其它设置」两个子 tab）----------
         private TabPage BuildSettingsTab()
         {
             TabPage page = new TabPage("设置");
+            page.Padding = new Padding(0);
+            page.BackColor = Color.White;
+
+            TabControl inner = new TabControl();
+            inner.Dock = DockStyle.Fill;
+            StyleTabs(inner, 42);
+            inner.TabPages.Add(BuildSettingsPathPage());
+            inner.TabPages.Add(BuildOtherSettingsPage());
+            RecomputeTabSize(inner, 42);
+            page.Controls.Add(inner);
+            return page;
+        }
+
+        // 子 tab 1：运行环境路径（原设置页内容，保持不变）
+        private TabPage BuildSettingsPathPage()
+        {
+            TabPage page = new TabPage("运行环境");
             page.Padding = new Padding(24);
             page.BackColor = Color.White;
 
@@ -762,9 +820,7 @@ namespace StartControllers
             btnDetect.Click += (s, e) => DoDetect(); page.Controls.Add(btnDetect);
             RoundedButton btnSave = NiceButton("保存配置", lx + 160, y, 120, 42, true);
             btnSave.Click += (s, e) => DoSaveConfig(); page.Controls.Add(btnSave);
-            RoundedButton btnExample = NiceButton("写入示例模板", lx + 290, y, 130, 42, false);
-            btnExample.Click += (s, e) => DoWriteExample(); page.Controls.Add(btnExample);
-            RoundedButton btnOpen = NiceButton("打开 config.json", lx + 430, y, 150, 42, false);
+            RoundedButton btnOpen = NiceButton("打开 config.json", lx + 290, y, 150, 42, false);
             btnOpen.Click += (s, e) => OpenConfig(); page.Controls.Add(btnOpen);
             y += 56;
 
@@ -781,6 +837,77 @@ namespace StartControllers
 
             FillSettingsFromConfig();
             return page;
+        }
+
+        // 子 tab 2：其它设置（实时监测）
+        private TabPage BuildOtherSettingsPage()
+        {
+            TabPage page = new TabPage("其它设置");
+            page.Padding = new Padding(24);
+            page.BackColor = Color.White;
+
+            Label title = new Label();
+            title.Text = "其它设置"; title.AutoSize = true;
+            title.Font = new Font("Microsoft YaHei", 22F, FontStyle.Bold);
+            title.ForeColor = Color.FromArgb(30, 40, 70);
+            title.Location = new Point(28, 20);
+            page.Controls.Add(title);
+
+            Label hint = new Label();
+            hint.Text = "「实时监测」勾选后，会定时检查各工作台/NPS 的端口状态并刷新界面，以便感知在外部被开启/关闭的情况；不勾则不监听。";
+            hint.AutoSize = true;
+            hint.Font = new Font("Microsoft YaHei", 11F);
+            hint.ForeColor = Color.FromArgb(120, 125, 135);
+            hint.Location = new Point(28, 62);
+            page.Controls.Add(hint);
+
+            chkRealtime = new CheckBox();
+            chkRealtime.Text = "实时监测（自动感知实例开启/关闭）";
+            chkRealtime.AutoSize = true;
+            chkRealtime.Font = new Font("Microsoft YaHei", 13F);
+            chkRealtime.ForeColor = Color.FromArgb(40, 50, 75);
+            chkRealtime.Location = new Point(28, 104);
+            chkRealtime.Checked = appConfig.Ui != null && appConfig.Ui.RealtimeMonitor;
+            chkRealtime.CheckedChanged += (s, e) => SetMonitor(chkRealtime.Checked);
+            page.Controls.Add(chkRealtime);
+
+            lblRealtimeStatus = new Label();
+            lblRealtimeStatus.AutoSize = true;
+            lblRealtimeStatus.Font = new Font("Microsoft YaHei", 11F);
+            lblRealtimeStatus.ForeColor = Color.FromArgb(70, 90, 120);
+            lblRealtimeStatus.Location = new Point(28, 140);
+            lblRealtimeStatus.Text = "";
+            page.Controls.Add(lblRealtimeStatus);
+
+            SetMonitor(chkRealtime.Checked);   // 按初始勾选状态决定是否启动监听
+            return page;
+        }
+
+        // 开启/关闭实时监测
+        private void SetMonitor(bool on)
+        {
+            try
+            {
+                if (on)
+                {
+                    if (monitorTimer == null)
+                    {
+                        monitorTimer = new System.Windows.Forms.Timer();
+                        monitorTimer.Interval = 3000;
+                        monitorTimer.Tick += (s, e) => { try { RefreshAllTabs(); } catch { } };
+                    }
+                    monitorTimer.Start();
+                    if (lblRealtimeStatus != null) lblRealtimeStatus.Text = "实时监测已开启（每 3 秒刷新一次状态）";
+                    if (monitorStatusLabel != null) { monitorStatusLabel.Text = "实时监听"; monitorStatusLabel.ForeColor = Color.FromArgb(40, 120, 60); }
+                }
+                else
+                {
+                    if (monitorTimer != null) monitorTimer.Stop();
+                    if (lblRealtimeStatus != null) lblRealtimeStatus.Text = "实时监测已关闭";
+                    if (monitorStatusLabel != null) { monitorStatusLabel.Text = "未实时监听"; monitorStatusLabel.ForeColor = Color.FromArgb(120, 125, 135); }
+                }
+            }
+            catch { }
         }
 
         private System.Windows.Forms.TextBox AddPathRow(TabPage page, string labelText, int lx, int tx, int y, int lh)
@@ -862,6 +989,35 @@ namespace StartControllers
             lblCfgStatus.Text = "已一键填写全部路径（未保存）";
         }
 
+        private WbCfg FindWbCfg(Workbench b)
+        {
+            if (appConfig == null || appConfig.Workbenches == null) return null;
+            foreach (var w in appConfig.Workbenches)
+                if (w.Profile == b.Profile && w.Port == b.Port) return w;
+            return null;
+        }
+
+        // 勾选「一键开关控制」改变时，自动写回 config（无需手动点保存配置）
+        private void PersistWorkbenchParticipate(Workbench b, bool val)
+        {
+            try
+            {
+                var w = FindWbCfg(b);
+                if (w != null) w.Participate = val;
+                Config.Save(appConfig);
+            }
+            catch { }
+        }
+        private void PersistNpsParticipate(bool val)
+        {
+            try
+            {
+                if (appConfig.Nps != null) appConfig.Nps.Participate = val;
+                Config.Save(appConfig);
+            }
+            catch { }
+        }
+
         private void DoSaveConfig()
         {
             // bin.js 为空时，若填了引擎目录，则自动派生兜底
@@ -880,8 +1036,21 @@ namespace StartControllers
                 DshHome = txtDshHome.Text.Trim(),
                 NpcDir = txtNpcDir.Text.Trim()
             };
+            // 持久化「一键开关控制」勾选状态（写回 config，重开恢复到上次状态）
+            foreach (var b in benches)
+            {
+                CheckBox c;
+                if (oneClickChecks.TryGetValue(b.Name, out c))
+                {
+                    var w = FindWbCfg(b);
+                    if (w != null) w.Participate = c.Checked;
+                }
+            }
+            bool npsPart = npsCheck != null && npsCheck.Checked;
+
             cfg.Workbenches = appConfig.Workbenches;   // 工作台列表不在此页编辑
-            cfg.Nps = new NpsCfg() { Enabled = (appConfig != null && appConfig.Nps != null) ? appConfig.Nps.Enabled : true };
+            cfg.Nps = new NpsCfg() { Enabled = (appConfig != null && appConfig.Nps != null) ? appConfig.Nps.Enabled : true, Participate = npsPart };
+            cfg.Ui = new UiCfg() { RealtimeMonitor = chkRealtime != null && chkRealtime.Checked };
             try
             {
                 Config.Save(cfg);
@@ -892,17 +1061,6 @@ namespace StartControllers
                 txtDetectOut.Text = "-- 配置已保存到 " + Config.ConfigFile + " --\r\n" + txtDetectOut.Text;
             }
             catch (Exception ex) { lblCfgStatus.Text = "保存失败：" + ex.Message; }
-        }
-
-        private void DoWriteExample()
-        {
-            try
-            {
-                string exF = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "config.example.json");
-                File.WriteAllText(exF, Config.ExampleTemplate(), Encoding.UTF8);
-                lblCfgStatus.Text = "已写入公开示例模板（空路径）：" + exF;
-            }
-            catch (Exception ex) { lblCfgStatus.Text = "写入失败：" + ex.Message; }
         }
 
         private void OpenConfig()
@@ -949,11 +1107,12 @@ namespace StartControllers
                 // 每个工作台选项左侧：一键开关控制（只保留小勾，与对应tab页的勾选同步）
                 CheckBox chk = new CheckBox();
                 chk.Text = "";
-                chk.Checked = true;
+                chk.Checked = b.Participate;   // 读取持久化状态
                 chk.AutoSize = true;
                 chk.Font = new Font("Microsoft YaHei", 17F);   // 加大勾选框（原生控件大小受限）
                 chk.ForeColor = Color.FromArgb(58, 68, 88);
                 chk.Location = new Point(28, rowY + 4);
+                chk.CheckedChanged += (s, e) => PersistWorkbenchParticipate(b, chk.Checked);   // 改变即自动保存
                 page.Controls.Add(chk);
                 overviewChecks[b.Name] = chk;
 
@@ -973,7 +1132,7 @@ namespace StartControllers
                 page.Controls.Add(st);
                 overviewStatus.Add(st);
 
-                // 开启 / 关闭（从对应tab页搬到总览）+ 打开网页 / 强刷新 / 复制链接
+                // 开启 / 关闭（从对应tab页搬到总览）+ 打开网页 / 重启 / 复制链接
                 RoundedButton btnStart = NiceButton("开启", 28, rowY + 68, 94, 40, true);
                 btnStart.Click += (s, e) => DoAction(b, "start");
                 page.Controls.Add(btnStart);
@@ -983,16 +1142,16 @@ namespace StartControllers
                 page.Controls.Add(btnStop);
 
                 RoundedButton open = NiceButton("打开网页", 236, rowY + 68, 94, 40, false);
-                open.Click += (s, e) => b.OpenBrowser();
+                open.Click += (s, e) => DoAction(b, "open");
                 page.Controls.Add(open);
 
-                RoundedButton refresh = NiceButton("强刷新", 340, rowY + 68, 94, 40, false);
-                refresh.Click += (s, e) => HardRefresh(b);
-                page.Controls.Add(refresh);
+                RoundedButton restart = NiceButton("重启", 340, rowY + 68, 94, 40, false);
+                restart.Click += (s, e) => DoAction(b, "restart");
+                page.Controls.Add(restart);
 
                 RoundedButton copy = NiceButton("复制链接", 444, rowY + 68, 94, 40, false);
                 string copyUrl = b.Url;
-                copy.Click += (s, e) => CopyLink(copyUrl);
+                copy.Click += (s, e) => CopyLink(b, copyUrl);
                 page.Controls.Add(copy);
 
                 page.Controls.Add(MakeSep(28, rowY + 128, 906));   // 分隔线：距按钮底20px
@@ -1004,11 +1163,12 @@ namespace StartControllers
             int ny = rowY;
             CheckBox npsChk = new CheckBox();
             npsChk.Text = "";
-            npsChk.Checked = true;
+            npsChk.Checked = appConfig.Nps != null && (appConfig.Nps.Participate ?? true);
             npsChk.AutoSize = true;
             npsChk.Font = new Font("Microsoft YaHei", 17F);   // 加大勾选框（原生控件大小受限）
             npsChk.ForeColor = Color.FromArgb(58, 68, 88);
             npsChk.Location = new Point(28, ny + 4);
+            npsChk.CheckedChanged += (s, e) => PersistNpsParticipate(npsChk.Checked);   // 改变即自动保存
             page.Controls.Add(npsChk);
             npsOverviewCheck = npsChk;
 
@@ -1064,6 +1224,18 @@ namespace StartControllers
             bottomBar.Height = 62;
             bottomBar.BackColor = Color.FromArgb(249, 250, 252);
 
+            RoundedButton btnAdd = NiceButton("新增工作台", 28, 11, 120, 42, true);
+            btnAdd.Click += (s, e) => AddWorkbench();
+            bottomBar.Controls.Add(btnAdd);
+
+            RoundedButton btnImport = NiceButton("从profiles导入", 156, 11, 140, 42, false);
+            btnImport.Click += (s, e) => ImportProfiles();
+            bottomBar.Controls.Add(btnImport);
+
+            RoundedButton btnDel = NiceButton("删除当前", 304, 11, 100, 42, false);
+            btnDel.Click += (s, e) => DeleteCurrentWorkbench();
+            bottomBar.Controls.Add(btnDel);
+
             RoundedButton allStart = NiceButton("全部启动", 660, 11, 120, 42, true);
             allStart.Click += (s, e) => AllStart(false);
             bottomBar.Controls.Add(allStart);
@@ -1074,6 +1246,72 @@ namespace StartControllers
 
             page.Controls.Add(bottomBar);   // Bottom，后加（落在最下方）
             return page;
+        }
+
+        // ---- 工作台管理 ----
+        private void AddWorkbench()
+        {
+            using (var dlg = new AddWorkbenchDialog(DefaultPort()))
+            {
+                if (dlg.ShowDialog(this) == DialogResult.OK)
+                {
+                    var w = new WbCfg();
+                    w.Name = dlg.WbName; w.Profile = dlg.WbProfile; w.Port = dlg.WbPort;
+                    w.Desc = dlg.WbDesc; w.Args = "{binJs} --profile {profile} --port {port} --no-open"; w.Enabled = true;
+                    if (appConfig.Workbenches == null) appConfig.Workbenches = new List<WbCfg>();
+                    appConfig.Workbenches.Add(w);
+                    Config.Save(appConfig);
+                    ReloadWorkbenchTabs();
+                    Tool.Log("已新增工作台：" + w.Name + "（" + w.Profile + " · " + w.Port + "）");
+                }
+            }
+        }
+
+        private void DeleteCurrentWorkbench()
+        {
+            if (wbTabs == null || wbTabs.SelectedIndex < 0) { Tool.Log("请先选中要删除的工作台子 tab"); return; }
+            TabPage page = wbTabs.TabPages[wbTabs.SelectedIndex];
+            string name = page.Text;
+            var target = appConfig.Workbenches.Find(w => w.Name == name);
+            if (target != null)
+            {
+                appConfig.Workbenches.Remove(target);
+                Config.Save(appConfig);
+                Tool.Log("已删除工作台：" + name);
+                ReloadWorkbenchTabs();
+            }
+        }
+
+        private void ImportProfiles()
+        {
+            string[] profs = Tool.DetectProfiles(appConfig.Paths != null ? appConfig.Paths.DshHome : Tool.DshHome);
+            int added = 0;
+            foreach (var p in profs)
+            {
+                bool exists = appConfig.Workbenches.Exists(zz => zz.Profile == p);
+                if (exists) continue;
+                var wb = new WbCfg();
+                wb.Name = "工作台 · " + p; wb.Profile = p; wb.Port = NextPort();
+                wb.Desc = "（从 profiles 导入）"; wb.Args = "{binJs} --profile {profile} --port {port} --no-open"; wb.Enabled = true;
+                appConfig.Workbenches.Add(wb);
+                added++;
+            }
+            if (added > 0)
+            {
+                Config.Save(appConfig);
+                ReloadWorkbenchTabs();
+                Tool.Log("已从 profiles 导入 " + added + " 个工作台");
+            }
+            else Tool.Log("没有需要导入的新 profile（均已存在）");
+        }
+
+        private string DefaultPort() { return NextPort(); }
+        private string NextPort()
+        {
+            int max = 49981;
+            foreach (var w in appConfig.Workbenches)
+            { int p; if (int.TryParse(w.Port, out p) && p > max) max = p; }
+            return (max + 1).ToString();
         }
 
         // ---------- 分页 3：NPS端口管理 ----------
@@ -1100,11 +1338,12 @@ namespace StartControllers
             // 一键开关控制：放在状态行最右边（是否参与「全部启动/全部停止」）
             npsCheck = new CheckBox();
             npsCheck.Text = "一键开关控制";
-            npsCheck.Checked = true;
+            npsCheck.Checked = appConfig.Nps != null && (appConfig.Nps.Participate ?? true);
             npsCheck.AutoSize = true;
             npsCheck.Font = new Font("Microsoft YaHei", 12F);
             npsCheck.ForeColor = Color.FromArgb(58, 68, 88);
             npsCheck.Location = new Point(770, 82);
+            npsCheck.CheckedChanged += (s, e) => PersistNpsParticipate(npsCheck.Checked);   // 改变即自动保存
             page.Controls.Add(npsCheck);
 
             Label desc = new Label();
@@ -1201,15 +1440,17 @@ namespace StartControllers
             status.Location = new Point(26, 68);
             status.Text = "状态：" + b.StateLabel();
             top.Controls.Add(status);
+            cardStatus[b.Name] = status;
 
             // 一键开关控制：放在状态行最右边（靠右）
             CheckBox chk = new CheckBox();
             chk.Text = "一键开关控制";
-            chk.Checked = true;
+            chk.Checked = b.Participate;   // 读取持久化状态
             chk.AutoSize = true;
             chk.Font = new Font("Microsoft YaHei", 12F);
             chk.ForeColor = Color.FromArgb(58, 68, 88);
             chk.Location = new Point(760, 64);
+            chk.CheckedChanged += (s, e) => PersistWorkbenchParticipate(b, chk.Checked);   // 改变即自动保存
             top.Controls.Add(chk);
             oneClickChecks[b.Name] = chk;
 
@@ -1248,8 +1489,11 @@ namespace StartControllers
             statBtn.Click += (s, e) => DoAction(b, "status");
             RoundedButton openBtn = NiceButton("打开网页", 434, 240, 128, 44, false);
             openBtn.Click += (s, e) => DoAction(b, "open");
+            RoundedButton restartBtn = NiceButton("重启", 570, 240, 128, 44, false);
+            restartBtn.Click += (s, e) => DoAction(b, "restart");
             top.Controls.Add(startBtn); top.Controls.Add(stopBtn);
             top.Controls.Add(statBtn); top.Controls.Add(openBtn);
+            top.Controls.Add(restartBtn);
 
             page.Controls.Add(top);
 
@@ -1274,13 +1518,27 @@ namespace StartControllers
                 Task.Run(() =>
                 {
                     bool ok = action == "start" ? b.Start() : b.Stop();
-                    string result = ok ? (action == "start" ? "已开启" : "已关闭") : (action == "start" ? "启动失败" : "关闭失败");
-                    string msg = "[ " + DateTime.Now.ToString("HH:mm:ss") + " ] " + ActionLabel(action) + "  " + result
-                        + "\r\n工作台：" + b.Name + "\r\n启动命令：" + b.Args
-                        + "\r\n状态：" + b.StateLabel()
-                        + "\r\n----------------------------------------\r\n";
+                    string result = action == "start" ? (ok ? "已开启" : "启动失败") : (ok ? "已关闭" : "关闭失败");
+                    string msg = BuildActionMsg(ActionLabel(action), result, b);
                     Tool.Log(msg);
                     try { BeginInvoke(new Action(() => { AppendLog(b, msg); RefreshAllTabs(); })); } catch { }
+                });
+                return;
+            }
+            if (action == "restart")
+            {
+                Task.Run(() =>
+                {
+                    // 先关：记一条「关闭」
+                    bool wasRunning = b.IsRunning();
+                    bool stopped = wasRunning ? b.Stop() : true;
+                    string stopMsg = BuildActionMsg("关闭", stopped ? (wasRunning ? "已关闭" : "本就未运行（无需关闭）") : "关闭失败", b);
+                    System.Threading.Thread.Sleep(300);
+                    // 再启：记一条「开启」
+                    bool started = b.Start();
+                    string startMsg = BuildActionMsg("开启", started ? "已开启" : "启动失败", b);
+                    Tool.Log(stopMsg); Tool.Log(startMsg);
+                    try { BeginInvoke(new Action(() => { AppendLog(b, stopMsg); AppendLog(b, startMsg); RefreshAllTabs(); })); } catch { }
                 });
                 return;
             }
@@ -1294,7 +1552,16 @@ namespace StartControllers
 
         private string ActionLabel(string a)
         {
-            switch (a) { case "start": return "开启"; case "stop": return "关闭"; case "status": return "状态"; case "open": return "打开网页"; default: return a; }
+            switch (a) { case "start": return "开启"; case "stop": return "关闭"; case "restart": return "重启"; case "status": return "状态"; case "open": return "打开网页"; default: return a; }
+        }
+
+        // 结构化工作台日志行（与开启/关闭/重启共用格式）
+        private string BuildActionMsg(string label, string result, Workbench b)
+        {
+            return "[ " + DateTime.Now.ToString("HH:mm:ss") + " ] " + label + "  " + result
+                + "\r\n工作台：" + b.Name + "\r\n启动命令：" + b.Args
+                + "\r\n状态：" + b.StateLabel()
+                + "\r\n----------------------------------------\r\n";
         }
 
         private void AppendLog(Workbench b, string text)
@@ -1316,39 +1583,30 @@ namespace StartControllers
             for (int i = 0; i < overviewStatus.Count && i < benches.Length; i++)
                 overviewStatus[i].Text = "状态：" + benches[i].StateLabel() + "   ·   " + benches[i].Url;
             if (npsOverviewStatus != null) npsOverviewStatus.Text = "状态：" + (Nps.IsRunning() ? "运行中（外网已开）" : "已停止（外网已关）") + "   ·   " + Nps.ConfigSummary();
-            if (wbTabs != null)
+            // 各工作台子 tab 的状态标签：直接按字典更新，避免嵌套 Panel 里遍历不到
+            foreach (var b in benches)
             {
-                foreach (TabPage page in wbTabs.TabPages)
-                {
-                    foreach (Control c in page.Controls)
-                    {
-                        Label st = c as Label;
-                        if (st != null && st.Name == "cardStatus") st.Text = "状态：" + StateOfTab(page);
-                    }
-                }
+                Label st;
+                if (cardStatus.TryGetValue(b.Name, out st)) st.Text = "状态：" + b.StateLabel();
             }
             if (npsStatusLabel != null) npsStatusLabel.Text = "状态：" + (Nps.IsRunning() ? "运行中（外网已开）" : "已停止（外网已关）");
             UpdateTrayIcon(AnyRunning());
         }
 
-        private string StateOfTab(TabPage page)
-        {
-            foreach (Workbench b in benches) if (b.Name == page.Text) return b.StateLabel();
-            return "未知";
-        }
-
-        private void CopyLink(string url)
+        private void CopyLink(Workbench b, string url)
         {
             try
             {
                 Clipboard.SetText(url);
                 if (statusLabel != null) statusLabel.Text = "已复制链接：" + url;
                 Tool.Log("已复制链接：" + url);
+                if (b != null) AppendLog(b, "已复制链接：" + url + "\r\n");
             }
             catch (Exception ex)
             {
                 Tool.Log("复制失败：" + ex.Message);
                 if (statusLabel != null) statusLabel.Text = "复制失败";
+                if (b != null) AppendLog(b, "复制失败：" + ex.Message + "\r\n");
             }
         }
 
@@ -1406,19 +1664,6 @@ namespace StartControllers
                 if (include) targets.Add(b);
             }
             return targets;
-        }
-
-        // 强刷新：用「不同参数的 URL」重新打开浏览器，强制重新加载页面（绕过缓存），并顺带刷新状态
-        private void HardRefresh(Workbench b)
-        {
-            try
-            {
-                string url = b.Url + (b.Url.Contains("?") ? "&" : "?") + "_t=" + DateTime.Now.Ticks;
-                Process.Start(url);
-                Tool.Log(b.Name + " 强刷新（打开新参数 URL）：" + url);
-            }
-            catch (Exception ex) { Tool.Log(b.Name + " 强刷新失败：" + ex.Message); }
-            try { RefreshAllTabs(); } catch { }
         }
 
         // 让两个"一键开关控制"勾选框双向同步，避免循环触发
@@ -1544,6 +1789,10 @@ namespace StartControllers
                 }
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(false);
+                // 全局异常捕获：写入日志，避免未处理异常弹窗打断
+                Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+                Application.ThreadException += (s, e) => { try { Tool.Log("未处理异常：" + (e.Exception != null ? e.Exception.ToString() : "")); } catch { } };
+                AppDomain.CurrentDomain.UnhandledException += (s, e) => { try { Tool.Log("AppDomain 异常：" + (e.ExceptionObject != null ? e.ExceptionObject.ToString() : "")); } catch { } };
                 Application.Run(new MainForm());
             }
         }
@@ -1589,6 +1838,50 @@ namespace StartControllers
             btnTray.NormalColor = Color.FromArgb(240, 242, 246); btnTray.HoverColor = Color.FromArgb(221, 226, 233); btnTray.ForeColor = Color.FromArgb(58, 68, 88);
             btnTray.Click += (s, e) => { CloseApp = false; DialogResult = DialogResult.OK; };
             Controls.Add(btnTray);
+        }
+    }
+
+    // 新增工作台对话框：填写 name/profile/port/desc
+    public class AddWorkbenchDialog : Form
+    {
+        public string WbName, WbProfile, WbPort, WbDesc;
+        private TextBox tbName, tbProfile, tbPort, tbDesc;
+        public AddWorkbenchDialog(string defaultPort)
+        {
+            Text = "新增工作台"; FormBorderStyle = FormBorderStyle.FixedDialog;
+            StartPosition = FormStartPosition.CenterParent; MaximizeBox = false; MinimizeBox = false;
+            ClientSize = new Size(440, 280); BackColor = Color.White;
+
+            int y = 24;
+            tbName = AddField("名称", y); y += 42;
+            tbProfile = AddField("profile", y); y += 42;
+            tbPort = AddField("端口", y); tbPort.Text = defaultPort; y += 42;
+            tbDesc = AddField("描述", y); y += 42;
+
+            RoundedButton ok = new RoundedButton();
+            ok.Text = "确定"; ok.Width = 110; ok.Height = 42;
+            ok.Location = new Point(190, y + 4);
+            ok.NormalColor = Color.FromArgb(50, 90, 250); ok.HoverColor = Color.FromArgb(70, 110, 255); ok.ForeColor = Color.White;
+            ok.Click += (s, e) =>
+            {
+                WbName = tbName.Text.Trim(); WbProfile = tbProfile.Text.Trim(); WbPort = tbPort.Text.Trim(); WbDesc = tbDesc.Text.Trim();
+                if (WbName == "" || WbProfile == "" || WbPort == "") { MessageBox.Show("名称 / profile / 端口 必填"); return; }
+                DialogResult = DialogResult.OK;
+            };
+            Controls.Add(ok);
+
+            RoundedButton cancel = new RoundedButton();
+            cancel.Text = "取消"; cancel.Width = 110; cancel.Height = 42; cancel.Location = new Point(310, y + 4);
+            cancel.NormalColor = Color.FromArgb(240, 242, 246); cancel.HoverColor = Color.FromArgb(221, 226, 233); cancel.ForeColor = Color.FromArgb(58, 68, 88);
+            cancel.Click += (s, e) => { DialogResult = DialogResult.Cancel; };
+            Controls.Add(cancel);
+        }
+        private TextBox AddField(string label, int y)
+        {
+            Label l = new Label(); l.Text = label; l.AutoSize = true; l.Font = new Font("Microsoft YaHei", 12F);
+            l.ForeColor = Color.FromArgb(40, 50, 75); l.Location = new Point(24, y); Controls.Add(l);
+            TextBox tb = new TextBox(); tb.Font = new Font("Microsoft YaHei", 12F); tb.Width = 270; tb.Left = 130; tb.Top = y - 2; Controls.Add(tb);
+            return tb;
         }
     }
 }

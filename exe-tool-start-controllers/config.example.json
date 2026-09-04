@@ -1,1 +1,15 @@
-﻿{"Paths":{"NodeExe":"","EngineHome":"","BinJs":"","WorkDir":"","DshHome":"","NpcDir":""},"Workbenches":[{"Name":"工作台 1 · Web","Profile":"web","Port":"49982","Desc":"主工作台","Args":"{binJs} web --port {port} --no-open","Enabled":true}],"Nps":{"Enabled":true}}
+{
+  "paths": {
+    "nodeExe": "",
+    "engineHome": "",
+    "binJs": "",
+    "workDir": "",
+    "dshHome": "",
+    "npcDir": ""
+  },
+  "workbenches": [
+    { "name": "工作台 1 · Web", "profile": "web", "port": "49982", "desc": "主工作台", "args": "{binJs} web --port {port} --no-open", "enabled": true, "participate": true }
+  ],
+  "nps": { "enabled": true, "participate": true },
+  "ui": { "realtimeMonitor": false }
+}
