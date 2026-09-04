@@ -5,15 +5,32 @@ window.__ModuleLoader__.load({
 		var exports = module.exports;
 		Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
 
+		// React for the「声音管理」设置页（渲染到系统包的 sound-manage 子 slot）。
+		var react = require("react");
+		var react_jsx_runtime = require("react/jsx-runtime");
+
+		// 注入设置卡样式（幂等），类名与 cheeco-style 共用但样式由本插件自注入，不依赖其安装。
+		(function () {
+			if (typeof document === "undefined" || document.querySelector('style[data-plugin="dsh-client-ui-message-sound"]')) return;
+			var css = ".dsh-web-ui-cheeco-style-section{box-sizing:border-box;background:var(--dsw-alias-bg-layer-2,#fff);border:1px solid var(--dsw-alias-border-l1,#e5e5e5);border-radius:12px;padding:16px 18px;box-shadow:0 1px 2px rgba(0,0,0,.04);}"
+				+ ".dsh-web-ui-cheeco-style-section h3{margin:0 0 10px;font-size:16px;font-weight:600;color:var(--dsw-alias-label-primary,#1a1a1a);}"
+				+ ".dsh-web-ui-cheeco-style-state{margin:0 0 10px;font-size:13px;line-height:20px;color:var(--dsw-alias-label-secondary,#666);}"
+				+ ".dsh-web-ui-cheeco-style-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:4px;}"
+				+ ".dsh-web-ui-cheeco-style-action{box-sizing:border-box;cursor:pointer;border:1px solid var(--dsw-alias-border-l2,#d9d9d9);background:var(--dsw-alias-bg-layer-3,#fff);color:var(--dsw-alias-label-primary,#1a1a1a);font-family:inherit;font-size:13px;line-height:20px;border-radius:8px;padding:6px 14px;transition:background .15s,border-color .15s,box-shadow .15s;}"
+				+ ".dsh-web-ui-cheeco-style-action:hover{background:var(--dsw-alias-interactive-bg-hover,#f5f5f5);border-color:var(--dsw-alias-state-business-primary,#3498db);}";
+			var tag = document.createElement("style");
+			tag.dataset.plugin = "dsh-client-ui-message-sound";
+			tag.textContent = css;
+			document.head.appendChild(tag);
+		})();
+
 		//#region message-sound config
 		/**
-		* Sound settings come from the shared config file served by the host plugin
-		* `dsh-web-ui-cheeco-style` (GET /cheeco-style/config): the on/off flag plus
-		* the chosen sound (served from /cheeco-style/assets/<file>). They are read
-		* into `cfg` on load and refreshed whenever `cheeco-config-change` fires.
-		* Nothing lives in localStorage anymore.
+		* Sound settings live in the DSH系统包 config file (GET /dsh-system/config):
+		* the on/off flag and chosen sound under the nested `sound` object.
+		* (Moved off cheeco-style, which is deprecated/removed.)
 		*/
-		var CFG_ENDPOINT = "/cheeco-style/config";
+		var CFG_ENDPOINT = "/dsh-system/config";
 		var CFG_CHANGE_EVENT = "cheeco-config-change";
 		/** In-memory config: enabled flag + custom sound URL ("" = use the chime). */
 		var cfg = { soundEnabled: true, soundSrc: "" };
@@ -23,8 +40,9 @@ window.__ModuleLoader__.load({
 				fetch(CFG_ENDPOINT, { cache: "no-store" })
 					.then(function (r) { return r.ok ? r.json() : {}; })
 					.then(function (d) {
-						cfg.soundEnabled = d && d.soundEnabled !== false;
-						cfg.soundSrc = d && typeof d.soundSrc === "string" ? d.soundSrc : "";
+						var s = (d && typeof d.sound === "object" && d.sound) ? d.sound : {};
+						cfg.soundEnabled = s.enabled !== false;
+						cfg.soundSrc = typeof s.src === "string" ? s.src : "";
 						log("config loaded:", cfg);
 					})
 					.catch(function (e) { log("config fetch error:", e); });
@@ -182,7 +200,126 @@ window.__ModuleLoader__.load({
 			for (var i = 0; i < all.length; i++) watchTurnTail(all[i]);
 		}
 
-		function apply() {
+		//#region 「声音管理」设置页（与播放共享同一份 DSH系统包配置）
+		var ASSETS_ENDPOINT = "/dsh-system/assets";
+		function uploadSound(file) {
+			return fetch(ASSETS_ENDPOINT + "?name=" + encodeURIComponent(file.name), {
+				method: "POST",
+				headers: { "content-type": file.type || "application/octet-stream" },
+				body: file
+			}).then(function (r) { return r.json(); }).then(function (d) {
+				return d && d.ok && d.url ? d.url : "";
+			}).catch(function () { return ""; });
+		}
+		function readSoundConfig() {
+			return fetch(CFG_ENDPOINT, { cache: "no-store" }).then(function (r) { return r.ok ? r.json() : {}; }).catch(function () { return {}; });
+		}
+		function writeSoundConfig(patch) {
+			return readSoundConfig().then(function (cur) {
+				var curSound = (cur && typeof cur.sound === "object" && cur.sound) ? cur.sound : {};
+				return fetch(CFG_ENDPOINT, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(Object.assign({}, cur, { sound: Object.assign({}, curSound, patch) })) });
+			}).then(function () {
+				// 通知播放端刷新（本插件监听 cheeco-config-change）。设置改完即时生效。
+				try { window.dispatchEvent(new Event(CFG_CHANGE_EVENT)); } catch (e) {}
+			}).catch(function () {});
+		}
+		function SoundManageTab() {
+			var onPair = react.useState(true);
+			var soundPair = react.useState("默认提示音(叮咚)");
+			var srcPair = react.useState("");
+			var fileRef = react.useRef(null);
+			react.useEffect(function () {
+				var cancelled = false;
+				readSoundConfig().then(function (cfg) {
+					if (cancelled) return;
+					var s = (cfg && typeof cfg.sound === "object" && cfg.sound) ? cfg.sound : {};
+					onPair[1](s.enabled !== false);
+					soundPair[1](s.name || "默认提示音(叮咚)");
+					srcPair[1](s.src || "");
+				});
+				return function () { cancelled = true; };
+			}, []);
+			function toggle() {
+				var next = !onPair[0];
+				onPair[1](next);
+				writeSoundConfig({ enabled: next });
+			}
+			function choose() { if (fileRef.current) fileRef.current.click(); }
+			function onFile(e) {
+				var f = e.target.files && e.target.files[0];
+				if (!f) return;
+				uploadSound(f).then(function (url) {
+					if (url) { soundPair[1](f.name); srcPair[1](url); writeSoundConfig({ src: url, name: f.name }); }
+				});
+				e.target.value = "";
+			}
+			function reset() {
+				soundPair[1]("默认提示音(叮咚)"); srcPair[1]("");
+				writeSoundConfig({ src: "", name: "" });
+			}
+			function preview() {
+				if (!onPair[0]) { alert("声音已关闭，请先开启声音"); return; }
+				if (srcPair[0]) {
+					try {
+						var a = new Audio(srcPair[0]);
+						a.volume = 0.6;
+						var p = a.play();
+						if (p && p.catch) p.catch(function () {});
+						return;
+					} catch (e) {}
+				}
+				try {
+					var Ctx = window.AudioContext || window.webkitAudioContext;
+					if (!Ctx) return;
+					var actx = new Ctx();
+					if (actx.state === "suspended" && actx.resume) actx.resume();
+					function tone(freq, off, dur) {
+						var osc = actx.createOscillator(), g = actx.createGain(), t0 = actx.currentTime + off;
+						osc.type = "sine"; osc.frequency.setValueAtTime(freq, t0);
+						g.gain.setValueAtTime(0.0001, t0);
+						g.gain.exponentialRampToValueAtTime(0.6, t0 + 0.02);
+						g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+						osc.connect(g); g.connect(actx.destination);
+						osc.start(t0); osc.stop(t0 + dur + 0.05);
+					}
+					tone(880, 0, 0.18); tone(1318.5, 0.12, 0.30);
+					setTimeout(function () { try { actx.close(); } catch (e) {} }, 700);
+				} catch (e) {}
+			}
+			return react_jsx_runtime.jsx("div", {
+				className: "dsh-web-ui-cheeco-style-section",
+				children: [
+					react_jsx_runtime.jsx("h3", { children: "声音提示音" }),
+					react_jsx_runtime.jsx("p", { className: "dsh-web-ui-cheeco-style-state", children: onPair[0] ? "已开启：AI 回复结束时播放提示音。" : "已关闭：AI 回复时不再播放提示音。" }),
+					react_jsx_runtime.jsx("p", { className: "dsh-web-ui-cheeco-style-state", children: "当前声音：" + soundPair[0] }),
+					react_jsx_runtime.jsx("div", { className: "dsh-web-ui-cheeco-style-actions", children: [
+						react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: toggle, children: onPair[0] ? "关闭声音" : "开启声音" }),
+						react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: choose, children: "选择声音文件" }),
+						react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: preview, children: "试听" }),
+						react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: reset, children: "恢复默认" })
+					] }),
+					react_jsx_runtime.jsx("input", { type: "file", accept: "audio/*", ref: fileRef, style: { display: "none" }, onChange: onFile })
+				]
+			});
+		}
+		//#endregion
+
+		function Apply(ctx) {
+			// 「声音管理」设置页：融合进本插件，注册到 DSH系统包（dsh-web-ui-SystemPackagePanel）
+			// 预留的「声音管理」子 slot（由系统包内页「声音管理」tab 通过 renderSlot 渲染）。
+			// 设置数据读/写 /cheeco-style/config 的 soundEnabled/soundSrc，自定义声音文件上传到
+			// /cheeco-style/assets —— 与下方播放逻辑共享同一套配置，因此两者天然一体。
+			try {
+				ctx.slots.inject("dsh-system-package.sound-manage", function () {
+					return ctx.slots.register({
+						name: "dsh-system-package.sound-manage",
+						id: "sound-manage",
+						order: 10
+					}, SoundManageTab);
+				});
+			} catch (e) { log("slot inject error:", e); }
+
+			// 播放逻辑（原 apply 内容，window/document 驱动，与 ctx 无关）。
 			if (mainObserver) return;
 			// The plugin can be instantiated more than once; keep a single observer.
 			if (window.__dshMsgSoundInstalled) return;
@@ -226,8 +363,8 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 
-		exports.apply = apply;
-		exports.inject = [];
+		exports.apply = Apply;
+		exports.inject = ["slots", "locale"];
 		return module.exports;
 	}
 });

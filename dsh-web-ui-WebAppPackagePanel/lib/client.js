@@ -121,11 +121,13 @@ window.__ModuleLoader__.load({
       });
     }
 
-    /** 内页：tab 结构，仅有「功能表」「面版管理」两个 tab。 */
+    /** 内页：tab 结构，「功能表」「用户中心」「面版管理」三个 tab。
+     *  「用户中心」由原 @cheeco/dsh-web-ui-web_user_center 迁移而来（内容为维护中占位卡）。 */
     function Section() {
       const [tab, setTab] = react.useState("functions");
       const tabs = [
         { id: "functions", label: "功能表" },
+        { id: "user-center", label: "用户中心" },
         { id: "panel", label: "面版管理" }
       ];
       const tabBtn = (key, label) => react_jsx_runtime.jsx("button", {
@@ -153,6 +155,9 @@ window.__ModuleLoader__.load({
       });
       let content = null;
       if (tab === "functions") {
+        content = react_jsx_runtime.jsx(MaintenanceCard, {});
+      } else if (tab === "user-center") {
+        // 「用户中心」由原用户中心插件迁移而来，内容为维护中占位卡（原 addPage blocks 的 text）。
         content = react_jsx_runtime.jsx(MaintenanceCard, {});
       } else {
         content = react_jsx_runtime.jsx(RenameCard, {});

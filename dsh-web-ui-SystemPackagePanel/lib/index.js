@@ -13,9 +13,45 @@ import { createRequire } from "node:module";
 
 /** 浏览器端 fetch 的宿主路由（同源，由我们的 webServer 提供）。 */
 const CONFIG_PATH = "/dsh-system/config";
+/** 资源路由前缀：上传/读取自定义提示音文件、品牌 Logo 图片。 */
+const ASSETS_PREFIX = "/dsh-system/assets";
 
 /** `node_modules/@cheeco` —— 本插件目录的上级。 */
 const CHEECO_DIR = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
+
+/** 本插件资源目录：<@cheeco>/dsh-web-ui-SystemPackagePanel/assets */
+function resolveAssetsDir() {
+	const here = dirname(fileURLToPath(import.meta.url));
+	const root = dirname(here);
+	return join(root, "assets");
+}
+
+/** 仅保留安全文件名字符，杜绝路径穿越。 */
+function sanitizeName(name) {
+	const base = name.split(/[\\/]/).pop() || "";
+	const cleaned = base.replace(/[^a-zA-Z0-9._-]/g, "_").replace(/^\.+/, "");
+	return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}_${cleaned}`;
+}
+/** 按扩展名猜 content-type（图片 + 常见音频）。 */
+function contentTypeOf(name) {
+	const ext = (name.split(/[\\/]/).pop() || "").slice((name.split(/[\\/]/).pop() || "").lastIndexOf(".")).toLowerCase();
+	const map = {
+		".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+		".gif": "image/gif", ".webp": "image/webp", ".svg": "image/svg+xml", ".ico": "image/x-icon",
+		".wav": "audio/wav", ".mp3": "audio/mpeg", ".ogg": "audio/ogg", ".oga": "audio/ogg",
+		".m4a": "audio/mp4", ".aac": "audio/aac", ".webm": "audio/webm", ".flac": "audio/flac", ".caf": "audio/x-caf"
+	};
+	return map[ext] || "application/octet-stream";
+}
+/** 读取完整请求体为 Buffer（供二进制上传）。 */
+function readBodyBuffer(req) {
+	return new Promise((resolve, reject) => {
+		const chunks = [];
+		req.on("data", (chunk) => { chunks.push(chunk); });
+		req.on("end", () => resolve(Buffer.concat(chunks)));
+		req.on("error", reject);
+	});
+}
 
 /** 配置文件名：按用户要求新建，不沿用 cheeco-config.json。 */
 const CONFIG_FILENAME = "DSH-System-config.json";
@@ -65,10 +101,16 @@ function stripJsonComments(text) {
 function renderConfigFile(v) {
 	const s = (x) => JSON.stringify(x ?? "");
 	const dsh = (typeof v.dsh === "object" && v.dsh) ? v.dsh : {};
+	const sound = (typeof v.sound === "object" && v.sound) ? v.sound : {};
+	const brand = (typeof v.brand === "object" && v.brand) ? v.brand : {};
 	return [
 		"{",
 		"  // 该设置页（DSH系统包）在侧边栏的名字；留空用默认「DSH系统包」",
 		`  "label": ${s(v.label)},`,
+		"  // 提示音配置（message-sound 插件读写：开关 / 自定义声音文件）",
+		`  "sound": { "enabled": ${sound.enabled !== false}, "src": ${s(sound.src)}, "name": ${s(sound.name)} },`,
+		"  // 品牌配置（BrandPanel 插件读写：顶部名称 / Logo）",
+		`  "brand": { "title": ${s(brand.title)}, "logoUrl": ${s(brand.logoUrl)}, "logoData": ${s(brand.logoData)} },`,
 		"  // DSH 信息（宿主自动维护：当前工作台名 / DSH_HOME / 插件与 dsh 版本；用于识别与排查）",
 		`  "dsh": { "profileName": ${s(dsh.profileName)}, "dshHome": ${s(dsh.dshHome)}, "pluginVersion": ${s(dsh.pluginVersion)}, "dshVersion": ${s(dsh.dshVersion)} }`,
 		"}"
@@ -76,7 +118,7 @@ function renderConfigFile(v) {
 }
 
 /** 与 package.json 同步，供 config 记录产生它的插件版本。 */
-const PLUGIN_VERSION = "0.1.1";
+const PLUGIN_VERSION = "0.1.6";
 
 /** 解析 dsh CLI 包版本（来自 @deepseek-ai/dsh/package.json）。 */
 function dshVersion() {
@@ -91,6 +133,8 @@ function ensureConfigMetadata(configFile) {
 	if (existsSync(configFile)) return;
 	const value = {
 		label: "",
+		sound: { enabled: true, src: "", name: "" },
+		brand: { title: "", logoUrl: "", logoData: "" },
 		dsh: {
 			profileName: resolveProfileName(),
 			dshHome: process.env.DSH_HOME || "",
@@ -108,9 +152,11 @@ export default class DshWebUiSystemPackagePanel {
 
 	constructor(ctx, config) {
 		const configFile = resolveConfigFile();
+		const assetsDir = resolveAssetsDir();
 		ensureConfigMetadata(configFile);
 		ctx.effect(() => {
-			const dispose = ctx.webServer.register({
+			const disposers = [];
+			disposers.push(ctx.webServer.register({
 				kind: "exact",
 				path: CONFIG_PATH,
 				handler: (req, res) => {
@@ -118,9 +164,18 @@ export default class DshWebUiSystemPackagePanel {
 						this.fail(ctx, res, err);
 					});
 				}
-			});
-			return () => dispose();
-		}, "dsh-system-package: config route");
+			}));
+			disposers.push(ctx.webServer.register({
+				kind: "prefix",
+				path: ASSETS_PREFIX,
+				handler: (req, res) => {
+					this.handleAssets(ctx, assetsDir, req, res).catch((err) => {
+						this.fail(ctx, res, err);
+					});
+				}
+			}));
+			return () => disposers.forEach((d) => d());
+		}, "dsh-system-package: config + assets routes");
 	}
 
 	fail(ctx, res, err) {
@@ -166,6 +221,42 @@ export default class DshWebUiSystemPackagePanel {
 			mkdirSync(dirname(configFile), { recursive: true });
 			writeFileSync(configFile, renderConfigFile(data), "utf8");
 			json(200, { ok: true });
+			return;
+		}
+		res.writeHead(405);
+		res.end();
+	}
+
+	/** 资源路由：POST 上传（提示音/logo 图片）、GET/HEAD 读取。 */
+	async handleAssets(ctx, assetsDir, req, res) {
+		if (req.method === "POST") {
+			const url = new URL(req.url ?? "/", "http://x");
+			const original = url.searchParams.get("name") || "asset";
+			const stored = sanitizeName(original);
+			const data = await readBodyBuffer(req);
+			if (data.length === 0) {
+				res.writeHead(400, { "content-type": "application/json; charset=utf-8" });
+				res.end(JSON.stringify({ ok: false, error: "empty upload" }));
+				return;
+			}
+			mkdirSync(assetsDir, { recursive: true });
+			writeFileSync(join(assetsDir, stored), data);
+			res.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+			res.end(JSON.stringify({ ok: true, url: `${ASSETS_PREFIX}/${encodeURIComponent(stored)}` }));
+			return;
+		}
+		if (req.method === "GET" || req.method === "HEAD") {
+			const pathname = decodeURIComponent(new URL(req.url ?? "/", "http://x").pathname);
+			const file = pathname.slice(ASSETS_PREFIX.length).replace(/^\/+/, "").split(/[\\/]/).pop() || "";
+			if (file === "") { res.writeHead(404); res.end(); return; }
+			try {
+				const body = readFileSync(join(assetsDir, file));
+				res.writeHead(200, { "content-type": contentTypeOf(file), "cache-control": "no-store" });
+				res.end(body);
+			} catch (e) {
+				res.writeHead(404);
+				res.end();
+			}
 			return;
 		}
 		res.writeHead(405);

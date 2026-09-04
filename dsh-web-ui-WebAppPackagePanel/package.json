@@ -1,6 +1,6 @@
 {
   "name": "@cheeco/dsh-web-ui-WebAppPackagePanel",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "服务商应用包：设置侧边栏新增槽位，内页含「功能表」（占位维护中）与「面版管理」（面版改名）两个 tab。配置文件为 DSH-WebApp-config.json（置于 @cheeco/setting 下），不使用 cheeco-config.json。",
   "license": "MIT",
   "keywords": ["dsh", "deepseek-harness", "dsh-plugin", "cheeco", "webapp-package", "settings-section"],

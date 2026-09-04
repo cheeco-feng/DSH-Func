@@ -93,10 +93,10 @@ function writePanelConfig(cfg) {
  *  注：「功能推荐」页已独立为 @cheeco/dsh-client-ui-plugin-push，并移至 DSH插件包
  *  （dsh-web-ui-PluginPackagePanel）侧边栏内（经其 dsh-plugin-package.features 子 slot）；
  *  「插件管理」页同样已移出，改为由 @cheeco/dsh-client-ui-plugin-manager 经其
- *  dsh-plugin-package.plugin-manager 子 slot 寄宿。故两者均不再作为 cheeco-style 的内置页。 */
+ *  dsh-plugin-package.plugin-manager 子 slot 寄宿。故两者均不再作为 cheeco-style 的内置页。
+ *  另：「功能管理」页已迁至 DSH功能包（dsh-web-ui-FuncPackagePanel）内页，此处也不再保留。 */
 const BASE_PANEL_PAGES = [
-	{ id: "panel", label: "面版修改", page: "cheeco-internal", blocks: [] },
-	{ id: "manage", label: "功能管理", page: "cheeco-internal", blocks: [] }
+	{ id: "panel", label: "面版修改", page: "cheeco-internal", blocks: [] }
 ];
 
 /** 面板配置自同步：扫描所有已装 cheeco 插件的 `dsh.cheecoPanel` 声明，重建 `panel-config.json`。
@@ -222,7 +222,7 @@ function renderConfigFile(v) {
 		`  "brandLogoUrl": ${s(v.brandLogoUrl)},`,
 		"  // 兼容用的旧版本地图片 base64（新版本不再写入，恒为空字符串）",
 		`  "brandLogoData": ${s(v.brandLogoData)},`,
-		"  // 侧边栏设置页的名字；留空用默认「Cheeco的小功能」",
+		"  // 保留字段（侧边栏已取消，不影响任何功能）；默认「DSH功能套装」",
 		`  "label": ${s(v.label)},`,
 		"  // AI 回复结束时是否响一声提示音（true/false）",
 		`  "soundEnabled": ${v.soundEnabled === false ? "false" : "true"},`,
@@ -239,7 +239,7 @@ function renderConfigFile(v) {
 }
 
 /** In sync with package.json so the config records which plugin version produced it. */
-const PLUGIN_VERSION = "0.8.20";
+const PLUGIN_VERSION = "0.8.26";
 /** Resolve the dsh CLI package version (from @deepseek-ai/dsh/package.json). */
 function dshVersion() {
 	try {

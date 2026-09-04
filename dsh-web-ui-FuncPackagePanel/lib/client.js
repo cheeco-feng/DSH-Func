@@ -31,7 +31,11 @@ window.__ModuleLoader__.load({
         + ".dsh-func-action:hover{background:var(--dsw-alias-interactive-bg-hover,#f5f5f5);border-color:var(--dsw-alias-state-business-primary,#3498db);}"
         + ".dsh-func-action:active{background:var(--dsw-alias-interactive-bg-active,#ececec);}"
         + ".dsh-func-actions input{box-sizing:border-box;flex:1;min-width:180px;border:1px solid var(--dsw-alias-border-l2,#d9d9d9);border-radius:8px;padding:6px 12px;font-family:inherit;font-size:13px;line-height:20px;color:var(--dsw-alias-label-primary,#1a1a1a);background:var(--dsw-alias-bg-base,#fff);outline:none;}"
-        + ".dsh-func-actions input:focus{border-color:var(--dsw-alias-state-business-primary,#3498db);box-shadow:0 0 0 2px rgba(52,152,219,.15);}";
+        + ".dsh-func-actions input:focus{border-color:var(--dsw-alias-state-business-primary,#3498db);box-shadow:0 0 0 2px rgba(52,152,219,.15);}"
+        + ".dsw-switch{appearance:none;-webkit-appearance:none;width:40px;height:22px;border-radius:11px;border:1px solid var(--dsw-alias-border-l2,#d9d9d9);background:var(--dsw-alias-bg-layer-3,#d3d3d3);position:relative;cursor:pointer;transition:background .15s,border-color .15s;flex:none;margin:0;vertical-align:middle;}"
+        + ".dsw-switch::before{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:left .15s;box-shadow:0 1px 2px rgba(0,0,0,.25);}"
+        + ".dsw-switch:checked{background:var(--dsw-alias-state-business-primary,#3498db);border-color:var(--dsw-alias-state-business-primary,#3498db);}"
+        + ".dsw-switch:checked::before{left:20px;}";
       var tag = document.createElement("style");
       tag.dataset.plugin = "dsh-web-ui-func-package";
       tag.textContent = css;
@@ -49,8 +53,9 @@ window.__ModuleLoader__.load({
     const CONFIG_ENDPOINT = "/dsh-func/config";
 
     /** 文件配置的内存缓存（浏览器端唯一真源），GET 载入、POST 持久化。
-     *  与 cheeco-style 一致：仅读/写文件配置，改名靠重启后重新读取生效。 */
-    let config = { label: "", dsh: {} };
+     *  与 cheeco-style 一致：仅读/写文件配置，改名靠重启后重新读取生效。
+     *  注：config 里可能含其它插件写入的字段（features 等），必须全量保存回传。 */
+    let config = { label: "", dsh: {}, features: { sessionSearch: true, dshCommand: true } };
     let configLoad = null;
     function loadConfig() {
       if (configLoad) return configLoad;
@@ -61,7 +66,8 @@ window.__ModuleLoader__.load({
             const data = (await res.json()) || {};
             config = {
               label: typeof data.label === "string" ? data.label : "",
-              dsh: (typeof data.dsh === "object" && data.dsh) ? data.dsh : {}
+              dsh: (typeof data.dsh === "object" && data.dsh) ? data.dsh : {},
+              features: (typeof data.features === "object" && data.features) ? data.features : { sessionSearch: true, dshCommand: true }
             };
           }
         } catch (e) {}
@@ -89,6 +95,54 @@ window.__ModuleLoader__.load({
           children: "当前页面 正在维护中"
         })
       });
+    }
+
+    /** 「功能管理」功能开关：会话搜索 / DSH功能命令。
+     *  由原 Cheeco的小功能 的「功能管理」内置页迁移而来。开关读写本插件(DSH功能包)自己
+     *  DSH-Func-config.json 的 features 字段（控制对应功能插件的显隐），切换后重启生效。 */
+    function FeatureManageCard() {
+      const [features, setFeatures] = react.useState({ sessionSearch: true, dshCommand: true });
+      react.useEffect(() => {
+        let cancelled = false;
+        (async () => {
+          try {
+            const res = await fetch("/dsh-func/config", { cache: "no-store" });
+            if (res.ok) {
+              const d = await res.json();
+              if (!cancelled) setFeatures({
+                sessionSearch: !(d.features && d.features.sessionSearch === false),
+                dshCommand: !(d.features && d.features.dshCommand === false)
+              });
+            }
+          } catch (e) {}
+        })();
+        return () => { cancelled = true; };
+      }, []);
+      const toggleFeature = async (key, val) => {
+        const next = { ...features, [key]: val };
+        setFeatures(next);
+        try {
+          const res = await fetch("/dsh-func/config", { cache: "no-store" });
+          let cfg = {};
+          if (res.ok) { try { cfg = await res.json(); } catch (e) {} }
+          await fetch("/dsh-func/config", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ ...cfg, features: next })
+          });
+        } catch (e) {}
+      };
+      return react_jsx_runtime.jsx("div", { className: "dsh-func-card", children: [
+        react_jsx_runtime.jsx("p", { className: "dsh-func-state", children: "功能开关（切换后重启生效）" }),
+        react_jsx_runtime.jsx("label", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 0" }, children: [
+          react_jsx_runtime.jsx("span", { children: "会话搜索功能（隐藏/显示）" }),
+          react_jsx_runtime.jsx("input", { type: "checkbox", className: "dsw-switch", checked: features.sessionSearch, onChange: (e) => toggleFeature("sessionSearch", e.target.checked) })
+        ] }),
+        react_jsx_runtime.jsx("label", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 0" }, children: [
+          react_jsx_runtime.jsx("span", { children: "DSH功能命令（停用/开启）" }),
+          react_jsx_runtime.jsx("input", { type: "checkbox", className: "dsw-switch", checked: features.dshCommand, onChange: (e) => toggleFeature("dshCommand", e.target.checked) })
+        ] })
+      ] });
     }
 
     /** 「面版改名」卡片：修改该设置页在侧边栏的名字。 */
@@ -121,13 +175,15 @@ window.__ModuleLoader__.load({
       });
     }
 
-    /** 内页：tab 结构，「功能表」「模型设置」「面版管理」三个 tab。
+    /** 内页：tab 结构，「功能表」「功能管理」「模型设置」「面版管理」四个 tab。
      *  「模型设置」页内容由 dsh-llm-model-settings 经子 slot `dsh-func-package.model-settings`
-     *  注入（已在 apply() 的 settings.section 注册里声明该子 slot），本页只负责渲染。 */
+     *  注入（已在 apply() 的 settings.section 注册里声明该子 slot），本页只负责渲染。
+     *  「功能管理」由原 Cheeco的小功能 内置页迁移而来（功能开关：会话搜索/DSH功能命令）。 */
     function Section({ renderSlot }) {
       const [tab, setTab] = react.useState("functions");
       const tabs = [
         { id: "functions", label: "功能表" },
+        { id: "manage", label: "功能管理" },
         { id: "model-settings", label: "模型设置" },
         { id: "panel", label: "面版管理" }
       ];
@@ -157,6 +213,9 @@ window.__ModuleLoader__.load({
       let content = null;
       if (tab === "functions") {
         content = react_jsx_runtime.jsx(MaintenanceCard, {});
+      } else if (tab === "manage") {
+        // 「功能管理」：占位卡片（内容待细化，能力后续收回各插件）。
+        content = react_jsx_runtime.jsx(FeatureManageCard, {});
       } else if (tab === "model-settings") {
         // 「模型设置」内容来自 model-settings 注入的子 slot；判空用 react.Children.toArray，
         // 否则 slot 已有声明但无 occupant 时 renderSlot 返回的"空容器"会被误判为非空。

@@ -1,6 +1,6 @@
 {
   "name": "@cheeco/dsh-web-ui-SystemPackagePanel",
-  "version": "0.1.1",
+  "version": "0.1.6",
   "description": "DSH系统包：设置侧边栏新增槽位，内页含「功能表」（占位维护中）与「面版管理」（面版改名）两个 tab。配置文件为 DSH-System-config.json（置于 @cheeco/setting 下），不使用 cheeco-config.json。",
   "license": "MIT",
   "keywords": ["dsh", "deepseek-harness", "dsh-plugin", "cheeco", "system-package", "settings-section"],

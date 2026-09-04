@@ -1,7 +1,7 @@
 {
   "name": "@cheeco/dsh-web-ui-cheeco-style",
-  "version": "0.8.20",
-  "description": "Cheeco的小功能：DSH 小功能集合（含「AI 回复提示音」开关卡片、顶部「界面标题 / Logo」自定义）。",
+  "version": "0.8.26",
+  "description": "DSH功能套装（未整理小功能）：Cheeco 设置数据底座——提供 /cheeco-style/config、/cheeco-style/assets 路由与 cheeco-config-change/cheeco-brand-change 事件，并负责顶部品牌名/Logo 显示。不显示任何侧边栏（各功能已迁到对应宿主包侧边栏）。",
   "type": "module",
   "main": "lib/index.js",
   "exports": {

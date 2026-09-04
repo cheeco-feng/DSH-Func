@@ -50,7 +50,7 @@ window.__ModuleLoader__.load({
 		/** Dictionary namespace owned by this plugin. */
 		const NS = "dsh-web-ui-cheeco-style";
 		const zh = {
-			"nav": "Cheeco的小功能"
+			"nav": "DSH功能套装"
 		};
 
 		/** Broadcast events: brand row re-render (this plugin) and a fuller
@@ -61,7 +61,7 @@ window.__ModuleLoader__.load({
 		/** Pre-filled logo URL for this instance (change or clear in the card; leave empty for the official brand). */
 		const DEFAULT_LOGO_URL = "https://yc1971.com/ico.png";
 		/** Bump this in sync with package.json version so the UI reflects the build. */
-		const PLUGIN_VERSION = "0.8.20";
+		const PLUGIN_VERSION = "0.8.26";
 
 		/** Host endpoints (same-origin, served by our own webServer):
 		 *    GET/POST /cheeco-style/config  -> read/write the config file
@@ -389,36 +389,6 @@ window.__ModuleLoader__.load({
 			] });
 		}
 
-		/** "面板改名" card: user renames the sidebar entry for this settings panel. */
-		function RenameCard() {
-			const [name, setName] = react.useState(() => config.label || "");
-			react.useEffect(() => {
-				let cancelled = false;
-				(async () => {
-					await loadConfig();
-					if (cancelled) return;
-					setName(config.label || "");
-				})();
-				return () => { cancelled = true; };
-			}, []);
-			const save = async () => {
-				const next = name.trim();
-				await saveConfig({ label: next });
-				alert("已保存「" + (next || "Cheeco的小功能") + "」；重启后生效");
-			};
-			return react_jsx_runtime.jsx("div", {
-				className: "dsh-web-ui-cheeco-style-section",
-				children: [
-					react_jsx_runtime.jsx("h3", { children: "面板改名" }),
-					react_jsx_runtime.jsx("p", { className: "dsh-web-ui-cheeco-style-state", children: "给这个设置页在侧边栏的名字改名。" }),
-					react_jsx_runtime.jsx("div", { className: "dsh-web-ui-cheeco-style-actions", children: [
-						react_jsx_runtime.jsx("input", { type: "text", value: name, placeholder: "输入面板名称", onChange: (e) => setName(e.target.value), style: { flex: "1", minWidth: "160px", padding: "6px 10px" } }),
-						react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: save, children: "保存" })
-					] })
-				]
-			});
-		}
-
 		/** 底部 footer：显示「cheeco的小功能 | 插件版本 x.y.z | 当前 Profile：xxx」。
 		 *  profile 由 plugin-manager 在 /pmgr/list 加载成功后写入 window.__dshCheecoProfile 并派发
 		 *  'dsh-cheeco-profile' 事件，这里订阅以刷新；plugin-manager 未安装/未加载时仅显示版本。 */
@@ -489,18 +459,15 @@ window.__ModuleLoader__.load({
 				},
 				children: label
 			});
-			const footer = react_jsx_runtime.jsx("div", { style: { marginTop: "30px", borderTop: "1px solid rgba(128,128,128,0.45)", paddingTop: "12px", textAlign: "center" }, children: [
-				react_jsx_runtime.jsx(SectionFooter, {})
-			] });
 			let content = null;
 			if (current) {
 				if (current.page === "cheeco-internal") {
 					// 内置页：按 id 用本插件现有组件渲染。
 					if (current.id === "panel") {
+						// 「面版修改」页的内容（声音提示音/界面标题Logo/面板改名）均已迁出：
+						// 声音->系统包「声音管理」、界面标题Logo->系统包「品牌设置」、面板改名已删。
 						content = react_jsx_runtime.jsx("div", { children: [
-							react_jsx_runtime.jsx(SoundCard, {}),
-							react_jsx_runtime.jsx(BrandCard, {}),
-							react_jsx_runtime.jsx(RenameCard, {})
+							react_jsx_runtime.jsx("p", { className: "dsh-web-ui-cheeco-style-state", children: "功能已迁移，本页维护中。" })
 						] });
 					} else if (current.id === "manage") {
 						content = react_jsx_runtime.jsx("div", { children: [
@@ -541,8 +508,7 @@ window.__ModuleLoader__.load({
 			}
 			return react_jsx_runtime.jsx("div", { className: "dsh-web-ui-cheeco-style", children: [
 				react_jsx_runtime.jsx("div", { style: { display: "flex", gap: "8px", borderBottom: "1px solid rgba(128,128,128,0.3)", marginBottom: "14px", overflowX: "auto", whiteSpace: "nowrap", WebkitOverflowScrolling: "touch", scrollbarWidth: "thin" }, children: pages.map((p) => tabBtn(p.id, p.label)) }),
-				content,
-				footer
+				content
 			] });
 		}
 
@@ -554,47 +520,11 @@ window.__ModuleLoader__.load({
 			const t = ctx.locale.bind(NS);
 			ctx.effect(() => ctx.locale.register(NS, { zh, en: zh }), "dsh-web-ui-cheeco-style: dictionaries");
 
-			// 基础子 slot：功能推荐 / 插件管理两个内置 tab 用到，始终存在。
-			const baseChildren = {
-				"cheeco-style.plugin-manager": { kind: "single", scope: "root" },
-				"cheeco-style.features": { kind: "single", scope: "root" }
-			};
-
-			// 注册 settings.section 的唯一 occupant。children 用注入的完整子 slot 表。
-			const registerSection = (children) => {
-				ctx.slots.inject("settings.section", () => ctx.slots.register({
-					name: "settings.section",
-					id: "cheeco-style",
-					order: -1,
-					label: () => config.label || t("nav"),
-					locale: NS,
-					// 声明「功能推荐/插件管理/各插件自有组件页」用到的子 slot，否则 settings.section
-					// 不会把 renderSlot 能力传给 Section，导致 renderSlot(...) === undefined。
-					children
-				}, Section));
-			};
-
-			// 面板子 slot 全部来自 /cheeco-style/panel-config（由宿主端 syncPanelConfig 汇总各插件
-			// dsh.cheecoPanel.addPage 声明生成）。这里从 panel-config 读出所有 page，为每个「插件页」
-			// (page != cheeco-internal) 动态生成一个 cheeco-style.page.<id> 子 slot 声明。
-			// 因此新增任何插件 tab 页都无需再改本文件 —— cheeco-style 只做面板框架，不绑定具体插件。
-			// DSH 要求子 slot 必须先声明、且一旦注册便不能追加，所以 settings.section 的唯一注册
-			// 放在拿到完整 children 之后进行（异步），避免二次注册 single slot 的冲突。
-			const registerWithPanel = () => {
-				fetch("/cheeco-style/panel-config", { cache: "no-store" })
-					.then((r) => (r.ok ? r.json() : {}))
-					.then((data) => {
-						const extra = {};
-						for (const p of (Array.isArray(data && data.pages) ? data.pages : [])) {
-							if (p && p.page && p.page !== "cheeco-internal") {
-								extra["cheeco-style.page." + p.id] = { kind: "single", scope: "root" };
-							}
-						}
-						registerSection({ ...baseChildren, ...extra });
-					})
-					.catch(() => registerSection(baseChildren));
-			};
-			registerWithPanel();
+			// 「Cheeco的小功能」侧边栏已取消：不再注册 settings.section（侧边栏入口消失）。
+			// 本插件仅保留数据源能力：/cheeco-style/config、/cheeco-style/assets（host 提供）、
+			// cheeco-config-change / cheeco-brand-change 事件，以及下方顶部品牌(sidebar.brand)显示。
+			// 各功能(声音管理/品牌设置/系统信息/模型设置/功能管理/插件管理/功能推荐/用户中心)
+			// 均已迁到对应宿主包侧边栏，故此处不再需要面板框架。
 
 			// Own the top-left brand row so the user can swap the title/logo from settings.
 			ctx.slots.inject("sidebar.brand.name", () => ctx.slots.register({

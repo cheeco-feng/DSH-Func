@@ -584,11 +584,12 @@ window.__ModuleLoader__.load({
 			const open = sessions === void 0 || typeof sessions.open !== "function" ? () => {} : (sessionId) => {
 				sessions.open(sessionId);
 			};
-			// 功能管理里“会话搜索功能”开关：关闭则隐藏（不注册入口）
+			// 功能管理里“会话搜索功能”开关：关闭则隐藏（不注册入口）。
+			// 配置存于 DSH功能包（/dsh-func/config）的 features.sessionSearch。
 			(async () => {
 				let enabled = true;
 				try {
-					const r = await fetch("/cheeco-style/config", { cache: "no-store" });
+					const r = await fetch("/dsh-func/config", { cache: "no-store" });
 					const j = await r.json();
 					enabled = !(j.features && j.features.sessionSearch === false);
 				} catch (e) { enabled = true; }

@@ -18,13 +18,13 @@ const name = "tool-dsh-plugin-exec";
 /** 需要的 cordis 服务：工具注册表 + shell 执行器。 */
 const inject = ["tools", "shell"];
 
-/** 读取 @cheeco/cheeco-config.json 的功能开关（默认开启）。
+/** 读取 @cheeco/setting/DSH-Func-config.json 的功能开关（默认开启）。
  *  key 为 `features.<key>`；文件不存在或解析失败一律视为开启。 */
 function featureEnabled(key) {
 	try {
 		// .../dsh-tool-dsh-plugin-exec/lib -> .../@cheeco
 		const cheecoDir = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
-		const cfg = JSON.parse(fs.readFileSync(`${cheecoDir}/cheeco-config.json`, "utf8")) || {};
+		const cfg = JSON.parse(fs.readFileSync(`${cheecoDir}/setting/DSH-Func-config.json`, "utf8")) || {};
 		const feats = (typeof cfg.features === "object" && cfg.features) ? cfg.features : {};
 		return feats[key] !== false;
 	} catch (e) { return true; }
