@@ -45,7 +45,6 @@ const HOST_DEP_MSG = {
 
 /** 管理列表（内置兜底：更新检查/卸载/注册表同步用到；外部清单优先见 managedPlugins）。 */
 const CHEECO_PLUGINS = [
-	{ folder: "dsh-web-ui-cheeco-style", name: "@cheeco/dsh-web-ui-cheeco-style", label: "界面/声音设置" },
 	{ folder: "dsh-client-ui-message-sound", name: "@cheeco/dsh-client-ui-message-sound", label: "AI 回复提示音" },
 	{ folder: "dsh-client-ui-session-search", name: "@cheeco/dsh-client-ui-session-search", label: "会话内容检索" },
 	{ folder: "dsh-tool-dsh-plugin-exec", name: "@cheeco/dsh-tool-dsh-plugin-exec", label: "DSH功能命令" },
