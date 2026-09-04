@@ -3,3 +3,12 @@ node_modules/
 # cheeco-style: per-workbench runtime config + uploaded assets (created at runtime)
 dsh-web-ui-cheeco-style/config/
 dsh-web-ui-cheeco-style/assets/
+
+# exe-tool-start-controllers: keep machine-specific paths / runtime artifacts OUT of the repo
+exe-tool-start-controllers/config.json
+exe-tool-start-controllers/config.local.json
+exe-tool-start-controllers/start-controllers.log
+exe-tool-start-controllers/start-controllers-v2.exe
+exe-tool-start-controllers/start-controllers-v2.pdb
+exe-tool-start-controllers/StartControllers.exe
+exe-tool-start-controllers-backup-*/
