@@ -139,7 +139,7 @@ function pack(folder, version) {
   // npm 在 Windows 偶发假报退出码 1，故以产物落盘为准
   spawnSync(process.platform === "win32" ? "npm.cmd" : "npm",
     ["pack", "--pack-destination", RELEASE_DIR],
-    { cwd: dir, encoding: "utf8", stdio: "inherit" });
+    { cwd: dir, encoding: "utf8", stdio: "inherit", shell: true });
   const file = join(RELEASE_DIR, expected);
   if (!existsSync(file)) {
     // 兜底：扫描同名

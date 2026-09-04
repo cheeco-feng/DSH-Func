@@ -79,11 +79,17 @@ function apply(ctx, config = {}) {
 			const profile = args.profile.trim();
 			const command = args.command.trim();
 			const dsh = resolveDsh();
+			// 关键修复：dsh CLI 由 resolveDshHome() 决定 DSH 数据根目录（优先级 $DSH_HOME -> ~/.dsh）。
+			// 而 ctx.shell 的子进程环境会剥掉所有 DSH_* 变量（scrubbedParentEnv），导致子进程没有 $DSH_HOME，
+			// dsh 兜底到 C:\Users\...\.dsh 并对不存在的 profiles 目录 mkdir，在只读沙箱下抛 EPERM。
+			// 这里显式把 DSH_HOME 注入子进程 env（显式 env 会在 scrub 之后合并），让 dsh 走正确的数据根。
+			const dshHome = (process.env.DSH_HOME ?? "").trim();
 			const cmd = dsh.viaNode
 				? `& "${execPath}" "${dsh.bin}" plugin --profile ${profile} ${command}`
 				: `dsh plugin --profile ${profile} ${command}`;
 			const result = await ctx.shell.run(ctx.shell.resolve({
 				command: cmd,
+				...(dshHome.length > 0 ? { env: { DSH_HOME: dshHome } } : {}),
 				...args.timeoutMs ? { timeoutMs: args.timeoutMs } : {},
 				signal: exec.signal
 			}));
