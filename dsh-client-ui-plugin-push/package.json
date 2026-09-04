@@ -1,6 +1,6 @@
 {
   "name": "@cheeco/dsh-client-ui-plugin-push",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "Cheeco「功能推荐」插件中心：一体化插件推荐/安装/更新/卸载页（含 dsh 官方程序），由 dsh-web-ui-cheeco-style 的「功能推荐」tab 通过子 slot 委托渲染。",
   "type": "module",
   "main": "lib/index.js",
