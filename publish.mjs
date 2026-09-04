@@ -44,7 +44,6 @@ const FEATURE_FILE = join(STYLE_LIB, "cheeco-features.js"); // 功能推荐列�
 
 /** folder -> { id(功能推荐 id), label(release 名前缀), pkg(包名) }。 */
 const META = {
-  "dsh-web-ui-cheeco-style":        { id: "style",  label: "cheeco 界面/声音设置", pkg: "@cheeco/dsh-web-ui-cheeco-style" },
   "dsh-client-ui-message-sound":    { id: "sound",  label: "cheeco AI 回复提示音", pkg: "@cheeco/dsh-client-ui-message-sound" },
   "dsh-client-ui-session-search":   { id: "search", label: "cheeco 会话内容检索", pkg: "@cheeco/dsh-client-ui-session-search" },
   "dsh-tool-dsh-plugin-exec":       { id: "dshcmd", label: "cheeco DSH功能命令", pkg: "@cheeco/dsh-tool-dsh-plugin-exec" },
@@ -64,6 +63,7 @@ const META = {
   "dsh-web-ui-patchPackagePanel": { id: "patch-package", label: "cheeco DSH补丁包", pkg: "@cheeco/dsh-web-ui-patchPackagePanel" },
   "dsh-web-ui-PluginPackagePanel": { id: "plugin-package", label: "cheeco DSH插件包", pkg: "@cheeco/dsh-web-ui-PluginPackagePanel" },
   "dsh-web-ui-WebAppPackagePanel": { id: "webapp-package", label: "cheeco 服务商应用包", pkg: "@cheeco/dsh-web-ui-WebAppPackagePanel" },
+  "dsh-web-setting-BrandPanel":  { id: "brand", label: "cheeco 品牌设置", pkg: "@cheeco/dsh-web-setting-BrandPanel" },
 };
 
 // ---- 参数解析 --------------------------------------------------------------

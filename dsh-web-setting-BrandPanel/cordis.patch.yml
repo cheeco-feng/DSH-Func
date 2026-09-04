@@ -1,0 +1,4 @@
+# dsh-web-setting-BrandPanel —— 「主面板修改」独立插件 roster 行。
+- insert:
+    - id: brand-panel
+      name: '@cheeco/dsh-web-setting-BrandPanel'

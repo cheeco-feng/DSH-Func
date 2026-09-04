@@ -1,0 +1,36 @@
+{
+  "name": "@cheeco/dsh-web-setting-BrandPanel",
+  "version": "0.1.1",
+  "description": "Cheeco「主面板修改」：界面标题 / Logo 设置页（改左侧顶部名称+logo，留空显官方默认），寄宿在 DSH系统包（dsh-web-ui-SystemPackagePanel）内页「主面板修改」tab。配置读/写 /cheeco-style/config 的 brandTitle/brandLogoUrl，本地图片上传 /cheeco-style/assets。",
+  "license": "MIT",
+  "keywords": ["dsh", "deepseek-harness", "dsh-plugin", "cheeco", "brand", "title", "logo", "panel"],
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": { "default": "./lib/index.js" },
+    "./client": { "default": "./lib/client.js" },
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": { "patch": "./cordis.patch.yml" },
+    "compatibility": {
+      "runtime": {
+        "range": ">=0.1.0",
+        "evidence": {
+          "providerId": "dsh-cli-provider-v1",
+          "runtime": "0.1.0",
+          "desktop": "2.0.0",
+          "verifiedAt": "2026-09-03",
+          "matrixArtifact": "runtime-support/supported-runtimes.json"
+        }
+      },
+      "surfaces": ["main"]
+    },
+    "client": {
+      "platform": "web",
+      "inject": ["@deepseek-ai/dsh-client-runtime", "@deepseek-ai/dsh-client-ui-slots", "@deepseek-ai/dsh-client-locale"]
+    }
+  },
+  "files": ["lib", "cordis.patch.yml", "README.md"],
+  "dependencies": {}
+}

@@ -33,7 +33,8 @@ const HOST_DEP_MAP = {
 	"push": "@cheeco/dsh-web-ui-PluginPackagePanel",
 	"pmgr": "@cheeco/dsh-web-ui-PluginPackagePanel",
 	"systeminfo": "@cheeco/dsh-web-ui-SystemPackagePanel",
-	"model-settings": "@cheeco/dsh-web-ui-FuncPackagePanel"
+	"model-settings": "@cheeco/dsh-web-ui-FuncPackagePanel",
+	"brand": "@cheeco/dsh-web-ui-SystemPackagePanel"
 };
 /** 各宿主包对应的"先行安装"提示文案（面板名不同）。 */
 const HOST_DEP_MSG = {

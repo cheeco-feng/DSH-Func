@@ -17,6 +17,7 @@ Cheeco 的 DSH 插件集合。本仓库包含**五个独立插件**（各自是�
 | `dsh-web-ui-patchPackagePanel` | `@cheeco/dsh-web-ui-patchPackagePanel` | **DSH补丁包**（设置侧边栏新增槽位，内页含「功能表」维护中占位与「面版管理」面版改名两个 tab；配置用独立的 DSH-Patch-config.json） |
 | `dsh-web-ui-PluginPackagePanel` | `@cheeco/dsh-web-ui-PluginPackagePanel` | **DSH插件包**（设置侧边栏新增槽位，内页含「功能表」维护中占位与「面版管理」面版改名两个 tab；配置用独立的 DSH-Plugin-config.json） |
 | `dsh-web-ui-WebAppPackagePanel` | `@cheeco/dsh-web-ui-WebAppPackagePanel` | **服务商应用包**（设置侧边栏新增槽位，内页含「功能表」维护中占位与「面版管理」面版改名两个 tab；配置用独立的 DSH-WebApp-config.json） |
+| `dsh-web-setting-BrandPanel` | `@cheeco/dsh-web-setting-BrandPanel` | **品牌设置**（寄宿在 DSH系统包内页，改界面标题/Logo，留空显官方默认；配置用 DSH-System-config.json 的 `brand` 字段） |
 
 ## 安装（先克隆，再按需添加子目录）
 
@@ -38,7 +39,8 @@ dsh plugin --profile <profile> add \
   ./dsh-web-ui-SystemPackagePanel \
   ./dsh-web-ui-patchPackagePanel \
   ./dsh-web-ui-PluginPackagePanel \
-  ./dsh-web-ui-WebAppPackagePanel
+  ./dsh-web-ui-WebAppPackagePanel \
+  ./dsh-web-setting-BrandPanel
 ```
 
 ### 按插件单独安装（各插件独立的 GitHub Release 下载 URL）
@@ -78,6 +80,9 @@ dsh plugin --profile <profile> add https://github.com/cheeco-feng/DSH-Func/relea
 
 # 服务商应用包
 dsh plugin --profile <profile> add https://github.com/cheeco-feng/DSH-Func/releases/download/v0.1.0/cheeco-dsh-web-ui-WebAppPackagePanel-0.1.0.tgz
+
+# 品牌设置
+dsh plugin --profile <profile> add https://github.com/cheeco-feng/DSH-Func/releases/download/v0.1.1/cheeco-dsh-web-setting-BrandPanel-0.1.1.tgz
 ```
 
 > 上面 URL 均为**各插件最新的 GitHub Release 资产**。`dsh plugin add` 会自动把每个带 `dsh.bundle.patch` 的插件写进该 profile 的 `dsh.profile.bundles`。
@@ -96,7 +101,8 @@ dsh plugin --profile <profile> remove \
   @cheeco/dsh-web-ui-SystemPackagePanel \
   @cheeco/dsh-web-ui-patchPackagePanel \
   @cheeco/dsh-web-ui-PluginPackagePanel \
-  @cheeco/dsh-web-ui-WebAppPackagePanel
+  @cheeco/dsh-web-ui-WebAppPackagePanel \
+  @cheeco/dsh-web-setting-BrandPanel
 ```
 > `dsh plugin remove` 会同时把它们从 `dsh.profile.bundles` 移除。
 
