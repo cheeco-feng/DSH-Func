@@ -280,6 +280,37 @@ function createManager(ctx, profile, fsTools) {
     }
     try {
       const pid = process.pid;
+      if (process.platform === "win32") {
+        // Windows：绕开 /bin/bash + nohup，改用 node 直调 dsh 入口重启本 profile 实例。
+        const dsh = resolveDshCli();
+        const dshHome = (process.env.DSH_HOME ?? "").trim();
+        const args = process.argv.slice(2);
+        const pi = args.indexOf("--profile");
+        const profileArg = pi !== -1 && args[pi + 1] ? args[pi + 1] : "web";
+        const ppi = args.indexOf("--port");
+        const portArg = ppi !== -1 && args[ppi + 1] ? args[ppi + 1] : "";
+        // 一段内联脚本：先等 1.2s 杀掉旧进程，再等 1.5s 用 node 拉起同样参数的 dsh 实例。
+        const relauncher = [
+          "const { spawn } = require('node:child_process');",
+          "setTimeout(function(){ try { process.kill(" + pid + "); } catch(e) {} }, 1200);",
+          "setTimeout(function(){",
+          "  const relaunchArgs = [" + JSON.stringify(dsh.bin) + ", '--profile', " + JSON.stringify(profileArg) + "];",
+          "  if (" + JSON.stringify(portArg) + ") relaunchArgs.push('--port', " + JSON.stringify(portArg) + ");",
+          "  relaunchArgs.push('--no-open');",
+          "  const cp = spawn(" + JSON.stringify(process.execPath) + ", relaunchArgs, { detached: true, stdio: 'ignore', env: process.env });",
+          "  cp.unref();",
+          "}, 4500);"
+        ].join("\n");
+        const relauncherPath = join3(tmpdir(), "dsh-pmgr-relaunch-" + pid + ".cjs");
+        writeFileSync(relauncherPath, relauncher, "utf8");
+        const child = spawn(process.execPath, [relauncherPath], {
+          detached: true,
+          stdio: "ignore",
+          env: dshHome.length ? { ...process.env, DSH_HOME: dshHome } : process.env
+        });
+        child.unref();
+        return true;
+      }
       const script = [
         "#!/bin/bash",
         "sleep 1",
@@ -670,9 +701,67 @@ async function updateManifest(dir, mutate) {
     return { ok: false, message: "\u5199\u5165 profile manifest \u5931\u8D25: " + String(e && e.message || e) };
   }
 }
+/** 解析 `dsh plugin ...` 这类 shell 命令。返回 { dsh:true, args:[...] } 以便绕过 bash 用 node 直调；
+ *  否则返回 null，指示该命令不是 dsh 子命令。 */
+function parseDshCommand(command) {
+  const s = String(command || "").trim();
+  if (!s) return null;
+  const m = s.match(/^dsh\s+plugin\b([\s\S]*)$/);
+  if (!m) return null;
+  const rest = m[1].trim();
+  const args = [];
+  const re = /'([^']*)'|"([^"]*)"|(\S+)/g;
+  let t;
+  while ((t = re.exec(rest)) !== null) {
+    args.push(t[1] !== void 0 ? t[1] : t[2] !== void 0 ? t[2] : t[3]);
+  }
+  return { args };
+}
+
+/** 定位当前 DSH 运行时提供的 dsh CLI 入口，不依赖 PATH。 */
+function resolveDshCli() {
+  try {
+    const require2 = createRequire(import.meta.url);
+    const bin = require2.resolve("@deepseek-ai/dsh/lib/bin.js");
+    if (existsSync2(bin)) return { viaNode: true, bin };
+  } catch (e) { /* 落到 PATH 兜底 */ }
+  return { viaNode: false, bin: "dsh" };
+}
+
 function execBash(command, timeoutMs = 6e4) {
   return new Promise((resolve) => {
-    execFile("/bin/bash", ["-c", command], { timeout: timeoutMs, maxBuffer: 8 * 1024 * 1024 }, (error, stdout, stderr) => {
+    // 跨平台：不再硬编码 /bin/bash（Windows 原生 node 下 execFile("/bin/bash") 会 ENOENT，
+    // 非数字错误码被兜底成退出码 1 → 面板所有 dsh 命令都报「卸载失败（退出码 1）」）。
+    const parsed = parseDshCommand(command);
+    if (parsed) {
+      const dsh = resolveDshCli();
+      const dshHome = (process.env.DSH_HOME ?? "").trim();
+      const args = dsh.viaNode
+        ? [dsh.bin, "plugin", ...parsed.args]
+        : ["plugin", ...parsed.args];
+      const child = execFile(dsh.viaNode ? process.execPath : "dsh", args, {
+        timeout: timeoutMs,
+        maxBuffer: 8 * 1024 * 1024,
+        ...dshHome.length > 0 && dsh.viaNode ? { env: { ...process.env, DSH_HOME: dshHome } } : {}
+      }, (error, stdout, stderr) => {
+        if (error && error.code === "ETIMEDOUT") {
+          resolve({ exitCode: -1, stdout: String(stdout || ""), stderr: String(stderr || "") + "\n\u8D85\u65F6", timedOut: true });
+          return;
+        }
+        resolve({
+          exitCode: error ? typeof error.code === "number" ? error.code : 1 : 0,
+          stdout: String(stdout || ""),
+          stderr: String(stderr || ""),
+          timedOut: false
+        });
+      });
+      return;
+    }
+    // 非 dsh 命令：保留原有 shell 语义（Windows 用 cmd，POSIX 用 sh）。
+    const isWin = process.platform === "win32";
+    const shell = isWin ? (process.env.ComSpec || "cmd.exe") : "/bin/sh";
+    const shellArgs = isWin ? ["/d", "/s", "/c", command] : ["-c", command];
+    execFile(shell, shellArgs, { timeout: timeoutMs, maxBuffer: 8 * 1024 * 1024 }, (error, stdout, stderr) => {
       if (error && error.code === "ETIMEDOUT") {
         resolve({ exitCode: -1, stdout: String(stdout || ""), stderr: String(stderr || "") + "\n\u8D85\u65F6", timedOut: true });
         return;
