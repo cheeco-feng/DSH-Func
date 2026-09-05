@@ -177,26 +177,33 @@ async function managedPlugins() {
 	}
 	return CHEECO_PLUGINS;
 }
-/** 一键重启当前 profile：用启动参数重新拉起同名 profile。 */
+/** 一键重启当前 profile：用启动参数重新拉起同名 profile。
+ *  跨平台：不用 /bin/bash / powershell 文本拼接（路径含空格/引号易坏），
+ *  改为写一个 node 内联脚本，等 1.2s 杀掉旧进程、再等 4.5s 用 node 拉起同样参数的 dsh 实例。 */
 function scheduleRestart() {
 	try {
 		const pid = process.pid;
 		const bin = resolveDshBin();
-		const relaunch = `"${process.execPath}" "${bin}" ${process.argv.slice(2).join(" ")}`;
-		const log = join(downloadDir(), "dsh-restart.log");
-		if (process.platform === "win32") {
-			const scriptPath = join(tmpdir(), `cheeco-push-restart-${pid}.ps1`);
-			const ps = `Start-Sleep -Seconds 1; Stop-Process -Id ${pid} -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 2; & ${relaunch} *> "${log.replace(/"/g, '""')}"`;
-			writeFileSync(scriptPath, ps, "utf8");
-			const child = spawn("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", scriptPath], { detached: true, stdio: "ignore" });
-			child.unref();
-		} else {
-			const scriptPath = join(tmpdir(), `cheeco-push-restart-${pid}.sh`);
-			const sh = `#!/bin/sh\nsleep 1\nkill ${pid} 2>/dev/null\nsleep 2\nnohup ${relaunch} > "${log}" 2>&1 < /dev/null &\n`;
-			writeFileSync(scriptPath, sh, "utf8");
-			const child = spawn("/bin/sh", [scriptPath], { detached: true, stdio: "ignore" });
-			child.unref();
-		}
+		const args = process.argv.slice(2);
+		const pi = args.indexOf("--profile");
+		const profileArg = pi !== -1 && args[pi + 1] ? args[pi + 1] : "web";
+		const ppi = args.indexOf("--port");
+		const portArg = ppi !== -1 && args[ppi + 1] ? args[ppi + 1] : "";
+		const relauncher = [
+			"const { spawn } = require('node:child_process');",
+			"setTimeout(function(){ try { process.kill(" + pid + "); } catch(e) {} }, 1200);",
+			"setTimeout(function(){",
+			"  const relaunchArgs = [" + JSON.stringify(bin) + ", '--profile', " + JSON.stringify(profileArg) + "];",
+			"  if (" + JSON.stringify(portArg) + ") relaunchArgs.push('--port', " + JSON.stringify(portArg) + ");",
+			"  relaunchArgs.push('--no-open');",
+			"  const cp = spawn(" + JSON.stringify(process.execPath) + ", relaunchArgs, { detached: true, stdio: 'ignore', env: process.env });",
+			"  cp.unref();",
+			"}, 4500);"
+		].join("\n");
+		const relauncherPath = join(tmpdir(), `cheeco-push-relaunch-${pid}.cjs`);
+		writeFileSync(relauncherPath, relauncher, "utf8");
+		const child = spawn(process.execPath, [relauncherPath], { detached: true, stdio: "ignore", env: process.env });
+		child.unref();
 		return true;
 	} catch (e) { return false; }
 }

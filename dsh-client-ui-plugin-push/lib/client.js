@@ -42,6 +42,17 @@ window.__ModuleLoader__.load({
 			const [log, setLog] = react.useState([]);
 			const [busy, setBusy] = react.useState(false);
 			const [done, setDone] = react.useState("");
+			const [countdown, setCountdown] = react.useState(null);
+			react.useEffect(() => {
+				if (countdown === null) return;
+				if (countdown <= 0) {
+					try { window.location.reload(); } catch (e) {}
+					setCountdown(null);
+					return;
+				}
+				const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+				return () => clearTimeout(timer);
+			}, [countdown]);
 			react.useEffect(() => {
 				(async () => {
 					try {
@@ -87,7 +98,12 @@ window.__ModuleLoader__.load({
 						addLog("● 正在自动重启当前 DSH…");
 						try {
 							const rr = await (await fetch(RESTART_ENDPOINT, { method: "POST" })).json();
-							addLog(rr.ok ? "✓ 已触发自动重启，约 10 秒后刷新页面生效。" : "未能成功重启，本次执行，须手动重启后生效。");
+							if (rr.ok) {
+								addLog("✓ 已触发自动重启，约 10 秒后刷新页面生效。");
+								setCountdown(10);
+							} else {
+								addLog("未能成功重启，本次执行，须手动重启后生效。");
+							}
 						} catch (e) { addLog("未能成功重启，本次执行，须手动重启后生效。"); }
 					}
 					addLog(i.ok ? "✓ 完成" : "✗ 未完成，请查看上方错误");
@@ -106,6 +122,7 @@ window.__ModuleLoader__.load({
 						react_jsx_runtime.jsx("input", { type: "checkbox", checked: autoRestart, onChange: (e) => setAutoRestart(e.target.checked) }),
 						"安装后自动重启"
 					] }),
+					countdown !== null ? react_jsx_runtime.jsx("p", { className: "dsh-web-ui-cheeco-style-state", style: { marginTop: "8px", color: "var(--dsw-alias-state-business-primary,#3498db)" }, children: "已触发自动重启，" + countdown + " 秒后自动刷新页面…" }) : null,
 					react_jsx_runtime.jsx("div", { className: "dsh-web-ui-cheeco-style-actions", style: { marginTop: "10px" }, children: [
 						step === 0 ? react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: run, children: "开始安装" }) : null,
 						step === 3 ? react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: onClose, children: "完成" }) : react_jsx_runtime.jsx("button", { type: "button", className: "dsh-web-ui-cheeco-style-action", onClick: onClose, children: "取消" })
@@ -122,6 +139,17 @@ window.__ModuleLoader__.load({
 			const [wizard, setWizard] = react.useState(null);
 			const [busyId, setBusyId] = react.useState("");
 			const [enabledMap, setEnabledMap] = react.useState({});
+			const [countdown, setCountdown] = react.useState(null);
+			react.useEffect(() => {
+				if (countdown === null) return;
+				if (countdown <= 0) {
+					try { window.location.reload(); } catch (e) {}
+					setCountdown(null);
+					return;
+				}
+				const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+				return () => clearTimeout(timer);
+			}, [countdown]);
 			const load = async () => {
 				try {
 					const r = await fetch(FEATURES_ENDPOINT, { cache: "no-store" });
@@ -156,7 +184,16 @@ window.__ModuleLoader__.load({
 					const r = await fetch(UNINSTALL_ENDPOINT, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ plugins: [f.pkg] }) });
 					const data = await r.json();
 					const errItem = data.results && data.results.find((x) => !x.ok);
-					setMsg(data.ok ? "卸载成功（重启后生效）" : "卸载失败：" + (errItem ? errItem.error : (data.error || "未知")));
+					if (data.ok) {
+						setMsg("卸载成功，正在自动重启 DSH…");
+						try {
+							const rr = await (await fetch(RESTART_ENDPOINT, { method: "POST" })).json();
+							if (rr.ok) setCountdown(10);
+							else setMsg("卸载成功（重启后生效）");
+						} catch (e) { setMsg("卸载成功（重启后生效）"); }
+					} else {
+						setMsg("卸载失败：" + (errItem ? errItem.error : (data.error || "未知")));
+					}
 				} catch (e) { setMsg("卸载失败：" + e.message); }
 				setBusyId(""); load();
 			};
@@ -186,6 +223,7 @@ window.__ModuleLoader__.load({
 					: null,
 				items.map(row),
 				msg ? react_jsx_runtime.jsx("p", { className: "dsh-web-ui-cheeco-style-state", children: msg }) : null,
+				countdown !== null ? react_jsx_runtime.jsx("p", { className: "dsh-web-ui-cheeco-style-state", style: { color: "var(--dsw-alias-state-business-primary,#3498db)" }, children: "已触发自动重启，" + countdown + " 秒后自动刷新页面…" }) : null,
 				wizard ? react_jsx_runtime.jsx(InstallWizard, { feature: wizard, onClose: () => { setWizard(null); load(); } }) : null
 			] });
 		}
