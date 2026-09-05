@@ -55,6 +55,7 @@ namespace StartControllers
         public string WorkDir { get; set; }
         public string DshHome { get; set; }
         public string NpcDir { get; set; }
+        public string ProfilesConfig { get; set; }   // profile 统一档案 profiles-config.json 路径
     }
     public class WbCfg
     {
@@ -77,6 +78,13 @@ namespace StartControllers
     {
         public static string ConfigFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "config.json");
 
+        // workbench 参数统一档案：DSH_HOME\profiles\profiles-config.json（非 start-controllers 独有）
+        public static string ProfilesConfigPath(string dshHome)
+        {
+            if (string.IsNullOrEmpty(dshHome)) return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "profiles-config.json");
+            return Path.Combine(dshHome, "profiles", "profiles-config.json");
+        }
+
         public static AppConfig Load()
         {
             AppConfig cfg = null;
@@ -91,6 +99,13 @@ namespace StartControllers
             catch { cfg = null; }
             if (cfg == null) cfg = Defaults();
             Normalize(cfg);
+            // 首次：config.json 尚无 workbenches 时，从「唯一真源 profilesConfig」读取统一档案作种子（严格用它，不自动回退）
+            if (cfg.Workbenches == null || cfg.Workbenches.Count == 0)
+            {
+                var wbs = LoadCanonicalWorkbenches();
+                if (wbs != null && wbs.Count > 0) cfg.Workbenches = wbs;
+            }
+            Normalize(cfg);
             return cfg;
         }
 
@@ -99,7 +114,46 @@ namespace StartControllers
             Normalize(cfg);
             var jss = new JavaScriptSerializer();
             jss.MaxJsonLength = 1024 * 1024;
+            // 工具自己的运行态（paths / nps / ui / workbenches）一律存入 config.json；
+            // profiles-config.json 是只读的统一档案，工具不写它。
             File.WriteAllText(ConfigFile, jss.Serialize(cfg), Encoding.UTF8);
+        }
+
+        // 读取统一档案 profiles-config.json 的 profile 列表（含端口/参数；文件不存在返回空列表）
+        // 唯一真源：严格只用 config.json 的 paths.profilesConfig 读档案；为空直接返回空（不自动回退、不猜）
+        public static List<WbCfg> LoadCanonicalWorkbenches()
+        {
+            var list = new List<WbCfg>();
+            try
+            {
+                string profilesConfig = "";
+                try
+                {
+                    var c = new JavaScriptSerializer().Deserialize<AppConfig>(File.ReadAllText(ConfigFile));
+                    if (c != null && c.Paths != null) profilesConfig = c.Paths.ProfilesConfig ?? "";
+                }
+                catch { }
+                if (string.IsNullOrEmpty(profilesConfig)) return list;   // 为空 → 空
+                if (File.Exists(profilesConfig))
+                {
+                    var wbs = new JavaScriptSerializer().Deserialize<List<WbCfg>>(File.ReadAllText(profilesConfig));
+                    if (wbs != null) list = wbs;
+                }
+            }
+            catch { }
+            return list;
+        }
+
+        // 判断 profilesConfig 是否未配置（为空）
+        public static bool IsProfilesConfigEmpty()
+        {
+            try
+            {
+                var c = new JavaScriptSerializer().Deserialize<AppConfig>(File.ReadAllText(ConfigFile));
+                if (c != null && c.Paths != null) return string.IsNullOrEmpty(c.Paths.ProfilesConfig);
+            }
+            catch { }
+            return true;
         }
 
         // 内置默认：空占位（去敏——不在二进制里内嵌任何机器路径），真正值来自 config.json
@@ -609,7 +663,7 @@ namespace StartControllers
         private System.Threading.EventWaitHandle showSignal;
 
         // ---- 设置页控件 ----
-        private System.Windows.Forms.TextBox txtNodeExe, txtEngineHome, txtBinJs, txtWorkDir, txtDshHome, txtNpcDir;
+        private System.Windows.Forms.TextBox txtNodeExe, txtEngineHome, txtBinJs, txtWorkDir, txtDshHome, txtNpcDir, txtProfilesConfig;
         private Label lblCfgStatus;
         private System.Windows.Forms.TextBox txtDetectOut;
         private System.Windows.Forms.CheckBox chkRealtime;
@@ -864,6 +918,7 @@ namespace StartControllers
             txtWorkDir = AddPathRow(page, "工作目录", lx, tx, y, lh); y += lh + 8;
             txtDshHome = AddPathRow(page, "DSH 数据目录", lx, tx, y, lh); y += lh + 8;
             txtNpcDir = AddPathRow(page, "NPS npc 目录", lx, tx, y, lh); y += lh + 8;
+            txtProfilesConfig = AddPathRow(page, "profile 档案", lx, tx, y, lh); y += lh + 8;
 
             y += 16;   // 与路径行留些间距
 
@@ -989,6 +1044,7 @@ namespace StartControllers
             txtWorkDir.Text = appConfig.Paths.WorkDir ?? "";
             txtDshHome.Text = appConfig.Paths.DshHome ?? "";
             txtNpcDir.Text = appConfig.Paths.NpcDir ?? "";
+            txtProfilesConfig.Text = appConfig.Paths.ProfilesConfig ?? "";
         }
 
         private void DoDetect()
@@ -1029,6 +1085,12 @@ namespace StartControllers
             string npc = txtNpcDir.Text.Trim();
             if (string.IsNullOrEmpty(npc) && appConfig != null && appConfig.Paths != null) npc = appConfig.Paths.NpcDir ?? "";
             if (!string.IsNullOrEmpty(npc)) txtNpcDir.Text = npc;
+
+            // 4c) profile 档案：dshHome\profiles\profiles-config.json
+            string pcfg = txtProfilesConfig.Text.Trim();
+            if (string.IsNullOrEmpty(pcfg) && !string.IsNullOrEmpty(dsh))
+                pcfg = Path.Combine(dsh, "profiles", "profiles-config.json");
+            if (!string.IsNullOrEmpty(pcfg)) { txtProfilesConfig.Text = pcfg; sb.AppendLine("profile 档案 -> " + pcfg); }
 
             // 5) profiles
             string[] profs = Tool.DetectProfiles(dsh);
@@ -1085,7 +1147,8 @@ namespace StartControllers
                 BinJs = binJs,
                 WorkDir = txtWorkDir.Text.Trim(),
                 DshHome = txtDshHome.Text.Trim(),
-                NpcDir = txtNpcDir.Text.Trim()
+                NpcDir = txtNpcDir.Text.Trim(),
+                ProfilesConfig = txtProfilesConfig.Text.Trim()
             };
             // 持久化「一键开关控制」勾选状态（写回 config，重开恢复到上次状态）
             foreach (var b in benches)
@@ -1335,27 +1398,44 @@ namespace StartControllers
 
         private void ImportProfiles()
         {
-            // 规则：已存在的 profile 直接复用其当前端口（不改动）；只有真正的新 profile 才用 NextPort 顺延分配。
-            string[] profs = Tool.DetectProfiles(appConfig.Paths != null ? appConfig.Paths.DshHome : Tool.DshHome);
-            int added = 0;
-            foreach (var p in profs)
+            // 唯一真源：config.json 的 profilesConfig 若为空 → 直接报空，不处理
+            if (Config.IsProfilesConfigEmpty())
             {
-                // 已存在 → 复用原端口（跳过，不重新分配）
-                bool exists = appConfig.Workbenches.Exists(zz => zz.Profile == p);
-                if (exists) continue;
-                var wb = new WbCfg();
-                wb.Name = "工作台 · " + p; wb.Profile = p; wb.Port = NextPort();
-                wb.Desc = "（从 profiles 导入）"; wb.Args = "{binJs} --profile {profile} --port {port} --no-open"; wb.Enabled = true;
-                appConfig.Workbenches.Add(wb);
+                Tool.Log("profile 档案未配置：config.json 的 profilesConfig 为空，请到「设置 → 运行环境」填「profile 档案」路径并点保存配置");
+                MessageBox.Show("profile 档案未配置：config.json 的 profilesConfig 为空。\n请到「设置 → 运行环境」填「profile 档案」路径并点「保存配置」。", "StartControllers", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            // 读统一档案 profiles-config.json（profile 参数 + 端口的唯一定义），把它们拉进来（不弹窗）
+            var canonical = Config.LoadCanonicalWorkbenches();
+            int added = 0;
+            foreach (var cw in canonical)
+            {
+                if (appConfig.Workbenches.Exists(zz => zz.Profile == cw.Profile)) continue;
+                appConfig.Workbenches.Add(cw);
                 added++;
+            }
+            // profiles 目录里存在、但 profiles-config.json 未定义的 → 真正新 profile，才由用户弹窗设端口
+            foreach (var p in Tool.DetectProfiles(appConfig.Paths != null ? appConfig.Paths.DshHome : Tool.DshHome))
+            {
+                if (canonical.Exists(c => c.Profile == p)) continue;
+                if (appConfig.Workbenches.Exists(zz => zz.Profile == p)) continue;
+                using (var dlg = new PortPromptDialog(p, NextPort()))
+                {
+                    if (dlg.ShowDialog(this) != DialogResult.OK) continue;
+                    var wb = new WbCfg();
+                    wb.Name = "工作台 · " + p; wb.Profile = p; wb.Port = dlg.Port;
+                    wb.Desc = "（从 profiles 导入）"; wb.Args = "{binJs} --profile {profile} --port {port} --no-open"; wb.Enabled = true;
+                    appConfig.Workbenches.Add(wb);
+                    added++;
+                }
             }
             if (added > 0)
             {
                 Config.Save(appConfig);
                 ReloadWorkbenchTabs();
-                Tool.Log("已从 profiles 导入 " + added + " 个工作台");
+                Tool.Log("已导入 " + added + " 个工作台");
             }
-            else Tool.Log("没有需要导入的新 profile（均已存在）");
+            else Tool.Log("工作台已存在于列表（无新增）");
         }
 
         private string DefaultPort() { return NextPort(); }
@@ -2017,6 +2097,48 @@ namespace StartControllers
             l.ForeColor = Color.FromArgb(40, 50, 75); l.Location = new Point(24, y); Controls.Add(l);
             TextBox tb = new TextBox(); tb.Font = new Font("Microsoft YaHei", 11F); tb.Width = 280; tb.Left = 240; tb.Top = y - 2; Controls.Add(tb);
             return tb;
+        }
+    }
+
+    // 导入新 profile 时让用户亲手设置端口（不做自动分配；顶多建议下一空闲端口，可改）
+    public class PortPromptDialog : Form
+    {
+        public string Port;
+        public PortPromptDialog(string profile, string suggestPort)
+        {
+            Text = "设置端口 · " + profile; FormBorderStyle = FormBorderStyle.FixedDialog;
+            StartPosition = FormStartPosition.CenterParent; MaximizeBox = false; MinimizeBox = false;
+            ClientSize = new Size(360, 150); BackColor = Color.White;
+
+            Label l = new Label();
+            l.Text = "为 profile「" + profile + "」设置端口："; l.AutoSize = true;
+            l.Font = new Font("Microsoft YaHei", 12F); l.ForeColor = Color.FromArgb(40, 50, 75);
+            l.Location = new Point(24, 24); Controls.Add(l);
+
+            Label tip = new Label();
+            tip.Text = "（我不再自动分配；下方为建议的下一空闲端口，可改）"; l.AutoSize = true;
+            tip.Font = new Font("Microsoft YaHei", 10F); tip.ForeColor = Color.FromArgb(120, 125, 135);
+            tip.Location = new Point(24, 52); Controls.Add(tip);
+
+            TextBox tb = new TextBox();
+            tb.Font = new Font("Microsoft YaHei", 12F); tb.Width = 160; tb.Left = 24; tb.Top = 80; tb.Text = suggestPort ?? "";
+            Controls.Add(tb);
+
+            RoundedButton ok = new RoundedButton();
+            ok.Text = "确定"; ok.Width = 100; ok.Height = 40; ok.Location = new Point(120, 130);
+            ok.NormalColor = Color.FromArgb(50, 90, 250); ok.HoverColor = Color.FromArgb(70, 110, 255); ok.ForeColor = Color.White;
+            ok.Click += (s, e) =>
+            {
+                Port = tb.Text.Trim();
+                int p; if (!int.TryParse(Port, out p)) { MessageBox.Show("端口必须是数字"); return; }
+                DialogResult = DialogResult.OK;
+            };
+            Controls.Add(ok);
+            RoundedButton cancel = new RoundedButton();
+            cancel.Text = "取消"; cancel.Width = 100; cancel.Height = 40; cancel.Location = new Point(230, 130);
+            cancel.NormalColor = Color.FromArgb(240, 242, 246); cancel.HoverColor = Color.FromArgb(221, 226, 233); cancel.ForeColor = Color.FromArgb(58, 68, 88);
+            cancel.Click += (s, e) => { DialogResult = DialogResult.Cancel; };
+            Controls.Add(cancel);
         }
     }
 }

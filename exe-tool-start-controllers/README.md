@@ -55,7 +55,7 @@ build.bat
 
 ---
 
-## 配置说明（config.json）
+## 配置说明（config.json 与 profiles-config.json）
 
 把 `config.example.json` 复制为 `config.json`，按需填写。示例：
 
@@ -67,13 +67,9 @@ build.bat
     "binJs": "…dsh 的 bin.js 绝对路径…",
     "workDir": "…dsh 工作目录…",
     "dshHome": "…DSH 数据目录…",
-    "npcDir": "…npc 客户端目录…"
+    "npcDir": "…npc 客户端目录…",
+    "profilesConfig": "F:\\DeepSeekHarnessDataOriginal\\profiles\\profiles-config.json"
   },
-  "workbenches": [
-    { "name": "工作台 1 · Web", "profile": "web", "port": "49982",
-      "desc": "主工作台", "args": "{binJs} web --port {port} --no-open",
-      "enabled": true, "participate": true }
-  ],
   "nps": { "enabled": true, "participate": true },
   "ui": { "realtimeMonitor": false }
 }
@@ -84,14 +80,21 @@ build.bat
   - `binJs` 可直接指定；也可只填 `engineHome`，程序按
     `engineHome\node_modules\@deepseek-ai\dsh\lib\bin.js` 自动拼出。
   - `npcDir` 留空或 `nps.enabled=false` 时 NPS 功能禁用（不崩）。
-- **workbenches[]**：每项一个工作台。
-  - `args` 支持占位符 `{binJs} / {profile} / {port}`，运行时展开。
-  - `enabled`：是否启用（False 则不生成该 tab）。
-  - `participate`：是否参与「全部启动/全部停止」（对应「一键开关控制」小勾，勾选改变即自动保存）。
+  - **`profilesConfig`**：profile 统一档案路径（**唯一真源，必须填写**）。工具启动/导入时从这里读取所有工作台参数；为空时明确提示「未配置」，**绝不自动回退/猜测**。
+- **工作台参数来自 `profiles-config.json`（规范档案）**，不是 config.json：
+  - `profilesConfig` 指向的文件（如 `DSH_HOME\profiles\profiles-config.json`）是**只读规范定义**，数组形如：
+    ```json
+    [ { "name": "工作台 · web", "profile": "web", "port": "49982",
+        "args": "{binJs} --profile {profile} --port {port} --no-open",
+        "enabled": true, "participate": true }, … ]
+    ```
+  - `args` 支持占位符 `{binJs} / {profile} / {port}`；`enabled`（是否生成该 tab）；`participate`（是否参与「全部启动/停止」，勾选改变即自动保存）。
+  - 工具运行时（增删改工作台）把**当前运行态列表**写入**自己的 config.json** 的 `workbenches` 字段；`profiles-config.json` 只读不改。
 - **nps**：`enabled`（是否启用）、`participate`（是否参与一键批处理）。
 - **ui**：`realtimeMonitor`（是否开启实时监测）。
 
-> 大多数路径留空时回退到内置默认（公开版默认是空占位，**不内嵌机器路径**）。
+> 大多数 path 留空时回退到内置默认（公开版默认是空占位，**不内嵌机器路径**）。
+> `profilesConfig` 为空时，工具「从 profiles 导入」会**弹窗提示未配置**，不会自行补路径。
 
 ---
 
