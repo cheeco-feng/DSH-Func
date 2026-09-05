@@ -117,18 +117,28 @@ function bumpPluginVersionConst(next) {
   writeText(PLUGIN_FILE, s);
 }
 
-/** 刷新功能列表里某插件的 install 下载 URL，指向新 release 的资产 URL。返回是否命中。 */
-function refreshFeatureInstall(folder, version, tgzFile) {
+/** 刷新功能列表里某插件的 install 下载 URL（通用实现）。tagPrefix 为 release tag 的前缀部分：
+ *  传 `v${meta.id}-` 生成前缀式 URL（新规则，默认）；传 `v` 生成旧的无前缀 URL（过渡用）。返回是否命中。 */
+function refreshFeatureInstallWith(folder, version, tgzFile, tagPrefix) {
   const meta = META[folder];
   if (!meta || !meta.id) return false;
   let s = readFileSync(FEATURE_FILE, "utf8");
-  const newUrl = `${DOWNLOAD_BASE}/v${meta.id}-${version}/${basename(tgzFile)}`;
+  const newUrl = `${DOWNLOAD_BASE}/${tagPrefix}${version}/${basename(tgzFile)}`;
   const re = new RegExp('(id: "' + meta.id + '".*?install: )"[^"]*"');
   if (!re.test(s)) { warn(`未在功能推荐列表找到 id="${meta.id}" 的条目（可能已不在列表中）`); return false; }
   s = s.replace(re, `$1"${newUrl}"`);
   writeText(FEATURE_FILE, s);
   log(`  功能推荐列表 ${meta.id} 的 install -> ${newUrl}`);
   return true;
+}
+/** 新规则（默认）：前缀式 tag v<id>-<version>。 */
+function refreshFeatureInstall(folder, version, tgzFile) {
+  const meta = META[folder];
+  return refreshFeatureInstallWith(folder, version, tgzFile, `v${meta && meta.id ? meta.id + "-" : ""}`);
+}
+/** 过渡用（旧插件/未统一前缀时）：无前缀 tag v<version>。 */
+function refreshFeatureInstallLegacy(folder, version, tgzFile) {
+  return refreshFeatureInstallWith(folder, version, tgzFile, "v");
 }
 
 /** npm pack：把插件打包到 release 目录，返回 tgz 全路径。 */
@@ -174,7 +184,8 @@ async function gh(url, opts = {}, token) {
 }
 
 async function getOrCreateRelease(version, meta, token, dry) {
-  // 前缀式 tag：v<插件id>-<版本>，彻底避免不同插件版本号撞同一个 GitHub tag
+  // 统一前缀式 tag：v<插件id>-<版本>（用户 2026-09-06 定：下次更新发版统一用前缀规则命名，
+  // 避免不同插件版本号撞同一个 GitHub tag、把资产污染进别人的 release）。
   const tag = `v${meta && meta.id ? meta.id + "-" : ""}${version}`;
   if (dry) {
     log(`  [dry] release tag=${tag}  name="${meta.label} ${version}"  body="Cheeco DSH 插件包 v${version} · ${meta.label.replace(/^cheeco /, "")}"`);
