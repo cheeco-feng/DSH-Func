@@ -58,6 +58,25 @@
 > 4. **建 GitHub release 并上传 tgz 资产**（否则"我要安装"的 download URL 无该 tgz → 下载失败）。
 > 我实踩过：只改本地清单没 push → 面板看不到；只 push 源码不传 release 资产 → 安装失败。
 
+### 3.5 版本号前缀规则（重要，防撞号 — 用户 2026-09-06 决策，务必遵守）
+
+**背景**：GitHub 一个仓库的 release **tag 名全局唯一**（= `v` + 版本号）。不同插件如果版本号相同（如 push 和 plugin-manager 都到 `0.1.x`），就会撞同一个 tag，导致 `getOrCreateRelease` 复用别人的 release、把资产污染进去。此前 plugin-manager 用 `0.1.3` 就撞上了 push 的 `v0.1.3`，被塞进了"功能推荐（插件中心）0.1.3"。
+
+**用户定的规则（保留原话）**：「如果版本号不能重复，那就直接在前面增加版本号的前缀如何。」
+→ **所有 cheeco 插件发版一律用「前缀式」tag**：`v<插件id>-<版本号>`。`<插件id>` = 该插件在 `publish.mjs` `META` 里的 `id`（同时等于功能推荐清单条目 `id`）。
+
+| 插件 | id（前缀） | 版本号示例 | release tag | 资产文件名 |
+|---|---|---|---|---|
+| dsh-client-ui-plugin-push | push | 0.1.10 | `vpush-0.1.10` | `cheeco-dsh-client-ui-plugin-push-0.1.10.tgz` |
+| dsh-client-ui-plugin-manager | pmgr | 0.2.6 | `vpmgr-0.2.6` | `cheeco-dsh-client-ui-plugin-manager-0.2.6.tgz` |
+| dsh-client-ui-message-sound | sound | 0.3.3 | `vsound-0.3.3` | `cheeco-dsh-client-ui-message-sound-0.3.3.tgz` |
+
+**关键点**：
+- **只有 release tag 加前缀**；资产文件名**不加前缀**（仍是 `cheeco-<folder>-<ver>.tgz`）。
+- 下载 URL 形如 `https://github.com/cheeco-feng/DSH-Func/releases/download/v<id>-<版本>/cheeco-<folder>-<版本>.tgz`。
+- `publish.mjs` 已支持：`getOrCreateRelease`/`refreshFeatureInstall` 均已改为 `v${meta.id}-${version}`；`dsh-client-ui-plugin-push` 的 `resolveDownloadUrl` 已按 `PREFIX_BY_FOLDER` 前缀拼接。
+- **以后新增/升级插件，务必按前缀 tag 发版**，并与 `publish.mjs` `META`、功能清单 `id` 保持一致。旧的无前缀 tag（如 `v0.3.3`）保留不动，新版一律走前缀。
+
 ---
 
 ## 4. 安装到 profile

@@ -122,7 +122,7 @@ function refreshFeatureInstall(folder, version, tgzFile) {
   const meta = META[folder];
   if (!meta || !meta.id) return false;
   let s = readFileSync(FEATURE_FILE, "utf8");
-  const newUrl = `${DOWNLOAD_BASE}/v${version}/${basename(tgzFile)}`;
+  const newUrl = `${DOWNLOAD_BASE}/v${meta.id}-${version}/${basename(tgzFile)}`;
   const re = new RegExp('(id: "' + meta.id + '".*?install: )"[^"]*"');
   if (!re.test(s)) { warn(`未在功能推荐列表找到 id="${meta.id}" 的条目（可能已不在列表中）`); return false; }
   s = s.replace(re, `$1"${newUrl}"`);
@@ -174,7 +174,8 @@ async function gh(url, opts = {}, token) {
 }
 
 async function getOrCreateRelease(version, meta, token, dry) {
-  const tag = `v${version}`;
+  // 前缀式 tag：v<插件id>-<版本>，彻底避免不同插件版本号撞同一个 GitHub tag
+  const tag = `v${meta && meta.id ? meta.id + "-" : ""}${version}`;
   if (dry) {
     log(`  [dry] release tag=${tag}  name="${meta.label} ${version}"  body="Cheeco DSH 插件包 v${version} · ${meta.label.replace(/^cheeco /, "")}"`);
     return { id: null, tag, created: null };

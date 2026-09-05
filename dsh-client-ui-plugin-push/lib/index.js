@@ -53,6 +53,33 @@ const CHEECO_PLUGINS = [
 	{ folder: "dsh-client-ui-timeline-rail", name: "@cheeco/dsh-client-ui-timeline-rail", label: "会话时间轴" }
 ];
 
+/** folder -> 发布前缀(id)，与 publish.mjs 的 META、功能推荐清单的 id 一致。
+ *  下载 URL 用 v<prefix>-<version>（避免不同插件版本号撞同一个 GitHub tag）。 */
+const PREFIX_BY_FOLDER = {
+	"dsh-client-ui-message-sound": "sound",
+	"dsh-client-ui-session-search": "search",
+	"dsh-tool-dsh-plugin-exec": "dshcmd",
+	"dsh-client-ui-plugin-manager": "pmgr",
+	"dsh-client-ui-session-deeplink": "deeplink",
+	"dsh-client-ui-timeline-rail": "timeline",
+	"dsh-client-ui-plugin-push": "push",
+	"dsh-client-ui-task-status": "taskstatus",
+	"dsh-cmdwatch": "cmdwatch",
+	"dsh-client-ui-mobile": "mobile",
+	"dsh-client-ui-system-info": "systeminfo",
+	"dsh-web-ui-web_user_center": "usercenter",
+	"dsh-llm-model-settings": "model-settings",
+	"dsh-client-ui-schedule-panel": "schedule",
+	"dsh-web-ui-FuncPackagePanel": "func-package",
+	"dsh-web-ui-SystemPackagePanel": "system-package",
+	"dsh-web-ui-patchPackagePanel": "patch-package",
+	"dsh-web-ui-PluginPackagePanel": "plugin-package",
+	"dsh-web-ui-WebAppPackagePanel": "webapp-package",
+	"dsh-web-setting-BrandPanel": "brand",
+	"dsh-tool-skill-mcp-panel": "skill-mcp"
+};
+function prefixOf(folder) { return PREFIX_BY_FOLDER[folder] || ""; }
+
 /** DSH 官方程序（功能推荐列表最上方，仅列出 + 查看介绍，不提供安装）。 */
 const DSH_OFFICIAL = [
 	{ id: "dsh-main", name: "DeepSeek Harness（官方主程序）", url: "https://github.com/deepseek-ai/deepseek-harness", folder: "" },
@@ -124,7 +151,8 @@ async function latestVersionOf(folder) {
 async function resolveDownloadUrl(target) {
 	if (target.folder) {
 		const v = await latestVersionOf(target.folder);
-		if (v) return `https://github.com/cheeco-feng/DSH-Func/releases/download/v${v}/cheeco-${target.folder}-${v}.tgz`;
+		const prefix = prefixOf(target.folder);
+		if (v) return `https://github.com/cheeco-feng/DSH-Func/releases/download/v${prefix ? prefix + "-" : ""}${v}/cheeco-${target.folder}-${v}.tgz`;
 	}
 	return target.install || "";
 }
