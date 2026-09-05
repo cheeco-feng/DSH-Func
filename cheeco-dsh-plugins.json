@@ -20,7 +20,10 @@
     { "id": "patch-package", "name": "DSH补丁包", "pkg": "@cheeco/dsh-web-ui-patchPackagePanel", "folder": "dsh-web-ui-patchPackagePanel", "version": "0.1.0", "url": "https://github.com/cheeco-feng/DSH-Func" },
     { "id": "plugin-package", "name": "DSH插件包", "pkg": "@cheeco/dsh-web-ui-PluginPackagePanel", "folder": "dsh-web-ui-PluginPackagePanel", "version": "0.1.2", "url": "https://github.com/cheeco-feng/DSH-Func" },
     { "id": "webapp-package", "name": "服务商应用包", "pkg": "@cheeco/dsh-web-ui-WebAppPackagePanel", "folder": "dsh-web-ui-WebAppPackagePanel", "version": "0.1.0", "url": "https://github.com/cheeco-feng/DSH-Func" },
-    { "id": "brand", "name": "品牌设置", "pkg": "@cheeco/dsh-web-setting-BrandPanel", "folder": "dsh-web-setting-BrandPanel", "version": "0.1.1", "url": "https://github.com/cheeco-feng/DSH-Func" }
+    { "id": "brand", "name": "品牌设置", "pkg": "@cheeco/dsh-web-setting-BrandPanel", "folder": "dsh-web-setting-BrandPanel", "version": "0.1.1", "url": "https://github.com/cheeco-feng/DSH-Func" },
+    { "id": "webgate", "name": "会话控制台", "pkg": "@cheeco/dsh-client-ui-webgate", "folder": "dsh-client-ui-webgate", "version": "0.1.0", "url": "https://github.com/cheeco-feng/DSH-Func" },
+    { "id": "power-package", "name": "能力包", "pkg": "@cheeco/dsh-web-ui-PowerPackagePanel", "folder": "dsh-web-ui-PowerPackagePanel", "version": "0.1.0", "url": "https://github.com/cheeco-feng/DSH-Func" },
+    { "id": "skill-mcp", "name": "技能/MCP 能力", "pkg": "@cheeco/dsh-tool-skill-mcp-panel", "folder": "dsh-tool-skill-mcp-panel", "version": "0.1.0", "url": "https://github.com/cheeco-feng/DSH-Func" }
   ],
   "official": [
     { "id": "dsh-main", "name": "DeepSeek Harness（官方主程序）", "url": "https://github.com/deepseek-ai/deepseek-harness" },

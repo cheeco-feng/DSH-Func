@@ -1,0 +1,25 @@
+{
+  "name": "@cheeco/dsh-web-ui-PowerPackagePanel",
+  "version": "0.1.0",
+  "description": "Cheeco 能力包（PowerPackagePanel）：设置侧边栏「能力」包 + 空页面，内含子 slot（dsh-power-package.skill / .auto / .mcp）供能力插件注入；未注入时显示「未安装相关能力」。",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".":             { "default": "./lib/index.js" },
+    "./client":      { "default": "./lib/client.js" },
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": { "patch": "./cordis.patch.yml" },
+    "compatibility": {
+      "desktop": { "range": ">=2.0.0", "api": "^1.0.0" },
+      "runtime": { "range": ">=0.1.0", "evidence": { "providerId": "dsh-cli-provider-v1", "runtime": "0.1.0", "desktop": "2.0.0", "verifiedAt": "2026-09-05", "matrixArtifact": "runtime-support/supported-runtimes.json" } },
+      "surfaces": ["main"]
+    },
+    "client": { "platform": "web", "inject": ["@deepseek-ai/dsh-client-runtime", "@deepseek-ai/dsh-client-ui-slots", "@deepseek-ai/dsh-client-locale"] }
+  },
+  "keywords": ["dsh", "deepseek-harness", "dsh-plugin", "cheeco", "power-package", "settings-section"],
+  "files": ["lib/**/*.js", "cordis.patch.yml", "README.md"],
+  "license": "MIT",
+  "dependencies": {}
+}
