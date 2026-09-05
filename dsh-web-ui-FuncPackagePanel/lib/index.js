@@ -79,7 +79,7 @@ function renderConfigFile(v) {
 }
 
 /** 与 package.json 同步，供 config 记录产生它的插件版本。 */
-const PLUGIN_VERSION = "0.1.6";
+const PLUGIN_VERSION = "0.1.7";
 
 /** 解析 dsh CLI 包版本（来自 @deepseek-ai/dsh/package.json）。 */
 function dshVersion() {

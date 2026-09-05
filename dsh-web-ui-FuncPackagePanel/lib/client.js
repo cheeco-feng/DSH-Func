@@ -185,6 +185,8 @@ window.__ModuleLoader__.load({
         { id: "functions", label: "功能表" },
         { id: "manage", label: "功能管理" },
         { id: "model-settings", label: "模型设置" },
+        { id: "skill", label: "技能" },
+        { id: "mcp", label: "MCP管理" },
         { id: "panel", label: "面版管理" }
       ];
       const tabBtn = (key, label) => react_jsx_runtime.jsx("button", {
@@ -225,6 +227,22 @@ window.__ModuleLoader__.load({
         content = react_jsx_runtime.jsx("div", { children: [
           empty ? react_jsx_runtime.jsx("p", { style: { padding: "12px 0", color: "var(--dsw-alias-label-tertiary,#999)" }, children: "该插件未处于安装状态" }) : out
         ] });
+      } else if (tab === "skill") {
+        // 「技能」内容来自 dsh-tool-skill-mcp-panel 注入的子 slot dsh-func-package.skill。
+        const out = renderSlot ? renderSlot("dsh-func-package.skill", {}) : null;
+        const renderedChildren = (out === null || out === void 0) ? [] : react.Children.toArray(out);
+        const empty = renderedChildren.length === 0;
+        content = react_jsx_runtime.jsx("div", { children: [
+          empty ? react_jsx_runtime.jsx("p", { style: { padding: "12px 0", color: "var(--dsw-alias-label-tertiary,#999)" }, children: "该插件未处于安装状态" }) : out
+        ] });
+      } else if (tab === "mcp") {
+        // 「MCP管理」内容来自 dsh-tool-skill-mcp-panel 注入的子 slot dsh-func-package.mcp。
+        const out = renderSlot ? renderSlot("dsh-func-package.mcp", {}) : null;
+        const renderedChildren = (out === null || out === void 0) ? [] : react.Children.toArray(out);
+        const empty = renderedChildren.length === 0;
+        content = react_jsx_runtime.jsx("div", { children: [
+          empty ? react_jsx_runtime.jsx("p", { style: { padding: "12px 0", color: "var(--dsw-alias-label-tertiary,#999)" }, children: "该插件未处于安装状态" }) : out
+        ] });
       } else {
         content = react_jsx_runtime.jsx(RenameCard, {});
       }
@@ -249,7 +267,9 @@ window.__ModuleLoader__.load({
       // 「模型设置」tab 用到的基础子 slot，必须在此声明，settings.section 才会把 renderSlot
       // 传给 Section（否则 renderSlot(...) === undefined，内容渲染不出来）。
       const baseChildren = {
-        "dsh-func-package.model-settings": { kind: "single", scope: "root" }
+        "dsh-func-package.model-settings": { kind: "single", scope: "root" },
+        "dsh-func-package.skill": { kind: "single", scope: "root" },
+        "dsh-func-package.mcp": { kind: "single", scope: "root" }
       };
       const registerSection = () => ctx.slots.inject("settings.section", () => ctx.slots.register({
         name: "settings.section",

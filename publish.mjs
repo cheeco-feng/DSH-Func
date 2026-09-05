@@ -64,7 +64,6 @@ const META = {
   "dsh-web-ui-PluginPackagePanel": { id: "plugin-package", label: "cheeco DSH插件包", pkg: "@cheeco/dsh-web-ui-PluginPackagePanel" },
   "dsh-web-ui-WebAppPackagePanel": { id: "webapp-package", label: "cheeco 服务商应用包", pkg: "@cheeco/dsh-web-ui-WebAppPackagePanel" },
   "dsh-web-setting-BrandPanel":  { id: "brand", label: "cheeco 品牌设置", pkg: "@cheeco/dsh-web-setting-BrandPanel" },
-  "dsh-web-ui-PowerPackagePanel": { id: "power-package", label: "cheeco 能力包", pkg: "@cheeco/dsh-web-ui-PowerPackagePanel" },
   "dsh-tool-skill-mcp-panel": { id: "skill-mcp", label: "cheeco 技能/MCP 能力", pkg: "@cheeco/dsh-tool-skill-mcp-panel" },
 };
 

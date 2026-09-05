@@ -1,5 +1,5 @@
 window.__ModuleLoader__.load({
-    id: "dsh-tool-skill-mcp-panel",
+    id: "@cheeco/dsh-tool-skill-mcp-panel",
     factory: (require) => {
         const bundleModule = { exports: {} };
         Object.defineProperty(bundleModule.exports, Symbol.toStringTag, { value: "Module" });
@@ -3059,6 +3059,19 @@ window.__ModuleLoader__.load({
             });
         }
         // ── cordis 插件体 ─────────────────────────────────────────────────────
+        // 输入框左侧「能力」按钮 + 弹窗（技能/常驻两 tab）样式。
+        const cssAbility = [
+            ".__dsp_ability_btn{cursor:pointer;height:32px;border-radius:10px;color:var(--dsw-alias-label-primary);background:0 0;border:1px solid var(--dsw-alias-border-l2);padding:0 10px;font-size:13px;line-height:20px;display:inline-flex;align-items:center;gap:6px}",
+            ".__dsp_ability_btn:hover{background:var(--dsw-alias-interactive-bg-hover)}",
+            ".__dsp_ability_overlay{z-index:1000;position:fixed;inset:0;display:flex;justify-content:center;align-items:center;background:var(--dsw-alias-bg-mask-1);backdrop-filter:var(--dsw-mask-blur)}",
+            ".__dsp_ability_panel{background:var(--dsw-alias-bg-layer-2);width:90vw;height:90vh;display:flex;flex-direction:column;border-radius:16px;box-shadow:var(--dsw-shadow-lv3);padding:18px;gap:12px}",
+            ".__dsp_ability_head{display:flex;justify-content:space-between;align-items:center;font-size:15px;font-weight:600;color:var(--dsw-alias-label-primary)}",
+            ".__dsp_ability_close{cursor:pointer;border:none;background:0 0;color:var(--dsw-alias-label-primary);font-size:18px;line-height:1}",
+            ".__dsp_ability_tabs{display:flex;gap:4px;border-bottom:1px solid var(--dsw-alias-border-l2)}",
+            ".__dsp_ability_tab{cursor:pointer;padding:6px 14px;font-size:13px;color:var(--dsw-alias-label-secondary);background:0 0;border:none;border-bottom:2px solid transparent}",
+            ".__dsp_ability_tab[data-on=true]{color:var(--dsw-alias-label-primary);font-weight:600;border-bottom-color:var(--dsw-alias-state-business-primary)}",
+            ".__dsp_ability_body{flex:1;overflow:auto}"
+        ].join("");
         const inject = ["slots", "locale", "remote", "sessions", "conversation"];
         function apply(ctx) {
             // 字典注册（生命周期随插件 fiber）
@@ -3130,48 +3143,68 @@ window.__ModuleLoader__.load({
                 testMcp: (payload) => callMcp("test", payload),
                 reloadMcp: () => callMcp("reload")
             });
-            // 注册“技能”设置栏（order 16：位于“插件”15 与“agent 预设”20 之间）。
-            ctx.slots.inject("settings.section", () => ctx.slots.register({
-                name: "settings.section",
-                id: "skills",
-                order: 16,
-                label: () => t("nav"),
-                locale: NS,
-                inject: sectionFace
-            }, SkillsSection));
-            // MCP：order 17，位于“技能”(16) 下方。
-            ctx.slots.inject("settings.section", () => ctx.slots.register({
-                name: "settings.section",
-                id: "mcp",
-                order: 16.5,
-                label: () => mt("nav"),
-                locale: MCP_NS,
-                inject: mcpSectionFace
-            }, (props) => (0, react_jsx_runtime.jsx)(McpSection, { ...props, t: mt })));
-            // 注入「能力」包（dsh-web-ui-PowerPackagePanel）的两个子 slot：
-            //   技能选择 → dsh-power-package.skill（勾选技能 → 自动往 composer 加 /技能名）
-            //   常驻技能列表 → dsh-power-package.auto（default-start 勾选，localStorage 持久化）
-            // 子 slot 名必须与 PowerPackagePanel 的 SLOT_TABS/children 声明保持一致。
-            ctx.slots.inject("dsh-power-package.skill", () => ctx.slots.register({
-                name: "dsh-power-package.skill",
+            // 不再注册独立的「技能」「MCP」设置栏，也不做独立的「能力包」侧边栏；改为注入
+            // DSH功能包（dsh-web-ui-FuncPackagePanel）的子 slot，作为功能包内的 tab 页。
+            //   技能(管理) → dsh-func-package.skill
+            //   MCP 管理    → dsh-func-package.mcp
+            // 子 slot 名必须与 FuncPackagePanel 的 baseChildren 声明保持一致。
+            ctx.slots.inject("dsh-func-package.skill", () => ctx.slots.register({
+                name: "dsh-func-package.skill",
                 id: "skills",
                 order: 10
-            }, (props) => (0, react_jsx_runtime.jsx)(SkillQuickTab, {
+            }, (props) => (0, react_jsx_runtime.jsx)(SkillsSection, {
                 ...props,
-                ctx,
-                currentSessionId,
-                listSkills: () => callRemote("list", currentSessionId())
+                ...sectionFace(),
+                t
             })));
-            ctx.slots.inject("dsh-power-package.auto", () => ctx.slots.register({
-                name: "dsh-power-package.auto",
-                id: "auto",
+            ctx.slots.inject("dsh-func-package.mcp", () => ctx.slots.register({
+                name: "dsh-func-package.mcp",
+                id: "mcp",
                 order: 11
-            }, (props) => (0, react_jsx_runtime.jsx)(AutoStartTab, {
+            }, (props) => (0, react_jsx_runtime.jsx)(McpSection, {
                 ...props,
-                ctx,
-                currentSessionId,
-                listSkills: () => callRemote("list", currentSessionId())
+                ...mcpSectionFace(),
+                t: mt
             })));
+            // 输入框左侧「能力」按钮（conversation.input.left）：点击弹出 技能/常驻 选择弹窗。
+            // 复用上面的 SkillQuickTab / AutoStartTab 作为弹窗内容。
+            const AbilityButton = () => {
+                if (typeof document !== "undefined" && !document.querySelector('style[data-plugin="dsh-tool-skill-ability"]')) {
+                    const st = document.createElement("style");
+                    st.dataset.plugin = "dsh-tool-skill-ability";
+                    st.textContent = cssAbility;
+                    document.head.appendChild(st);
+                }
+                const [open, setOpen] = react.useState(false);
+                const [tab, setTab] = react.useState("ability");
+                const listSkills = () => callRemote("list", currentSessionId());
+                return (0, react_jsx_runtime.jsxs)(react.Fragment, {
+                    children: [
+                        (0, react_jsx_runtime.jsx)("button", { type: "button", className: "__dsp_ability_btn", title: "选择能力/技能", onClick: () => setOpen(true), children: "能力" }),
+                        open ? (0, react_jsx_runtime.jsxs)("div", { className: "__dsp_ability_overlay", onClick: () => setOpen(false), children: [
+                            (0, react_jsx_runtime.jsxs)("div", { className: "__dsp_ability_panel", onClick: (e) => e.stopPropagation(), children: [
+                                (0, react_jsx_runtime.jsxs)("div", { className: "__dsp_ability_head", children: [
+                                    (0, react_jsx_runtime.jsx)("span", { children: "能力 / 技能" }),
+                                    (0, react_jsx_runtime.jsx)("button", { className: "__dsp_ability_close", onClick: () => setOpen(false), children: "\u00d7" })
+                                ] }),
+                                (0, react_jsx_runtime.jsxs)("div", { className: "__dsp_ability_tabs", children: [
+                                    (0, react_jsx_runtime.jsx)("button", { className: "__dsp_ability_tab", "data-on": tab === "ability", onClick: () => setTab("ability"), children: "技能" }),
+                                    (0, react_jsx_runtime.jsx)("button", { className: "__dsp_ability_tab", "data-on": tab === "auto", onClick: () => setTab("auto"), children: "常驻技能列表" })
+                                ] }),
+                                (0, react_jsx_runtime.jsxs)("div", { className: "__dsp_ability_body", children: [
+                                    tab === "ability" ? (0, react_jsx_runtime.jsx)(SkillQuickTab, { ctx: ctx, currentSessionId: currentSessionId, listSkills: listSkills }) : (0, react_jsx_runtime.jsx)(AutoStartTab, { ctx: ctx, currentSessionId: currentSessionId, listSkills: listSkills })
+                                ] })
+                            ] })
+                        ] }) : null
+                    ]
+                });
+            };
+            // 输入框左侧（Full access 旁）显示「能力」按钮。
+            ctx.slots.inject("conversation.input.left", () => ctx.slots.register({
+                name: "conversation.input.left",
+                id: "ability-button",
+                order: 100
+            }, () => (0, react_jsx_runtime.jsx)(AbilityButton, {})));
         }
         bundleModule.exports.NS = NS;
         bundleModule.exports.apply = apply;
