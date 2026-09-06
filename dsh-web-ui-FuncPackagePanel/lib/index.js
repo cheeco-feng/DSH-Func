@@ -66,12 +66,18 @@ function renderConfigFile(v) {
 	const s = (x) => JSON.stringify(x ?? "");
 	const dsh = (typeof v.dsh === "object" && v.dsh) ? v.dsh : {};
 	const feats = (typeof v.features === "object" && v.features) ? v.features : {};
+	const switches = (Array.isArray(v.featureSwitches) && v.featureSwitches.length > 0) ? v.featureSwitches : [];
+	// 动态输出 features 里所有 key（默认 true），不再硬编码 key——新增开关只需往 featureSwitches 加条目。
+	const featKeys = Object.keys(feats);
+	const featStr = featKeys.map((k) => `${s(k)}: ${feats[k] !== false}`).join(", ");
 	return [
 		"{",
 		"  // 该设置页（DSH功能包）在侧边栏的名字；留空用默认「DSH功能包」",
 		`  "label": ${s(v.label)},`,
-		"  // 功能开关（会话搜索 / DSH功能命令；功能包「功能管理」tab 读写）",
-		`  "features": { "sessionSearch": ${feats.sessionSearch !== false}, "dshCommand": ${feats.dshCommand !== false}, "showQuoteButton": ${feats.showQuoteButton !== false} },`,
+		"  // 功能开关值（供 `featureSwitches` 引用的 key 存实际值；功能包「功能管理」tab 读写）",
+		`  "features": { ${featStr} },`,
+		"  // 功能开关渲染列表（配置驱动）：每条 = { key, label }；加/减开关只改这里，不改代码",
+		`  "featureSwitches": ${s(switches)},`,
 		"  // DSH 信息（宿主自动维护：当前工作台名 / DSH_HOME / 插件与 dsh 版本；用于识别与排查）",
 		`  "dsh": { "profileName": ${s(dsh.profileName)}, "dshHome": ${s(dsh.dshHome)}, "pluginVersion": ${s(dsh.pluginVersion)}, "dshVersion": ${s(dsh.dshVersion)} }`,
 		"}"
@@ -79,7 +85,7 @@ function renderConfigFile(v) {
 }
 
 /** 与 package.json 同步，供 config 记录产生它的插件版本。 */
-const PLUGIN_VERSION = "0.1.8";
+const PLUGIN_VERSION = "0.1.9";
 
 /** 解析 dsh CLI 包版本（来自 @deepseek-ai/dsh/package.json）。 */
 function dshVersion() {
@@ -95,6 +101,11 @@ function ensureConfigMetadata(configFile) {
 	const value = {
 		label: "",
 		features: { sessionSearch: true, dshCommand: true, showQuoteButton: true },
+		featureSwitches: [
+			{ key: "sessionSearch", label: "会话搜索功能（隐藏/显示）" },
+			{ key: "dshCommand", label: "DSH功能命令（停用/开启）" },
+			{ key: "showQuoteButton", label: "显示引用功能按钮（显示/隐藏）" }
+		],
 		dsh: {
 			profileName: resolveProfileName(),
 			dshHome: process.env.DSH_HOME || "",
