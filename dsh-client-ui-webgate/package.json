@@ -1,7 +1,7 @@
 {
-  "name": "@cheeco/dsh-client-ui-plugin-push",
-  "version": "0.1.11",
-  "description": "Cheeco「功能推荐」插件中心：一体化插件推荐/安装/更新/卸载页（含 dsh 官方程序），由 dsh-web-ui-cheeco-style 的「功能推荐」tab 通过子 slot 委托渲染。",
+  "name": "@cheeco/dsh-client-ui-webgate",
+  "description": "会话控制台：指定一个会话 id 查看对话历史、发消息、实时刷新（Cheeco 独立插件页）。",
+  "version": "0.1.0",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
@@ -23,7 +23,6 @@
         "evidence": {
           "providerId": "dsh-cli-provider-v1",
           "runtime": "0.1.1-rc.1",
-          "desktop": "3.1.0",
           "verifiedAt": "2026-09-01",
           "matrixArtifact": "runtime-support/supported-runtimes.json"
         }
@@ -39,10 +38,18 @@
         "@deepseek-ai/dsh-client-locale"
       ],
       "platform": "web"
+    },
+    "cheecoPanel": {
+      "addPage": {
+        "id": "webgate",
+        "label": "会话控制台",
+        "page": "@cheeco/dsh-client-ui-webgate",
+        "blocks": []
+      }
     }
   },
   "files": [
-    "lib",
+    "lib/**/*.js",
     "cordis.patch.yml",
     "README.md"
   ],

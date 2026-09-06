@@ -76,7 +76,8 @@ const PREFIX_BY_FOLDER = {
 	"dsh-web-ui-PluginPackagePanel": "plugin-package",
 	"dsh-web-ui-WebAppPackagePanel": "webapp-package",
 	"dsh-web-setting-BrandPanel": "brand",
-	"dsh-tool-skill-mcp-panel": "skill-mcp"
+	"dsh-tool-skill-mcp-panel": "skill-mcp",
+	"dsh-client-ui-webgate": "webgate"
 };
 function prefixOf(folder) { return PREFIX_BY_FOLDER[folder] || ""; }
 

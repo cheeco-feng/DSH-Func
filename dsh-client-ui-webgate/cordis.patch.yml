@@ -1,0 +1,6 @@
+# dsh-client-ui-webgate —— 浏览器插件 roster 行。
+# 作为 overlay bundle patch 组合（该包列在 dsh.profile.bundles），此处仅 ADD 一行，不碰现有行。
+# id 全树唯一；name 指向包名（宿主入口）。
+- insert:
+    - id: ui-webgate
+      name: '@cheeco/dsh-client-ui-webgate'
