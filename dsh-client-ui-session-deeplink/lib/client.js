@@ -19,6 +19,11 @@ function syncSessionQuery(sessionId) {
 	const url = new URL(window.location.href);
 	if (sessionId === void 0) url.searchParams.delete(SESSION_KEY);
 	else url.searchParams.set(SESSION_KEY, sessionId);
+	// 就在「会话 url」生成的地方，把「当前 url」（深链接）暴露成变量：其它插件/卡片（如「复制链接」）
+	// 监听 dsh-session-deeplink:url 即可拿到带 ?session=<id> 的当前地址，无需自己再拼。
+	try {
+		window.dispatchEvent(new CustomEvent("dsh-session-deeplink:url", { detail: { url: url.href, sessionId } }));
+	} catch (e) { /* ignore */ }
 	const next = `${url.pathname}${url.search}${url.hash}`;
 	if (next === `${window.location.pathname}${window.location.search}${window.location.hash}`) return;
 	window.history.replaceState(window.history.state, "", next);

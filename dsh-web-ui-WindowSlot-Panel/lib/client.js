@@ -39,7 +39,11 @@ window.__ModuleLoader__.load({
         + ".dswp-monitor{display:flex;flex-direction:column;gap:12px;flex:1;min-height:0;padding:16px 20px 24px;color:var(--dsw-alias-label-primary)}"
         + ".dswp-hint{color:var(--dsw-alias-label-secondary);font-size:13px;line-height:20px;padding:8px 0}"
         + ".dswp-more-body{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;flex:1;min-height:0;overflow:auto;padding:8px 0;align-content:start}"
-        + ".dswp-more-empty{color:var(--dsw-alias-label-secondary);font-size:13px;line-height:20px;padding:24px 8px;text-align:center}";
+        + ".dswp-more-empty{color:var(--dsw-alias-label-secondary);font-size:13px;line-height:20px;padding:24px 8px;text-align:center}"
+        + ".dmcard{box-sizing:border-box;background:var(--dsw-alias-bg-layer-2,#fff);border:1px solid var(--dsw-alias-border-l2,#d9d9d9);border-radius:12px;padding:14px 16px;cursor:pointer;display:flex;flex-direction:column;gap:6px;transition:background .15s,border-color .15s;min-height:88px}"
+        + ".dmcard:hover{background:var(--dsw-alias-interactive-bg-hover,#f5f5f5);border-color:var(--dsw-alias-state-business-primary,#3498db)}"
+        + ".dmcard-t{font-size:14px;font-weight:600;color:var(--dsw-alias-label-primary,#1a1a1a)}"
+        + ".dmcard-d{font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary,#666)}";
       var tag = document.createElement("style");
       tag.dataset.plugin = "dsh-web-ui-window-slot-panel";
       tag.textContent = css;
@@ -293,14 +297,82 @@ window.__ModuleLoader__.load({
       };
     }
 
+    /** 把文本写入剪贴板（优先 navigator.clipboard，退回 execCommand）。 */
+    function copyText(text) {
+      return new Promise((resolve) => {
+        const fallback = () => {
+          try {
+            const ta = document.createElement("textarea");
+            ta.value = text;
+            ta.style.position = "fixed";
+            ta.style.opacity = "0";
+            document.body.appendChild(ta);
+            ta.select();
+            const ok = document.execCommand("copy");
+            ta.remove();
+            return ok;
+          } catch (e) { return false; }
+        };
+        try {
+          if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+            navigator.clipboard.writeText(text).then(() => resolve(true), () => resolve(fallback()));
+            return;
+          }
+          resolve(fallback());
+        } catch (e) { resolve(fallback()); }
+      });
+    }
+
+    /** 用会话 id 拼出当前深链接（当前网页 + ?session=<id>，与 dsh-client-ui-session-deeplink 同机制）。 */
+    function currentDeepLink(sessionId) {
+      try {
+        const url = new URL(window.location.href);
+        if (sessionId) url.searchParams.set("session", sessionId);
+        else url.searchParams.delete("session");
+        return url.href;
+      } catch (e) { return window.location.href; }
+    }
+
+    /** 一张「更多」卡片：显示 label + desc；点击执行行为。
+     *  - type=copy-url（默认）：复制目标（配置 url 优先，否则当前会话深链接，用 sessionId 拼成
+     *    `当前网页?session=<id>`，与 dsh-client-ui-session-deeplink 同机制，不依赖其事件）。
+     *  - type=open：新窗口打开该链接（window.open(url, "_blank")），不复制。 */
+    function MoreCard(props) {
+      const card = props && props.card ? props.card : {};
+      const sessionId = props && props.sessionId;
+      const [copied, setCopied] = react.useState(false);
+      const [preview, setPreview] = react.useState("");
+      const target = card.url && String(card.url).trim()
+        ? String(card.url).trim()
+        : currentDeepLink(sessionId);
+      const onClick = () => {
+        if (card.type === "open") { window.open(target, "_blank"); return; }
+        copyText(target).then((ok) => {
+          if (ok) {
+            setCopied(true);
+            setPreview(target);
+            setTimeout(() => setCopied(false), 1400);
+          }
+        });
+      };
+      return react_jsx_runtime.jsx("div", {
+        className: "dmcard",
+        onClick,
+        children: [
+          react_jsx_runtime.jsx("span", { className: "dmcard-t", children: copied ? "已复制" : (card.label || "卡片") }),
+          react_jsx_runtime.jsx("span", { className: "dmcard-d", children: copied ? preview : (card.desc || "") })
+        ]
+      });
+    }
+
     /** 「更多」弹出页宿主：由会话「…」菜单的「更多」打开（window 'dswp-more:open' 事件）。
-     *  注册进 conversation.input.left（与「引用」按钮同槽，关闭返回 null 不显示按钮），
-     *  声明子 slot `dswp-more.card`（list），用 renderSlot 渲染卡片；
-     *  无卡片时显示「暂无更多可用菜单」（与「监控」子 tab 相同的判空逻辑）。 */
+     *  注册进 conversation.input.left（与「引用」按钮同槽，关闭返回 null 不显示按钮）。
+     *  卡片内容来自**外置配置** /more-cards/config（DSH-More-Cards-config.json，由本插件 node 半边提供），
+     *  WindowSlot-Panel 直接渲染卡片；无卡片时显示「暂无更多可用菜单」。 */
     function MoreMenuHost(props) {
-      const renderSlot = props && props.renderSlot;
       const [open, setOpen] = react.useState(false);
       const [sessionId, setSessionId] = react.useState(null);
+      const [cards, setCards] = react.useState([]);
       react.useEffect(() => {
         const onOpen = (e) => {
           setSessionId(e && e.detail ? e.detail.sessionId : null);
@@ -309,15 +381,19 @@ window.__ModuleLoader__.load({
         window.addEventListener("dswp-more:open", onOpen);
         return () => window.removeEventListener("dswp-more:open", onOpen);
       }, []);
+      react.useEffect(() => {
+        let cancelled = false;
+        (async () => {
+          try {
+            const r = await fetch("/more-cards/config", { cache: "no-store" });
+            const j = await r.json();
+            if (!cancelled && Array.isArray(j.cards)) setCards(j.cards);
+          } catch (e) { if (!cancelled) setCards([]); }
+        })();
+        return () => { cancelled = true; };
+      }, []);
       if (!open) return null;
-      // 卡片列表来自子 slot `dswp-more.card`（list）。list 槽为空时 slot 运行时会把 `opts.fallback`
-      // 渲染出来（renderer renderOutletContent: list.length===0 → fallback），因此把「暂无更多可用菜单」
-      // 直接作为 fallback 传入即可，无需再手动判空——这是与「监控」子 tab 同一套判空机制的更稳写法。
-      const out = typeof renderSlot === "function"
-        ? renderSlot("dswp-more.card", { sessionId }, {
-            fallback: react_jsx_runtime.jsx("p", { className: "dswp-more-empty", children: zh["more.empty"] })
-          })
-        : react_jsx_runtime.jsx("p", { className: "dswp-more-empty", children: zh["more.empty"] });
+      const sorted = cards.slice().sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
       return react_jsx_runtime.jsxs("div", {
         className: "dswp-overlay",
         onClick: () => setOpen(false),
@@ -330,7 +406,11 @@ window.__ModuleLoader__.load({
                 react_jsx_runtime.jsx("span", { children: zh["more.title"] }),
                 react_jsx_runtime.jsx("button", { className: "dswp-close", onClick: () => setOpen(false), children: "\u00d7" })
               ] }),
-              react_jsx_runtime.jsx("div", { className: "dswp-more-body", children: [out] })
+              react_jsx_runtime.jsx("div", { className: "dswp-more-body", children: [
+                sorted.length === 0
+                  ? react_jsx_runtime.jsx("p", { className: "dswp-more-empty", children: zh["more.empty"] })
+                  : sorted.map((c) => react_jsx_runtime.jsx(MoreCard, { card: c, sessionId }, "mc-" + (c.id || Math.random().toString(36).slice(2, 7))))
+              ] })
             ]
           })
         ]
@@ -386,8 +466,7 @@ window.__ModuleLoader__.load({
           ctx.slots.inject("conversation.input.left", () => ctx.slots.register({
             name: "conversation.input.left",
             id: "window-slot-panel-more",
-            order: 111,
-            children: { "dswp-more.card": { kind: "list", scope: "root" } }
+            order: 111
           }, (props) => react_jsx_runtime.jsx(MoreMenuHost, { ...props })));
           ctx.effect(startMoreMenuManager, "dsh-web-ui-window-slot-panel: more menu manager");
         }
