@@ -1,7 +1,7 @@
 {
   "name": "@cheeco/dsh-web-ui-WindowSlot-Panel",
-  "version": "0.2.2",
-  "description": "dsh-web-ui-WindowSlot-Panel（槽位窗口管理面板）: ①在聊天输入框工具行注入「引用」按钮 + 弹出窗口；②在对话视图区新增「监控」tab（内页为子 tab 结构，缺省页显示「当前未安装相关的面板」，可被子 slot 注入内容）。显隐分别由 DSH功能包「功能管理→功能开关」的「显示引用功能按钮」（features.showQuoteButton）与「显示监控面版」（features.showMonitorPanel）控制。",
+  "version": "0.2.3",
+  "description": "dsh-web-ui-WindowSlot-Panel（槽位窗口管理面板）: ①在聊天输入框工具行注入「引用」按钮 + 弹出窗口；②在对话视图区新增「监控」tab（内页为子 tab 结构：缺省页显示「当前未安装相关的面板」，另有「命令监视」子 tab，均可被子 slot 注入内容）。显隐分别由 DSH功能包「功能管理→功能开关」的「显示引用功能按钮」（features.showQuoteButton）与「显示监控面版」（features.showMonitorPanel）控制。",
   "type": "module",
   "main": "lib/index.js",
   "exports": {

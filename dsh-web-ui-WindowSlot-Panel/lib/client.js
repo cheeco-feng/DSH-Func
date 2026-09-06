@@ -36,7 +36,8 @@ window.__ModuleLoader__.load({
         + ".dswp-tab{cursor:pointer;padding:6px 14px;font-size:13px;color:var(--dsw-alias-label-secondary);background:0 0;border:none;border-bottom:2px solid transparent}"
         + ".dswp-tab[data-on=true]{color:var(--dsw-alias-label-primary);font-weight:600;border-bottom-color:var(--dsw-alias-state-business-primary)}"
         + ".dswp-body{display:flex;flex-direction:column;gap:8px;flex:1;overflow:auto;color:var(--dsw-alias-label-secondary);font-size:13px;line-height:20px;padding:8px 0}"
-        + ".dswp-monitor{display:flex;flex-direction:column;gap:12px;flex:1;min-height:0;padding:16px 20px 24px;color:var(--dsw-alias-label-primary)}";
+        + ".dswp-monitor{display:flex;flex-direction:column;gap:12px;flex:1;min-height:0;padding:16px 20px 24px;color:var(--dsw-alias-label-primary)}"
+        + ".dswp-hint{color:var(--dsw-alias-label-secondary);font-size:13px;line-height:20px;padding:8px 0}";
       var tag = document.createElement("style");
       tag.dataset.plugin = "dsh-web-ui-window-slot-panel";
       tag.textContent = css;
@@ -101,31 +102,46 @@ window.__ModuleLoader__.load({
       });
     }
 
-    /** 本插件「监控」对话视图 tab 的内页子 tab（缺省页占位，实际内容由子 slot 注入）。 */
+    /** 「监控」对话视图 tab 的内页子 tab（内容由其它插件经子 slot 注入，如「命令监视」）。
+     *  「缺省页」不作为 tab——无任何 occupant 时直接显示「当前未安装相关的面板」文案。 */
     const MONITOR_TABS = [
-      { slot: "dswp-monitor.default", label: "缺省页" }
+      { slot: "dswp-monitor.cmdwatch", label: "命令监视" }
     ];
 
     /** 「监控」对话视图 tab 声明的子 slot：供其它插件向内页注入内容（同「引用」弹窗机制）。 */
     const MONITOR_CHILDREN = {
-      "dswp-monitor.default": { kind: "single", scope: "root" }
+      "dswp-monitor.cmdwatch": { kind: "single", scope: "root" }
     };
 
-    /** 「监控」对话视图 tab：内页为「子 tab」结构（同「引用」弹窗，用 renderSlot 渲染注入内容；
-     *  未注入时显示「缺省页」占位）。与「引用」弹出页不同——这是一棵常驻对话视图 tab，不是弹出页。 */
+    /** 判断 renderSlot 输出元素树里是否命中「空占位」标记（declared 但无 occupant 时 slot 系统的
+     *  fallback 会带上此标记）。不能靠 react.Children.toArray 判空——空槽返回 <Fragment>{null}</Fragment>，
+     *  toArray 长度 1 >0 会误判为有内容（实测）。 */
+    function hasEmptyMark(node) {
+      if (Array.isArray(node)) return node.some((n) => hasEmptyMark(n));
+      if (!react.isValidElement(node)) return false;
+      if (node.props && node.props["data-dswp-empty"] !== undefined) return true;
+      return hasEmptyMark(node.props && node.props.children);
+    }
+
+    /** 「监控」对话视图 tab：内页为「子 tab」结构（同「引用」弹窗机制，用 renderSlot 渲染注入内容）。
+     *  只显示**有 occupant** 的子 tab（如「命令监视」）；无任何 occupant 时**不显示 tab 栏**，直接显示
+     *  「当前未安装相关的面板」文案。与「引用」弹出页不同——这是一棵常驻对话视图 tab，不是弹出页。 */
     function MonitorView(props) {
       const renderSlot = props && props.renderSlot;
-      const [active, setActive] = react.useState(MONITOR_TABS[0].slot);
-      const placeholder = react_jsx_runtime.jsx("p", { children: "当前未安装相关的面板" });
-      // 逐个子 slot 渲染：无 occupant 时用槽系统自身的 fallback 渲染占位文案
-      // （不要用 Children.toArray 判空——declared 但无 occupant 时 renderSlot 返回
-      //  <Fragment>{null}</Fragment>，toArray 会误判为非空，导致渲染空白容器）。
-      const rendered = MONITOR_TABS.map((t) => ({
-        slot: t.slot,
-        label: t.label,
-        out: typeof renderSlot === "function" ? renderSlot(t.slot, {}, { fallback: placeholder }) : placeholder
-      }));
-      const current = rendered.some((r) => r.slot === active) ? active : (rendered[0] ? rendered[0].slot : "");
+      const [active, setActive] = react.useState(MONITOR_TABS[0] ? MONITOR_TABS[0].slot : "");
+      const owner = props && props.sessionId ? { sessionId: props.sessionId } : {};
+      // 判空标记：有 occupant 时其元素树不含此标记；空槽则含（据此判断哪个子 tab 有内容）。
+      const emptyMark = react_jsx_runtime.jsx("span", { "data-dswp-empty": "", style: { display: "none" } });
+      const rendered = MONITOR_TABS.map((t) => {
+        const out = typeof renderSlot === "function" ? renderSlot(t.slot, owner, { fallback: emptyMark }) : emptyMark;
+        return { slot: t.slot, label: t.label, out, occupied: !hasEmptyMark(out) };
+      });
+      const occupiedTabs = rendered.filter((r) => r.occupied);
+      // 无任何占用的子 tab → 不显示 tab 栏，直接显示占位文案。
+      if (occupiedTabs.length === 0) {
+        return react_jsx_runtime.jsx("div", { className: "dswp-monitor", children: react_jsx_runtime.jsx("p", { className: "dswp-hint", children: "当前未安装相关的面板" }) });
+      }
+      const current = occupiedTabs.some((r) => r.slot === active) ? active : occupiedTabs[0].slot;
       const tabBtn = (key, label) => react_jsx_runtime.jsx("button", {
         type: "button",
         className: "dswp-tab",
@@ -133,13 +149,13 @@ window.__ModuleLoader__.load({
         onClick: () => setActive(key),
         children: label
       });
-      const activeTab = rendered.find((r) => r.slot === current);
+      const activeTab = occupiedTabs.find((r) => r.slot === current);
       return react_jsx_runtime.jsxs("div", {
         className: "dswp-monitor",
         children: [
-          react_jsx_runtime.jsxs("div", { className: "dswp-tabs", children: rendered.map((r) => tabBtn(r.slot, r.label)) }),
+          react_jsx_runtime.jsxs("div", { className: "dswp-tabs", children: occupiedTabs.map((r) => tabBtn(r.slot, r.label)) }),
           react_jsx_runtime.jsx("div", { className: "dswp-body", children: [
-            activeTab ? activeTab.out : placeholder
+            activeTab ? activeTab.out : null
           ] })
         ]
       });

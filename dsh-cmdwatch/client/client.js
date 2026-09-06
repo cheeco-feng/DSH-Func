@@ -86,9 +86,7 @@ async function snapshot(since, sessionId) {
   if (!res.ok) throw new Error("snapshot " + res.status);
   return res.json();
 }
-function CmdMonView({ timer, sessionId, position }) {
-  const activePos = getActivePosition();
-  const active = position === activePos;
+function CmdMonView({ timer, sessionId }) {
   const [records, setRecords] = (0, import_react.useState)(/* @__PURE__ */ new Map());
   const [open, setOpen] = (0, import_react.useState)(true);
   const [expanded, setExpanded] = (0, import_react.useState)(null);
@@ -96,7 +94,6 @@ function CmdMonView({ timer, sessionId, position }) {
   const seqRef = (0, import_react.useRef)(0);
   const outRef = (0, import_react.useRef)(null);
   (0, import_react.useEffect)(() => {
-    if (!active) return;
     const tick = async () => {
       try {
         const res = await snapshot(seqRef.current, sessionId);
@@ -118,7 +115,7 @@ function CmdMonView({ timer, sessionId, position }) {
     }
     const iv = setInterval(tick, 700);
     return () => clearInterval(iv);
-  }, [active]);
+  }, [sessionId]);
   (0, import_react.useEffect)(() => {
     if (outRef.current) outRef.current.scrollTop = outRef.current.scrollHeight;
   }, [records, expanded]);
@@ -176,12 +173,9 @@ function CmdMonView({ timer, sessionId, position }) {
     } catch (err) {
     }
   };
-  const doSwitchPosition = () => setActivePosition(nextPosition(position));
-  const posLabel = position === "top" ? "\u9876\u90E8" : position === "bottom" ? "\u5E95\u90E8" : "\u53F3\u4FA7";
-  if (!active) return null;
   return (0, import_react.createElement)(
     "div",
-    { className: "cmdmon" + (position === "sidebar" ? " cmdmon-sidebar" : "") },
+    { className: "cmdmon" },
     (0, import_react.createElement)(
       "div",
       { className: "cmdmon-head" },
@@ -192,11 +186,6 @@ function CmdMonView({ timer, sessionId, position }) {
       (0, import_react.createElement)(
         "div",
         { className: "cmdmon-actions" },
-        (0, import_react.createElement)("button", {
-          className: "cmdmon-posbtn",
-          title: "\u5207\u6362\u9762\u677F\u4F4D\u7F6E\uFF08\u9876\u90E8 / \u5E95\u90E8 / \u53F3\u4FA7 \u5FAA\u73AF\uFF09",
-          onClick: doSwitchPosition
-        }, "\u2195 " + posLabel),
         (0, import_react.createElement)(
           "label",
           { className: "cmdmon-stream", title: "\u5F00\u542F\u540E\u63D2\u4EF6\u4E3B\u52A8\u8BFB\u53D6\u540E\u53F0\u4EFB\u52A1\u8F93\u51FA\u6D41\uFF08dsh \u7684 job_output \u53EF\u80FD\u8BFB\u5230\u7A7A\u589E\u91CF\uFF09" },
@@ -255,32 +244,6 @@ function CmdMonView({ timer, sessionId, position }) {
     )
   );
 }
-var POSITIONS = {
-  top: "conversation.input.dock",
-  bottom: "conversation.composer.dock",
-  sidebar: "shell.overlay"
-};
-function getActivePosition() {
-  try {
-    const v = localStorage.getItem("cmdmon.position");
-    if (v === "top" || v === "bottom" || v === "sidebar") return v;
-  } catch (e) {
-  }
-  return "top";
-}
-function nextPosition(cur) {
-  return cur === "top" ? "bottom" : cur === "bottom" ? "sidebar" : "top";
-}
-function setActivePosition(p) {
-  try {
-    localStorage.setItem("cmdmon.position", p);
-  } catch (e) {
-  }
-  try {
-    window.location.reload();
-  } catch (e) {
-  }
-}
 function apply(ctx) {
   const tagId = "@cheeco/dsh-cmdwatch/style.css";
   if (typeof document !== "undefined" && document.querySelector('style[data-plugin-css="' + tagId + '"]') === null) {
@@ -292,23 +255,19 @@ function apply(ctx) {
   }
   const slots = ctx.slots;
   const timer = ctx.get("timer");
-  for (const pos of ["top", "bottom", "sidebar"]) {
-    const slotName = POSITIONS[pos];
-    ctx.slots.inject(slotName, () => slots.register(
-      {
-        name: slotName,
-        id: "cmdmon-" + pos,
-        order: pos === "sidebar" ? 90 : 30,
-        priority: -1,
-        label: pos === "top" ? "\u547D\u4EE4\u76D1\u89C6" : pos === "bottom" ? "\u547D\u4EE4\u76D1\u89C6(\u4E0B)" : "\u547D\u4EE4\u76D1\u89C6(\u53F3\u4FA7)"
-      },
-      (props) => (0, import_react.createElement)(CmdMonView, {
-        timer,
-        sessionId: props && (props.sessionId || props.zone && props.zone.sessionId),
-        position: pos
-      })
-    ));
-  }
+  // 只作为「监控」tab 的一个子 tab 显示（dswp-monitor.cmdwatch 由 dsh-web-ui-WindowSlot-Panel 的
+  // MonitorView 声明）。不再注册到输入框/底部 dock / 侧栏 overlay；原「顶部/底部/右侧」位置切换已去掉。
+  ctx.slots.inject("dswp-monitor.cmdwatch", () => slots.register(
+    {
+      name: "dswp-monitor.cmdwatch",
+      id: "cmdmon-monitor",
+      order: 0
+    },
+    (props) => (0, import_react.createElement)(CmdMonView, {
+      timer,
+      sessionId: props && props.sessionId
+    })
+  ));
 }
 
     return module.exports;
