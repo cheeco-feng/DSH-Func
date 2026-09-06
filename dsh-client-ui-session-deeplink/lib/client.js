@@ -1,5 +1,7 @@
 window.__ModuleLoader__.load({ id: "@cheeco/dsh-client-ui-session-deeplink", factory: (require) => { var module = { exports: {} }; var exports = module.exports;
 Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
+const react = require("react");
+const react_jsx_runtime = require("react/jsx-runtime");
 //#region src/client/index.ts
 /**
 * 客户端半边：按 URL 参数在会话列表就绪后执行对应动作（传了哪个就改哪个，没传保持默认）。
@@ -10,7 +12,7 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
 * 依赖客户端运行时 `sessions` 与 `workspaces` 服务。
 */
 /** 激活前所需服务（由客户端运行时提供）。 */
-const inject = ["sessions", "workspaces"];
+const inject = ["slots", "sessions", "workspaces"];
 const SESSION_KEY = "session";
 const WORKSPACE_KEY = "workspace";
 const CWD_KEY = "cwd";
@@ -64,8 +66,36 @@ async function handleInitial(ctx, sessionId, workspaceId, cwd) {
 		console.error("[session-deeplink] 初始化处理失败", e);
 	}
 }
+// ———————————————— 「更多」插件专属卡：打开当前会话 ————————————————
+// 由本插件（深链接）经 WindowSlot-Panel 声明的子 slot `dswp-more.card` 注入一张「打开当前会话」卡，
+// 点击用当前会话深链接新窗口打开。这样该卡由深链接插件提供，不需要 WindowSlot-Panel 自带。
+const MORE_CARD_SLOT = "dswp-more.card";
+/** 用会话 id 拼当前深链接（当前网页 + ?session=<id>）。 */
+function composeDeepLink(sessionId) {
+	try {
+		const url = new URL(window.location.href);
+		if (sessionId) url.searchParams.set(SESSION_KEY, sessionId);
+		else url.searchParams.delete(SESSION_KEY);
+		return url.href;
+	} catch (e) { return window.location.href; }
+}
+/** 「打开当前会话」卡片：点击新窗口打开当前会话深链接。 */
+function OpenSessionCard(ctx, props) {
+	const sessionId = (props && props.sessionId) || (ctx.sessions && ctx.sessions.list ? ctx.sessions.list.getSnapshot().current : void 0);
+	const target = composeDeepLink(sessionId);
+	const onClick = () => { window.open(target, "_blank"); };
+	return react_jsx_runtime.jsx("div", {
+		className: "dmcard",
+		onClick,
+		children: [
+			react_jsx_runtime.jsx("span", { className: "dmcard-t", children: "打开当前会话" }),
+			react_jsx_runtime.jsx("span", { className: "dmcard-d", children: "在新窗口打开当前会话" })
+		]
+	});
+}
 /**
-* 客户端插件体：会话列表就绪后一次性应用 URL 参数，随后让 URL 与当前会话保持同步。
+* 客户端插件体：会话列表就绪后一次性应用 URL 参数，随后让 URL 与当前会话保持同步，
+* 并向 WindowSlot-Panel 的「更多」卡片槽注入本插件专属的「打开当前会话」卡。
 * @param ctx - 客户端 cordis 上下文。
 */
 function apply(ctx) {
@@ -92,6 +122,12 @@ function apply(ctx) {
 			unsubscribe = void 0;
 		};
 	}, "session-deeplink: apply url params (session/workspace/cwd)");
+	// 向 WindowSlot-Panel 的「更多」卡片槽注入本插件专属的「打开当前会话」卡（任意插件均可如此注入自己的卡）。
+	ctx.effect(() => ctx.slots.inject(MORE_CARD_SLOT, () => ctx.slots.register({
+		name: MORE_CARD_SLOT,
+		id: "session-deeplink-open-card",
+		order: 1
+	}, (props) => react_jsx_runtime.jsx(OpenSessionCard, { ctx, ...props }))), "session-deeplink: 更多卡片注入");
 }
 //#endregion
 exports.apply = apply;

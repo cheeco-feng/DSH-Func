@@ -16,10 +16,10 @@ function resolveConfigFile() {
 	return join(CHEECO_DIR, "setting", CONFIG_FILENAME);
 }
 
-/** 默认卡片：①「复制链接」复制当前会话深链接；②「打开当前会话」新窗口打开该深链接。均可被用户改配置覆盖。 */
+/** 默认卡片：仅「复制链接」复制当前会话深链接（通用复制行为）；「打开当前会话」卡由深链接插件经
+ *  dswp-more.card 槽注入提供，不在此写死。均可被用户改配置覆盖。 */
 const DEFAULT_CARDS = [
-	{ id: "copy-current-url", label: "复制链接", desc: "把当前页面的网址复制到剪贴板", type: "copy-url", url: "" },
-	{ id: "open-current-session", label: "打开当前会话", desc: "在新窗口打开当前会话", type: "open", url: "" }
+	{ id: "copy-current-url", label: "复制链接", desc: "把当前页面的网址复制到剪贴板", type: "copy-url", url: "" }
 ];
 
 /** 渲染可人工编辑的 JSON 文档（保持缩进 + 说明注释）。 */

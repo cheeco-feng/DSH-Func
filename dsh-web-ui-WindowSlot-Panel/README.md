@@ -20,8 +20,8 @@
 3. **「监控」对话视图 tab** —— 在对话视图区（`conversation.view`，与「对话 / 轨迹 / 调度」并列）新增一个「**监控**」tab，排在「调度」（order 30）右侧（order 40）。内页为「子 tab」结构，缺省页显示「当前未安装相关的面板」。
 
 4. **「更多」菜单 + 卡片页** —— 在会话「…」下拉菜单**最底部**新增一项「**更多**」（参考 meow-memory「跳过梦境整理记忆」的 DOM 注入做法，因为该菜单是 DSH 内建硬编码、无插件可追加的 slot）。点击「更多」弹出一个与「引用」相同的弹出页，但里面**不放 tab，而是放卡片**。卡片来源**二选一可并存**：
-   - **通用卡**（外置配置 `/more-cards/config` 读 `DSH-More-Cards-config.json`，改 label/desc/url 无需改插件）：WindowSlot-Panel 用通用行为渲染。内置「**复制链接**」（copy-url，复制当前 `?session=<id>` 深链接）、「**打开当前会话**」（open，新窗口打开该深链接）。
-   - **插件专属卡**（其它插件经子 slot `dswp-more.card` 注入，任意行为）：**完全不用动 WindowSlot-Panel**，从而避免"每加一个插件卡就要升级 WindowSlot-Panel"。
+   - **通用卡**（外置配置 `/more-cards/config` 读 `DSH-More-Cards-config.json`，改 label/desc/url 无需改插件）：WindowSlot-Panel 用通用行为渲染。内置「**复制链接**」（copy-url，复制当前 `?session=<id>` 深链接）。
+   - **插件专属卡**（其它插件经子 slot `dswp-more.card` 注入，任意行为）：**完全不用动 WindowSlot-Panel**，从而避免"每加一个插件卡就要升级 WindowSlot-Panel"。例：「**打开当前会话**」卡（新窗口打开当前深链接）现由 `dsh-client-ui-session-deeplink`（深链接插件）经该槽注入提供。
    - 两类都没有时显示「**暂无更多可用菜单**」。
 
 **一句话定位**：它是一个「弹窗 + 视图 + 菜单扩展」的**界面接口宿主**，负责所有这类界面入口；卡片等具体内容经**外置配置**接入、可改配置不改插件。
