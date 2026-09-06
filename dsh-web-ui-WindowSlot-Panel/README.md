@@ -19,32 +19,32 @@
 
 3. **「监控」对话视图 tab** —— 在对话视图区（`conversation.view`，与「对话 / 轨迹 / 调度」并列）新增一个「**监控**」tab，排在「调度」（order 30）右侧（order 40）。内页为「子 tab」结构，缺省页显示「当前未安装相关的面板」。
 
-4. **「更多」菜单 + 卡片页** —— 在会话「…」下拉菜单**最底部**新增一项「**更多**」（参考 meow-memory「跳过梦境整理记忆」的 DOM 注入做法，因为该菜单是 DSH 内建硬编码、无插件可追加的 slot）。点击「更多」弹出一个与「引用」相同的弹出页，但里面**不放 tab，而是放卡片**。卡片**注册在 `cheeco-registry.json` 的 `moreCards` 字段**（与 cheeco-style 的 `syncRegistry`/`syncPanelConfig` 同思路）：各插件在 package.json 的 `dsh.cheecoMoreCards` 声明自己的卡，WindowSlot-Panel 每次同步时**扫描已装插件的声明→重建 moreCards**，用通用行为渲染：
+4. **「更多」菜单 + 卡片页** —— 在会话「…」下拉菜单**最底部**新增一项「**更多**」（参考 meow-memory「跳过梦境整理记忆」的 DOM 注入做法，因为该菜单是 DSH 内建硬编码、无插件可追加的 slot）。点击「更多」弹出一个与「引用」相同的弹出页，但里面**不放 tab，而是放卡片**。卡片**注册在 `cheeco-registry.json` 的 `installed[].menus`**（**按插件分组**）：每条已装插件记录 = `{name, folder, version, installedAt, menus:[...]}`，`menus` = 该插件在 package.json `dsh.cheecoMoreCards` 声明的卡。WindowSlot-Panel 每次同步时**扫描已装插件的声明 → 重建 `installed`（各条目挂自己的菜单）→ 菜单=installed[].menus 并集**，用通用行为渲染：
    - 每张卡的 `url` 是**写死结构 + 变量占位符**：`{origin}`=当前实例基址、`{session}`=当前会话 id，点击时由 `fillUrl` 填成实际值。例：`{origin}/?session={session}`。
-   - 默认卡「**复制链接**」（copy-url，复制当前 `?session=<id>` 深链接）由本插件声明；「**打开当前会话**」（open，新窗口打开该深链接）由 `dsh-client-ui-session-deeplink`（深链接插件）声明。
-   - **装进删出**：装上声明卡的插件 → 卡出现；卸载 → 声明没了 → 卡自动消失，不残留。配置里没有卡时显示「**暂无更多可用菜单**」。
+   - 现分配：「**复制链接**」（copy-url）由 `dsh-web-ui-WebAppPackagePanel`（服务商应用包）提供；「**打开当前会话**」（open，新窗口打开）由 `dsh-client-ui-session-deeplink`（深链接插件）提供。WindowSlot-Panel 只做宿主、不自带卡。
+   - **装进删出**：装上声明卡的插件 → 该插件条目(连带菜单)出现；卸载 → 插件目录没了 → 条目(连带菜单)自动删除，系统自然知道"卸载它要删它那条及其菜单"。没有卡时显示「**暂无更多可用菜单**」。
 
-**一句话定位**：它是一个「弹窗 + 视图 + 菜单扩展」的**界面接口宿主**；「更多」菜单卡片由**各插件声明注册进 registry**、由它同步渲染。
+**一句话定位**：它是一个「弹窗 + 视图 + 菜单扩展」的**界面接口宿主**；「更多」菜单卡片按插件**分组注册进 `cheeco-registry.json` 的 `installed[].menus`**、由它同步渲染。
 
 ## 如何添加 / 移除「更多」菜单（卡片）
 
 卡片是**声明驱动、注册进 `cheeco-registry.json`** 的，所以：
 
-- **添加一张卡**：在提供该卡的插件的 `package.json` 里加 `dsh.cheecoMoreCards` 数组，每条 `{ id, label, desc, type, url, order }`：
+- **添加一张卡**：在提供该卡的那个插件(非 WindowSlot-Panel)的 `package.json` 里加 `dsh.cheecoMoreCards` 数组，每条 `{ id, label, desc, type, url, order }`：
   - `type`: `copy-url`（点击复制 url）/ `open`（点击新窗口打开 url）。
   - `url`: 写死结构 + 占位符，如 `{origin}/?session={session}`（`{origin}`=当前实例基址、`{session}`=当前会话 id，点击时自动填实际值）。
-  - 例（深链接插件声明「打开当前会话」卡）：
+  - 例（WebAppPackagePanel 声明「复制链接」卡）：
     ```json
     "dsh": {
       "cheecoMoreCards": [
-        { "id": "open-current-session", "label": "打开当前会话", "desc": "在新窗口打开当前会话", "type": "open", "url": "{origin}/?session={session}", "order": 1 }
+        { "id": "copy-current-url", "label": "复制链接", "desc": "把当前页面的网址复制到剪贴板", "type": "copy-url", "url": "{origin}/?session={session}", "order": 0 }
       ]
     }
     ```
-  然后重装/重启该插件 → WindowSlot-Panel 下次读取 `/more-cards/config` 时会扫到它并加入。
-- **移除一张卡**：①只删某张卡 → 删掉该插件 `dsh.cheecoMoreCards` 里那一条并重启；②整个插件不再提供卡 → 卸载该插件，其声明没了 → 卡自动消失（无需手动改任何配置）。
+  然后重装/重启该插件 → WindowSlot-Panel 下次读取 `/more-cards/config` 时会扫到它、在该插件条目下挂出这张卡。
+- **移除一张卡**：①只删某张卡 → 删掉该插件 `dsh.cheecoMoreCards` 里那一条并重启；②整个插件不再提供卡 → 卸载该插件 → 它那条 `installed` 记录(连带其 `menus`)自动删除（无需手动改任何配置）。
 
-**注册表说明**：卡片统一存在 `@cheeco/cheeco-registry.json` 的 `moreCards` 字段，与已装插件清单(`installed`)/事件(`events`)同文件；它由「扫码已装插件声明 → 重建」驱动，所以**注册表始终等于"所有已装插件声明的集合"**，不会残留、不会重复。
+**注册表说明**：卡片**按插件分组**存在 `@cheeco/cheeco-registry.json` 的 `installed[].menus` 字段（`installed` 每条 = 一个已装插件：安装信息 + 它声明的菜单），`events` 记录安装/卸载事件同文件；它由「扫码已装插件声明 → 重建 installed」驱动，所以**注册表始终等于"所有已装插件(各自菜单)的集合"**，卸载某插件 = 删它那条(连带菜单)，不会残留、不会重复。
 
 ## 设计
 
@@ -62,6 +62,7 @@
 
 ## 版本
 
+- **0.6.0**：注册表改为**按插件分组**——`installed[]` 每条挂 `menus`；「复制链接」移给 WebAppPackagePanel、「打开当前会话」留给深链接，WindowSlot-Panel 纯宿主。
 - **0.5.0**：卡片改为**声明驱动-注册进 `cheeco-registry.json`**（各插件 `dsh.cheecoMoreCards` 声明，卸载自动清除，不残留）。
 - **0.4.4**：修复配置读取未剥 `//` 注释致落回默认值；卡片 url 支持 `{origin}`/`{session}` 占位符（fillUrl 填实际值）。
 - **0.4.1**：恢复子 slot `dswp-more.card` 供其它插件注入专属卡片（与配置通用卡并存），解决"新插件卡片需升级 WindowSlot-Panel"问题。

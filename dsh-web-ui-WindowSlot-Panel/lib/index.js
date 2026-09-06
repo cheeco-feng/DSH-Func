@@ -40,30 +40,42 @@ function writeRegistry(reg) {
 }
 
 /**
- * 同步「更多」菜单卡：扫描 node_modules/@cheeco 下每个已装插件的 package.json `dsh.cheecoMoreCards`
- * 声明，重建卡片列表并写进 cheeco-registry.json 的 `moreCards`。
- *  - 装上 → 声明在 → 卡出现；卸载 → 声明没了 → 卡被重建自然删掉，不残留。
- *  - 每张卡带 `owner` = 提供它的插件包名。
+ * 同步注册表：扫描 node_modules/@cheeco 下每个已装插件 package.json，重建 `installed` 数组——
+ * 每条 = { name, folder, version, installedAt, menus:该插件的 dsh.cheecoMoreCards 声明 }。
+ * 菜单**挂在插件条目下**（分组）：装上 → 该插件条目(含其菜单)出现；卸载 → 该插件目录没了 → 条目随之删除，
+ * 系统自然知道"卸载某插件要删它那条(连带菜单)"。`installed` 即"已装插件清单 + 各自菜单"。
  */
-function syncMoreCards() {
-	const cards = [];
+function syncRegistry() {
+	const prev = (readRegistry().installed || []).map((e) => [e.name, e]);
+	const prevMap = new Map(prev);
+	const installed = [];
 	for (const dir of readdirSync(CHEECO_DIR, { withFileTypes: true })) {
 		if (!dir.isDirectory()) continue;
-		let decl = null;
-		try {
-			const pkg = JSON.parse(readFileSync(join(CHEECO_DIR, dir.name, "package.json"), "utf8"));
-			decl = (pkg.dsh && pkg.dsh.cheecoMoreCards) || null;
-		} catch (e) { decl = null; }
-		if (!decl) continue;
-		for (const c of Array.isArray(decl) ? decl : []) {
-			if (c && c.id && !cards.some((x) => x.id === c.id)) cards.push({ ...c, owner: "@cheeco/" + dir.name });
-		}
+		let pkg = null;
+		try { pkg = JSON.parse(readFileSync(join(CHEECO_DIR, dir.name, "package.json"), "utf8")); } catch (e) { continue; }
+		if (!pkg || typeof pkg.name !== "string" || !pkg.name) continue;
+		const decl = (pkg.dsh && Array.isArray(pkg.dsh.cheecoMoreCards)) ? pkg.dsh.cheecoMoreCards : [];
+		const before = prevMap.get(pkg.name);
+		installed.push({
+			name: pkg.name,
+			folder: dir.name,
+			version: pkg.version || "",
+			installedAt: before ? before.installedAt : new Date().toISOString(),
+			menus: decl.map((c) => ({ ...c, owner: pkg.name }))
+		});
 	}
-	cards.sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
+	installed.sort((a, b) => a.name.localeCompare(b.name));
 	const reg = readRegistry();
-	reg.moreCards = cards;
+	reg.installed = installed;
+	delete reg.moreCards; // 卡片不单独平铺 moreCards，统一挂在 installed[].menus（按插件分组）。
 	writeRegistry(reg);
-	return cards;
+	return installed;
+}
+
+/** 「更多」菜单卡 = 所有已装插件条目下 menus 的并集。 */
+function moreCardsFrom(installed) {
+	const cards = (installed || []).flatMap((e) => Array.isArray(e.menus) ? e.menus : []);
+	return cards.sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
 }
 
 export default class DshWebUiWindowSlotPanel {
@@ -77,8 +89,9 @@ export default class DshWebUiWindowSlotPanel {
 				path: CONFIG_PATH,
 				handler: (req, res) => {
 					if (req.method === "GET") {
-						// 每次读取都按当前已装插件声明重建（轻量），保证卸载插件后卡片即时消失。
-						const cards = syncMoreCards();
+						// 每次读取都按当前已装插件声明重建（轻量），保证卸载插件后其条目(连带菜单)即时消失。
+						const installed = syncRegistry();
+						const cards = moreCardsFrom(installed);
 						res.writeHead(200, {
 							"content-type": "application/json; charset=utf-8",
 							"cache-control": "no-store"
