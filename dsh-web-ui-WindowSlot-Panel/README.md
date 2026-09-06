@@ -34,11 +34,12 @@
 
 - `package.json`：`dsh.bundle.patch` → `cordis.patch.yml`，`client.platform=web`，`inject` 声明 runtime/slots/locale。
 - `lib/index.js`：空 `apply`（纯 UI 宿主）。
-- `lib/client.js`：`window.__ModuleLoader__.load` + `slots.inject('conversation.input.left')` 注册「引用」按钮与弹窗；`slots.inject('conversation.view')` 注册「监控」tab；`slots.inject('shell.overlay')` 注册「更多」卡片宿主页 + `ctx.effect(startMoreMenuManager)` 用 MutationObserver 把「更多」注入会话「…」菜单底部（参考 meow-memory）。三者都声明子 slot 并 `renderSlot` 渲染注入内容。
+- `lib/client.js`：`window.__ModuleLoader__.load` + `slots.inject('conversation.input.left')` 注册「引用」按钮与弹窗；`slots.inject('conversation.view')` 注册「监控」tab；`slots.inject('conversation.input.left')` 注册「更多」卡片宿主页（关闭返回 null 不显示按钮，打开渲染固定定位弹窗）+ `ctx.effect(startMoreMenuManager)` 用 MutationObserver 把「更多」注入会话「…」菜单底部（参考 meow-memory）。三者都声明子 slot 并 `renderSlot` 渲染注入内容。
 - `cordis.patch.yml`：注册 `web-ui-window-slot-panel` 到 profile roster。
 
 ## 版本
 
+- **0.3.1**：修复「更多」卡片宿主页改挂到 `conversation.input.left`（原 `shell.overlay` 挂载不可靠导致点击不弹窗）。
 - **0.3.0**：新增「更多」会话菜单扩展 + 卡片宿主页 + `showMoreMenu` 开关。
 - **0.2.3**：命令监视移入「监控」子 tab（缺省页按 occupant 显示）。
 - **0.2.2**：监控 tab 缺省页占位修复 + 登记功能推荐。
@@ -50,4 +51,4 @@
 dsh plugin --profile <profile> add ./dsh-web-ui-WindowSlot-Panel
 ```
 
-> 因 `conversation.input.left` / `conversation.view` / `shell.overlay` 都是客户端 slot，安装后需重启对应实例（并刷新页面）才会出现「引用」按钮、「监控」tab 与「更多」菜单项。
+> 因 `conversation.input.left` / `conversation.view` 都是客户端 slot，安装后需重启对应实例（并刷新页面）才会出现「引用」按钮、「监控」tab 与「更多」菜单项。

@@ -294,7 +294,8 @@ window.__ModuleLoader__.load({
     }
 
     /** 「更多」弹出页宿主：由会话「…」菜单的「更多」打开（window 'dswp-more:open' 事件）。
-     *  注册进 shell.overlay（浮动层），声明子 slot `dswp-more.card`（list），用 renderSlot 渲染卡片；
+     *  注册进 conversation.input.left（与「引用」按钮同槽，关闭返回 null 不显示按钮），
+     *  声明子 slot `dswp-more.card`（list），用 renderSlot 渲染卡片；
      *  无卡片时显示「暂无更多可用菜单」（与「监控」子 tab 相同的判空逻辑）。 */
     function MoreMenuHost(props) {
       const renderSlot = props && props.renderSlot;
@@ -379,11 +380,13 @@ window.__ModuleLoader__.load({
         }, MonitorView));
         // 「更多」菜单扩展：在会话「…」菜单底部注入「更多」，点击弹出卡片宿主页。
         // 卡片由其它插件经子 slot `dswp-more.card` 注入；显隐由 features.showMoreMenu 控制。
+        // 宿主挂到 `conversation.input.left`（与「引用」按钮同槽，已被证明能挂载并渲染固定定位弹窗）：
+        // 关闭时返回 null，不显示任何按钮；打开时渲染 position:fixed 的全屏遮罩弹窗。
         if (more) {
-          ctx.slots.inject("shell.overlay", () => ctx.slots.register({
-            name: "shell.overlay",
+          ctx.slots.inject("conversation.input.left", () => ctx.slots.register({
+            name: "conversation.input.left",
             id: "window-slot-panel-more",
-            order: 200,
+            order: 111,
             children: { "dswp-more.card": { kind: "list", scope: "root" } }
           }, (props) => react_jsx_runtime.jsx(MoreMenuHost, { ...props })));
           ctx.effect(startMoreMenuManager, "dsh-web-ui-window-slot-panel: more menu manager");
