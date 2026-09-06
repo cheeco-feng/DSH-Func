@@ -37,7 +37,9 @@ window.__ModuleLoader__.load({
         + ".dswp-tab[data-on=true]{color:var(--dsw-alias-label-primary);font-weight:600;border-bottom-color:var(--dsw-alias-state-business-primary)}"
         + ".dswp-body{display:flex;flex-direction:column;gap:8px;flex:1;overflow:auto;color:var(--dsw-alias-label-secondary);font-size:13px;line-height:20px;padding:8px 0}"
         + ".dswp-monitor{display:flex;flex-direction:column;gap:12px;flex:1;min-height:0;padding:16px 20px 24px;color:var(--dsw-alias-label-primary)}"
-        + ".dswp-hint{color:var(--dsw-alias-label-secondary);font-size:13px;line-height:20px;padding:8px 0}";
+        + ".dswp-hint{color:var(--dsw-alias-label-secondary);font-size:13px;line-height:20px;padding:8px 0}"
+        + ".dswp-more-body{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;flex:1;min-height:0;overflow:auto;padding:8px 0;align-content:start}"
+        + ".dswp-more-empty{color:var(--dsw-alias-label-secondary);font-size:13px;line-height:20px;padding:24px 8px;text-align:center}";
       var tag = document.createElement("style");
       tag.dataset.plugin = "dsh-web-ui-window-slot-panel";
       tag.textContent = css;
@@ -46,7 +48,13 @@ window.__ModuleLoader__.load({
 
     /** 本插件字典命名空间。 */
     const NS = "dsh-web-ui-window-slot-panel";
-    const zh = { quote: "引用", "monitor.tab": "监控" };
+    const zh = {
+      quote: "引用",
+      "monitor.tab": "监控",
+      "more.menu": "更多",            // 会话「…」菜单底部注入的菜单项
+      "more.title": "更多菜单",        // 「更多」弹出页标题
+      "more.empty": "暂无更多可用菜单"  // 无卡片时的占位文案
+    };
 
     /** 本插件的「引用」弹窗 tab（占位，实际内容由子 slot 注入）。 */
     const TABS = [
@@ -161,6 +169,173 @@ window.__ModuleLoader__.load({
       });
     }
 
+    // ———————————————————————————————— 「更多」菜单扩展 ————————————————————————————————
+    // 用户在会话「…」下拉菜单底部新增一项「更多」（放到最下面）。点击后弹出一个与「引用」相同的
+    // 弹出页，但里面不放 tab，而是放**卡片**：卡片由其它插件经子 slot `dswp-more.card`（list）注入；
+    // 无卡片时显示「暂无更多可用菜单」。这个判空逻辑与「监控」子 tab 相同（renderSlot + fallback 标记）。
+    //
+    // 注意：会话行「…」菜单是 DSH 内建（dsh-client-ui-workspace）**硬编码**的，没有供插件追加菜单项的
+    // slot。因此参照 meow-memory「跳过梦境整理记忆」的做法，用 DOM + MutationObserver 把「更多」注入到
+    // 打开的 `[role="menu"]` 里（克隆首个 menuitem 作模板、改标题、换图标、appendChild 到底部）。
+    const MORE_ITEM_ATTR = "data-dswp-more-item";
+    const ROW_ACTIONS_SEL = '[class*="_rowActions"]';
+    const SESSION_ROW_SEL = '[role="treeitem"][class*="_sessionRow"]';
+    const MENU_OPEN_ROW_SEL = '[role="treeitem"][class*="_menuOpen"]';
+    const MENU_WINDOW_MS = 1500;
+    const MORE_ICON_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect x="3" y="3" width="7.5" height="7.5" rx="1.8" fill="currentColor"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.8" fill="currentColor"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.8" fill="currentColor"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.8" fill="currentColor"/></svg>';
+
+    /** 从 React fiber 里取会话行对应的 sessionId（同 meow-memory）。 */
+    function readSessionId(row) {
+      let fiber = null;
+      for (const key of Object.keys(row)) {
+        if (/^__reactFiber\$/.test(key)) { fiber = row[key]; break; }
+      }
+      let cur = fiber;
+      for (let depth = 0; depth < 8 && cur != null; depth++) {
+        const f = cur;
+        if (typeof f.key === "string" && f.key.length > 0) return f.key;
+        cur = f.return;
+      }
+      return null;
+    }
+    /** 若点击目标落在会话行「…」按钮区域，则返回对应 sessionId，否则 null。 */
+    function captureSessionIdFromTarget(target) {
+      const el = target;
+      if (el == null || typeof el.closest !== "function") return null;
+      if (el.closest(ROW_ACTIONS_SEL) == null) return null;
+      const row = el.closest(SESSION_ROW_SEL);
+      if (row == null) return null;
+      return readSessionId(row);
+    }
+    function retitleLeaf(root, text) {
+      let leaf = null;
+      const walk = (el) => {
+        let hasElementChild = false;
+        for (const c of el.children) { hasElementChild = true; walk(c); }
+        if (!hasElementChild && (el.textContent || "").trim().length > 0) leaf = el;
+      };
+      walk(root);
+      if (leaf == null) return false;
+      leaf.textContent = text;
+      return true;
+    }
+    function resolveMenuSessionId(doc, fallback) {
+      const openRow = doc.querySelector(MENU_OPEN_ROW_SEL);
+      if (openRow != null) {
+        const sid = readSessionId(openRow);
+        if (sid != null) return sid;
+      }
+      return fallback;
+    }
+    /** 把「更多」菜单项克隆出来、改标题换图标、追加到 open 菜单底部。 */
+    function injectMoreItem(menu, sessionId) {
+      for (const old of Array.from(menu.querySelectorAll("[" + MORE_ITEM_ATTR + "]"))) old.remove();
+      const template = menu.querySelector('[role="menuitem"]');
+      if (template == null) return null;
+      const item = template.cloneNode(true);
+      item.removeAttribute("id");
+      for (const el of Array.from(item.querySelectorAll("[id]"))) el.removeAttribute("id");
+      item.setAttribute("role", "menuitem");
+      if (!retitleLeaf(item, zh["more.menu"])) return null;
+      item.setAttribute(MORE_ITEM_ATTR, "true");
+      item.setAttribute("data-dswp-session-id", sessionId);
+      const icon = item.querySelector("svg");
+      if (icon != null) icon.outerHTML = MORE_ICON_SVG;
+      const onClick = (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        window.dispatchEvent(new CustomEvent("dswp-more:open", { detail: { sessionId } }));
+      };
+      item.addEventListener("click", onClick, true);
+      item.addEventListener("pointerdown", (e) => e.stopPropagation());
+      menu.appendChild(item);
+      return item;
+    }
+    /** 打开会话「…」菜单时注入「更多」项（MutationObserver 监听，同 meow-memory 的做法）。 */
+    function startMoreMenuManager() {
+      let pendingSid = null;
+      let pendingAt = 0;
+      let observerTimer = 0;
+      const syncOpenMenus = () => {
+        const withinWindow = pendingSid !== null && Date.now() - pendingAt <= MENU_WINDOW_MS;
+        const sid = resolveMenuSessionId(document, withinWindow ? pendingSid : null);
+        if (sid == null) return;
+        for (const menu of Array.from(document.querySelectorAll('[role="menu"]'))) {
+          injectMoreItem(menu, sid);
+        }
+      };
+      const observer = new MutationObserver((muts) => {
+        if (pendingSid !== null && Date.now() - pendingAt <= MENU_WINDOW_MS) {
+          const sid = resolveMenuSessionId(document, pendingSid);
+          if (sid !== null) {
+            for (const menu of Array.from(document.querySelectorAll('[role="menu"]'))) {
+              injectMoreItem(menu, sid);
+            }
+          }
+        }
+        window.clearTimeout(observerTimer);
+        observerTimer = window.setTimeout(syncOpenMenus, 120);
+      });
+      const onPointerDown = (e) => {
+        const sid = captureSessionIdFromTarget(e.target);
+        if (sid === null) return;
+        pendingSid = sid;
+        pendingAt = Date.now();
+      };
+      document.addEventListener("pointerdown", onPointerDown, true);
+      observer.observe(document.body, { childList: true, subtree: true });
+      syncOpenMenus();
+      return () => {
+        document.removeEventListener("pointerdown", onPointerDown, true);
+        observer.disconnect();
+        window.clearTimeout(observerTimer);
+        for (const item of Array.from(document.querySelectorAll("[" + MORE_ITEM_ATTR + "]"))) item.remove();
+      };
+    }
+
+    /** 「更多」弹出页宿主：由会话「…」菜单的「更多」打开（window 'dswp-more:open' 事件）。
+     *  注册进 shell.overlay（浮动层），声明子 slot `dswp-more.card`（list），用 renderSlot 渲染卡片；
+     *  无卡片时显示「暂无更多可用菜单」（与「监控」子 tab 相同的判空逻辑）。 */
+    function MoreMenuHost(props) {
+      const renderSlot = props && props.renderSlot;
+      const [open, setOpen] = react.useState(false);
+      const [sessionId, setSessionId] = react.useState(null);
+      react.useEffect(() => {
+        const onOpen = (e) => {
+          setSessionId(e && e.detail ? e.detail.sessionId : null);
+          setOpen(true);
+        };
+        window.addEventListener("dswp-more:open", onOpen);
+        return () => window.removeEventListener("dswp-more:open", onOpen);
+      }, []);
+      if (!open) return null;
+      // 卡片列表来自子 slot `dswp-more.card`（list）。list 槽为空时 slot 运行时会把 `opts.fallback`
+      // 渲染出来（renderer renderOutletContent: list.length===0 → fallback），因此把「暂无更多可用菜单」
+      // 直接作为 fallback 传入即可，无需再手动判空——这是与「监控」子 tab 同一套判空机制的更稳写法。
+      const out = typeof renderSlot === "function"
+        ? renderSlot("dswp-more.card", { sessionId }, {
+            fallback: react_jsx_runtime.jsx("p", { className: "dswp-more-empty", children: zh["more.empty"] })
+          })
+        : react_jsx_runtime.jsx("p", { className: "dswp-more-empty", children: zh["more.empty"] });
+      return react_jsx_runtime.jsxs("div", {
+        className: "dswp-overlay",
+        onClick: () => setOpen(false),
+        children: [
+          react_jsx_runtime.jsxs("div", {
+            className: "dswp-panel",
+            onClick: (e) => e.stopPropagation(),
+            children: [
+              react_jsx_runtime.jsxs("div", { className: "dswp-head", children: [
+                react_jsx_runtime.jsx("span", { children: zh["more.title"] }),
+                react_jsx_runtime.jsx("button", { className: "dswp-close", onClick: () => setOpen(false), children: "\u00d7" })
+              ] }),
+              react_jsx_runtime.jsx("div", { className: "dswp-more-body", children: [out] })
+            ]
+          })
+        ]
+      });
+    }
+
     /** 所需服务（cordis fiber inject）：slot 系统与 locale。 */
     const inject = ["slots", "locale"];
 
@@ -176,13 +351,15 @@ window.__ModuleLoader__.load({
       (async () => {
         let quote = true;
         let monitor = true;
+        let more = true;
         try {
           const r = await fetch("/dsh-func/config", { cache: "no-store" });
           const j = await r.json();
           const f = j.features || {};
           quote = !(f.showQuoteButton === false);
           monitor = !(f.showMonitorPanel === false);
-        } catch (e) { quote = true; monitor = true; }
+          more = !(f.showMoreMenu === false);
+        } catch (e) { quote = true; monitor = true; more = true; }
         // 「引用」按钮：注入聊天输入框工具行（order 110，排「能力」右侧）。
         if (quote) ctx.slots.inject("conversation.input.left", () => ctx.slots.register({
           name: "conversation.input.left",
@@ -200,6 +377,17 @@ window.__ModuleLoader__.load({
           locale: NS,
           children: MONITOR_CHILDREN
         }, MonitorView));
+        // 「更多」菜单扩展：在会话「…」菜单底部注入「更多」，点击弹出卡片宿主页。
+        // 卡片由其它插件经子 slot `dswp-more.card` 注入；显隐由 features.showMoreMenu 控制。
+        if (more) {
+          ctx.slots.inject("shell.overlay", () => ctx.slots.register({
+            name: "shell.overlay",
+            id: "window-slot-panel-more",
+            order: 200,
+            children: { "dswp-more.card": { kind: "list", scope: "root" } }
+          }, (props) => react_jsx_runtime.jsx(MoreMenuHost, { ...props })));
+          ctx.effect(startMoreMenuManager, "dsh-web-ui-window-slot-panel: more menu manager");
+        }
       })();
     }
 
