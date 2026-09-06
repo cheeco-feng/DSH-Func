@@ -16,10 +16,11 @@ function resolveConfigFile() {
 	return join(CHEECO_DIR, "setting", CONFIG_FILENAME);
 }
 
-/** 默认卡片：仅「复制链接」复制当前会话深链接（通用复制行为）；「打开当前会话」卡由深链接插件经
- *  dswp-more.card 槽注入提供，不在此写死。均可被用户改配置覆盖。 */
+/** 默认卡片：仅「复制链接」复制当前会话深链接（通用复制行为）；「打开当前会话」卡由深链接插件
+ *  写进配置提供。url 为**写死结构 + 变量占位符**（{origin}=当前实例基址、{session}=当前会话id），
+ *  点击时由客户端 fillUrl 填成实际值。均可被用户改配置覆盖。 */
 const DEFAULT_CARDS = [
-	{ id: "copy-current-url", label: "复制链接", desc: "把当前页面的网址复制到剪贴板", type: "copy-url", url: "" }
+	{ id: "copy-current-url", label: "复制链接", desc: "把当前页面的网址复制到剪贴板", type: "copy-url", url: "{origin}/?session={session}" }
 ];
 
 /** 渲染可人工编辑的 JSON 文档（保持缩进 + 说明注释）。 */
@@ -53,6 +54,17 @@ function readBody(req) {
 	});
 }
 
+/** 剥离 JSONC 注释：整行 "//" 或 "#"，以及块注释。 */
+function stripJsonComments(text) {
+	let out = String(text || "").replace(/\/\*[\s\S]*?\*\//g, "");
+	out = out.split("\n").map((line) => {
+		const t = line.trim();
+		if (t.startsWith("//") || t.startsWith("#")) return "";
+		return line;
+	}).join("\n");
+	return out;
+}
+
 export default class DshWebUiWindowSlotPanel {
 	static name = "web-ui-window-slot-panel";
 	static inject = ["webServer"];
@@ -68,7 +80,7 @@ export default class DshWebUiWindowSlotPanel {
 					if (req.method === "GET") {
 						let value = {};
 						try {
-							value = JSON.parse(readFileSync(configFile, "utf8")) || {};
+							value = JSON.parse(stripJsonComments(readFileSync(configFile, "utf8"))) || {};
 						} catch (e) {
 							value = { cards: DEFAULT_CARDS };
 						}

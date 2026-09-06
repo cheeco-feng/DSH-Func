@@ -323,28 +323,29 @@ window.__ModuleLoader__.load({
       });
     }
 
-    /** 用会话 id 拼出当前深链接（当前网页 + ?session=<id>，与 dsh-client-ui-session-deeplink 同机制）。 */
-    function currentDeepLink(sessionId) {
+    /** 把卡片 url 模板里的占位符填成实际值：
+     *   - {origin}  → 当前实例基址（window.location.origin，即"当前网页"的 host）
+     *   - {session} → 当前会话 id（唯一真正的变量）
+     * 结构（如 /?session=）在模板里写死；点击时由本函数正确替换变量。 */
+    function fillUrl(urlTemplate, sessionId) {
+      if (!urlTemplate) return urlTemplate;
       try {
-        const url = new URL(window.location.href);
-        if (sessionId) url.searchParams.set("session", sessionId);
-        else url.searchParams.delete("session");
-        return url.href;
-      } catch (e) { return window.location.href; }
+        return String(urlTemplate)
+          .replaceAll("{origin}", window.location.origin)
+          .replaceAll("{session}", sessionId || "");
+      } catch (e) { return String(urlTemplate); }
     }
 
     /** 一张「更多」卡片：显示 label + desc；点击执行行为。
-     *  - type=copy-url（默认）：复制目标（配置 url 优先，否则当前会话深链接，用 sessionId 拼成
-     *    `当前网页?session=<id>`，与 dsh-client-ui-session-deeplink 同机制，不依赖其事件）。
+     *  - type=copy-url（默认）：复制目标（card.url 是写死结构的模板，含 {origin}/{session} 占位符，点击时
+     *    由 fillUrl 把变量填成实际值）。
      *  - type=open：新窗口打开该链接（window.open(url, "_blank")），不复制。 */
     function MoreCard(props) {
       const card = props && props.card ? props.card : {};
       const sessionId = props && props.sessionId;
       const [copied, setCopied] = react.useState(false);
       const [preview, setPreview] = react.useState("");
-      const target = card.url && String(card.url).trim()
-        ? String(card.url).trim()
-        : currentDeepLink(sessionId);
+      const target = fillUrl(card.url, sessionId);
       const onClick = () => {
         if (card.type === "open") { window.open(target, "_blank"); return; }
         copyText(target).then((ok) => {
