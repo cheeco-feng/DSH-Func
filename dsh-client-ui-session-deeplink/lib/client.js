@@ -9,20 +9,18 @@ Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
 * 多个参数可同时拼接（& 连接）。处理顺序：先 workspace/cwd（定位工作区），再 session（作为最终显式首选）。
 * 依赖客户端运行时 `sessions` 与 `workspaces` 服务。
 *
-* 此外，本插件加载时把自己提供的「打开当前会话」卡片 **写进外置卡片配置**
-* /more-cards/config（DSH-More-Cards-config.json）——卡片是**静态配置**、由本插件提供，
-* url 是**写死的结构 + 变量占位符**（{origin}/{session}），WindowSlot-Panel 读 json 后用通用
-* 「打开」行为渲染，点击时把占位符填成实际值。而不是弹出菜单后再动态注入组件。
+* 本插件提供的「打开当前会话」更多菜单卡在 package.json 的 dsh.cheecoMoreCards 声明，
+* 由 WindowSlot-Panel 扫描已装插件的声明、同步进 cheeco-registry.json（卸载自动清除），
+* 客户端无需写入。
 */
 /** 激活前所需服务（由客户端运行时提供）。 */
 const inject = ["sessions", "workspaces"];
 const SESSION_KEY = "session";
 const WORKSPACE_KEY = "workspace";
 const CWD_KEY = "cwd";
-/** 深链接插件提供的「更多」卡片（静态写入外置配置；url 用占位符，{origin}=当前实例基址、{session}=当前会话id）。 */
-const CARD_BASE = "{origin}/?session={session}";
-const OWN_CARD = { id: "open-current-session", label: "打开当前会话", desc: "在新窗口打开当前会话", type: "open", url: CARD_BASE, order: 1 };
-/** 把当前会话 id 同步进地址栏（无会话则删掉该参数），保留其余 query 与 hash。 */
+/** 把当前会话 id 同步进地址栏（无会话则删掉该参数），保留其余 query 与 hash。
+ *  注：本插件提供的「打开当前会话」更多菜单卡已在 package.json 的 dsh.cheecoMoreCards 声明，
+ *  由 WindowSlot-Panel 同步进 cheeco-registry.json（卸载自动清除），客户端无需再写入。 */
 function syncSessionQuery(sessionId) {
 	const url = new URL(window.location.href);
 	if (sessionId === void 0) url.searchParams.delete(SESSION_KEY);
@@ -30,24 +28,6 @@ function syncSessionQuery(sessionId) {
 	const next = `${url.pathname}${url.search}${url.hash}`;
 	if (next === `${window.location.pathname}${window.location.search}${window.location.hash}`) return;
 	window.history.replaceState(window.history.state, "", next);
-}
-/** 把本插件提供的「打开当前会话」卡片写进外置卡片配置（已存在则不动，幂等）。 */
-function ensureOwnCard() {
-	(async () => {
-		try {
-			const r = await fetch("/more-cards/config", { cache: "no-store" });
-			if (!r.ok) return;
-			const j = await r.json();
-			const cards = Array.isArray(j.cards) ? j.cards.slice() : [];
-			if (cards.some((c) => c && c.id === OWN_CARD.id)) return;
-			cards.push(OWN_CARD);
-			await fetch("/more-cards/config", {
-				method: "POST",
-				headers: { "content-type": "application/json" },
-				body: JSON.stringify({ cards })
-			});
-		} catch (e) { /* 静默：Endpoint 不存在等 */ }
-	})();
 }
 /**
 * 按传入参数执行初始动作：先 workspace/cwd（注册+连接工作区），再 session（最终显式首选）。
@@ -95,7 +75,6 @@ function apply(ctx) {
 	const sessionId = search.get(SESSION_KEY) || void 0;
 	const workspaceId = search.get(WORKSPACE_KEY) || "";
 	const cwd = search.get(CWD_KEY) || "";
-	ensureOwnCard();
 	ctx.effect(() => {
 		let done = false;
 		let unsubscribe;

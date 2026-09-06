@@ -1,7 +1,9 @@
 // dsh-web-ui-WindowSlot-Panel — node half.
-// 职责：①空 apply（宿主 cordis row，让插件被识别）；②提供 /more-cards/config 路由，读写
-// @cheeco/setting/DSH-More-Cards-config.json（「更多」弹窗的卡片外置配置，不存在才创建）。
-import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
+// 职责：①空 apply（宿主 cordis row，让插件被识别）；②提供 /more-cards/config 路由。
+// 「更多」菜单卡片**注册在 cheeco-registry.json 的 `moreCards` 字段**（与 cheeco-style 的
+// syncRegistry 同思路）：扫描 node_modules/@cheeco 下每个已装插件的 package.json `dsh.cheecoMoreCards`
+// 声明，重建 moreCards → 装进删出（卸载插件声明没了，卡自动消失，不残留）。
+import { mkdirSync, readFileSync, writeFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -10,59 +12,58 @@ const CONFIG_PATH = "/more-cards/config";
 /** `node_modules/@cheeco` —— 本插件目录的上级。 */
 const CHEECO_DIR = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
 
-const CONFIG_FILENAME = "DSH-More-Cards-config.json";
+/** 注册表文件（@cheeco/cheeco-registry.json，与 cheeco-style 共用同一份）。 */
+const REGISTRY_FILE = "cheeco-registry.json";
+function registryPath() { return join(CHEECO_DIR, REGISTRY_FILE); }
 
-function resolveConfigFile() {
-	return join(CHEECO_DIR, "setting", CONFIG_FILENAME);
+/** 拒绝非纯段的 profile 名（防御）。 */
+function isSafeName(name) {
+	return /^[A-Za-z0-9_-]+$/.test(name);
+}
+/** 从本插件安装路径确定当前 profile 名。 */
+function resolveProfileName() {
+	const here = dirname(fileURLToPath(import.meta.url)).replace(/\\/g, "/");
+	const parts = here.split("/");
+	const idx = parts.lastIndexOf("profiles");
+	const name = idx === -1 ? "" : parts[idx + 1];
+	if (!idx || !isSafeName(name)) return "";
+	return name;
+}
+function readRegistry() {
+	try { return JSON.parse(readFileSync(registryPath(), "utf8")) || {}; } catch (e) { return { profile: resolveProfileName(), installed: [], events: [], moreCards: [] }; }
+}
+function writeRegistry(reg) {
+	reg.profile = resolveProfileName();
+	reg.updatedAt = new Date().toISOString();
+	mkdirSync(dirname(registryPath()), { recursive: true });
+	writeFileSync(registryPath(), JSON.stringify(reg, null, 2), "utf8");
 }
 
-/** 默认卡片：仅「复制链接」复制当前会话深链接（通用复制行为）；「打开当前会话」卡由深链接插件
- *  写进配置提供。url 为**写死结构 + 变量占位符**（{origin}=当前实例基址、{session}=当前会话id），
- *  点击时由客户端 fillUrl 填成实际值。均可被用户改配置覆盖。 */
-const DEFAULT_CARDS = [
-	{ id: "copy-current-url", label: "复制链接", desc: "把当前页面的网址复制到剪贴板", type: "copy-url", url: "{origin}/?session={session}" }
-];
-
-/** 渲染可人工编辑的 JSON 文档（保持缩进 + 说明注释）。 */
-function renderConfigFile(v) {
-	const cards = (Array.isArray(v.cards) && v.cards.length > 0) ? v.cards : DEFAULT_CARDS;
-	const cardsStr = cards.map((c) => JSON.stringify({
-		id: String(c.id || ""),
-		label: String(c.label || ""),
-		desc: String(c.desc || ""),
-		type: String(c.type || "copy-url"),
-		url: String(c.url || ""),
-		order: Number(c.order || 0)
-	})).join(",\n    ");
-	return "{\n  // 更多菜单卡片（外置配置）：改 label/desc/url 无需改本插件，保存后刷新页面生效；\n  // 每张卡：id 唯一，label 标题，desc 说明，type=copy-url 点它复制 url、type=open 点它新窗口打开 url(留空则用当前会话深链接)，order 排序\n  \"cards\": [\n    " + cardsStr + "\n  ]\n}";
-}
-
-/** 确保配置文件存在（仅不存在时创建默认卡片）。 */
-function ensureConfig() {
-	const f = resolveConfigFile();
-	if (existsSync(f)) return;
-	mkdirSync(dirname(f), { recursive: true });
-	writeFileSync(f, renderConfigFile({ cards: DEFAULT_CARDS }), "utf8");
-}
-
-function readBody(req) {
-	return new Promise((resolve, reject) => {
-		let data = "";
-		req.on("data", (chunk) => { data += chunk; });
-		req.on("end", () => resolve(data));
-		req.on("error", reject);
-	});
-}
-
-/** 剥离 JSONC 注释：整行 "//" 或 "#"，以及块注释。 */
-function stripJsonComments(text) {
-	let out = String(text || "").replace(/\/\*[\s\S]*?\*\//g, "");
-	out = out.split("\n").map((line) => {
-		const t = line.trim();
-		if (t.startsWith("//") || t.startsWith("#")) return "";
-		return line;
-	}).join("\n");
-	return out;
+/**
+ * 同步「更多」菜单卡：扫描 node_modules/@cheeco 下每个已装插件的 package.json `dsh.cheecoMoreCards`
+ * 声明，重建卡片列表并写进 cheeco-registry.json 的 `moreCards`。
+ *  - 装上 → 声明在 → 卡出现；卸载 → 声明没了 → 卡被重建自然删掉，不残留。
+ *  - 每张卡带 `owner` = 提供它的插件包名。
+ */
+function syncMoreCards() {
+	const cards = [];
+	for (const dir of readdirSync(CHEECO_DIR, { withFileTypes: true })) {
+		if (!dir.isDirectory()) continue;
+		let decl = null;
+		try {
+			const pkg = JSON.parse(readFileSync(join(CHEECO_DIR, dir.name, "package.json"), "utf8"));
+			decl = (pkg.dsh && pkg.dsh.cheecoMoreCards) || null;
+		} catch (e) { decl = null; }
+		if (!decl) continue;
+		for (const c of Array.isArray(decl) ? decl : []) {
+			if (c && c.id && !cards.some((x) => x.id === c.id)) cards.push({ ...c, owner: "@cheeco/" + dir.name });
+		}
+	}
+	cards.sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
+	const reg = readRegistry();
+	reg.moreCards = cards;
+	writeRegistry(reg);
+	return cards;
 }
 
 export default class DshWebUiWindowSlotPanel {
@@ -70,51 +71,19 @@ export default class DshWebUiWindowSlotPanel {
 	static inject = ["webServer"];
 
 	constructor(ctx) {
-		const configFile = resolveConfigFile();
-		ensureConfig();
 		ctx.effect(() => {
 			const dispose = ctx.webServer.register({
 				kind: "exact",
 				path: CONFIG_PATH,
 				handler: (req, res) => {
 					if (req.method === "GET") {
-						let value = {};
-						try {
-							value = JSON.parse(stripJsonComments(readFileSync(configFile, "utf8"))) || {};
-						} catch (e) {
-							value = { cards: DEFAULT_CARDS };
-						}
+						// 每次读取都按当前已装插件声明重建（轻量），保证卸载插件后卡片即时消失。
+						const cards = syncMoreCards();
 						res.writeHead(200, {
 							"content-type": "application/json; charset=utf-8",
 							"cache-control": "no-store"
 						});
-						res.end(JSON.stringify(value));
-						return;
-					}
-					if (req.method === "POST") {
-						readBody(req).then((raw) => {
-							let data;
-							try {
-								data = JSON.parse(raw || "{}");
-							} catch (e) {
-								res.writeHead(400);
-								res.end();
-								return;
-							}
-							if (data === null || typeof data !== "object" || Array.isArray(data)) {
-								res.writeHead(400);
-								res.end();
-								return;
-							}
-							mkdirSync(dirname(configFile), { recursive: true });
-							writeFileSync(configFile, renderConfigFile(data), "utf8");
-							res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
-							res.end(JSON.stringify({ ok: true }));
-							return;
-						}).catch(() => {
-							res.writeHead(500);
-							res.end();
-						});
+						res.end(JSON.stringify({ cards }));
 						return;
 					}
 					res.writeHead(405);
@@ -122,6 +91,6 @@ export default class DshWebUiWindowSlotPanel {
 				}
 			});
 			return () => dispose();
-		}, "dsh-web-ui-window-slot-panel: more-cards config route");
+		}, "dsh-web-ui-window-slot-panel: more-cards registry route");
 	}
 }

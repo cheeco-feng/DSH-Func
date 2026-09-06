@@ -1,7 +1,7 @@
 {
   "name": "@cheeco/dsh-client-ui-session-deeplink",
-  "description": "深链接：通过 URL 参数（?session= / ?cwd= / ?workspace=，可 & 拼接）打开指定会话或工作区，并让地址栏始终与当前会话同步；并在会话 url 生成处通过 dsh-session-deeplink:url 事件暴露「当前 url」变量，且向 WindowSlot-Panel 的「更多」卡片槽注入「打开当前会话」专属卡（Cheeco 独立插件）。",
-  "version": "0.1.4",
+  "description": "深链接：通过 URL 参数（?session= / ?cwd= / ?workspace=，可 & 拼接）打开指定会话或工作区，并让地址栏始终与当前会话同步；并在 package.json 的 dsh.cheecoMoreCards 声明「打开当前会话」更多菜单卡，由 WindowSlot-Panel 同步进 cheeco-registry.json（卸载自动清除）（Cheeco 独立插件）。",
+  "version": "0.1.5",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
@@ -36,7 +36,10 @@
         "@deepseek-ai/dsh-client-runtime"
       ],
       "platform": "web"
-    }
+    },
+    "cheecoMoreCards": [
+      { "id": "open-current-session", "label": "打开当前会话", "desc": "在新窗口打开当前会话", "type": "open", "url": "{origin}/?session={session}", "order": 1 }
+    ]
   },
   "files": [
     "lib/**/*.js",
