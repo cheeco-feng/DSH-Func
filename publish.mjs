@@ -260,8 +260,13 @@ function commitAndPush(files, message) {
   const rel = files.map((f) => f.replace(/^[\\/]+/, "").replace(/\\/g, "/"));
   log(`  git add ${rel.join(" ")}`);
   git("add", ...rel);
-  const st = execFileSync("git", ["status", "--porcelain"], { cwd: REPO_DIR, encoding: "utf8" });
-  if (!st.trim()) { log("  无改动可提交（已是最新）。"); return; }
+  // 只判断「暂存区是否有改动」：git diff --cached --quiet 退出码 0=无暂存改动、1=有。
+  // 不能用 git status --porcelain 判空——它会把未跟踪杂物(.tmp/、.dsh-meow/ 等)也算进去，
+  // 导致「发布文件已提交、无暂存改动」时仍去 git commit 而报 nothing to commit 中止。
+  let hasStaged = false;
+  try { execFileSync("git", ["diff", "--cached", "--quiet"], { cwd: REPO_DIR, stdio: "pipe" }); }
+  catch (e) { hasStaged = true; }
+  if (!hasStaged) { log("  无改动可提交（已是最新）。"); return; }
   log(`  git commit -m "${message}"`);
   git("commit", "-m", message);
   log("  git push");
