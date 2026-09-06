@@ -367,9 +367,13 @@ window.__ModuleLoader__.load({
 
     /** 「更多」弹出页宿主：由会话「…」菜单的「更多」打开（window 'dswp-more:open' 事件）。
      *  注册进 conversation.input.left（与「引用」按钮同槽，关闭返回 null 不显示按钮）。
-     *  卡片内容来自**外置配置** /more-cards/config（DSH-More-Cards-config.json，由本插件 node 半边提供），
-     *  WindowSlot-Panel 直接渲染卡片；无卡片时显示「暂无更多可用菜单」。 */
+     *  卡片来源二选一（可同时存在）：
+     *    1) 外置配置 /more-cards/config（DSH-More-Cards-config.json，本插件 node 半边提供）里的「通用卡」，
+     *       WindowSlot-Panel 用通用行为（复制链接/新窗口打开）直接渲染——改 json 即可，不用改插件。
+     *    2) 其它插件经子 slot `dswp-more.card` 注入的「专属卡」（任意行为）——完全不用动 WindowSlot-Panel。
+     *  两类都没有时显示「暂无更多可用菜单」。 */
     function MoreMenuHost(props) {
+      const renderSlot = props && props.renderSlot;
       const [open, setOpen] = react.useState(false);
       const [sessionId, setSessionId] = react.useState(null);
       const [cards, setCards] = react.useState([]);
@@ -394,6 +398,14 @@ window.__ModuleLoader__.load({
       }, []);
       if (!open) return null;
       const sorted = cards.slice().sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
+      // 槽注入的插件专属卡片（list 槽空时 renderSlot 渲染 fallback，据此判空）。
+      const emptyMark = react_jsx_runtime.jsx("span", { "data-dswp-empty": "", style: { display: "none" } });
+      const slotOut = typeof renderSlot === "function"
+        ? renderSlot("dswp-more.card", { sessionId }, { fallback: emptyMark })
+        : emptyMark;
+      const hasConfig = sorted.length > 0;
+      const hasSlot = !hasEmptyMark(slotOut);
+      const empty = !hasConfig && !hasSlot;
       return react_jsx_runtime.jsxs("div", {
         className: "dswp-overlay",
         onClick: () => setOpen(false),
@@ -407,9 +419,12 @@ window.__ModuleLoader__.load({
                 react_jsx_runtime.jsx("button", { className: "dswp-close", onClick: () => setOpen(false), children: "\u00d7" })
               ] }),
               react_jsx_runtime.jsx("div", { className: "dswp-more-body", children: [
-                sorted.length === 0
+                empty
                   ? react_jsx_runtime.jsx("p", { className: "dswp-more-empty", children: zh["more.empty"] })
-                  : sorted.map((c) => react_jsx_runtime.jsx(MoreCard, { card: c, sessionId }, "mc-" + (c.id || Math.random().toString(36).slice(2, 7))))
+                  : react_jsx_runtime.jsxs(react.Fragment, { children: [
+                      sorted.map((c) => react_jsx_runtime.jsx(MoreCard, { card: c, sessionId }, "mc-" + (c.id || Math.random().toString(36).slice(2, 7)))),
+                      slotOut
+                    ] })
               ] })
             ]
           })
@@ -466,7 +481,8 @@ window.__ModuleLoader__.load({
           ctx.slots.inject("conversation.input.left", () => ctx.slots.register({
             name: "conversation.input.left",
             id: "window-slot-panel-more",
-            order: 111
+            order: 111,
+            children: { "dswp-more.card": { kind: "list", scope: "root" } }
           }, (props) => react_jsx_runtime.jsx(MoreMenuHost, { ...props })));
           ctx.effect(startMoreMenuManager, "dsh-web-ui-window-slot-panel: more menu manager");
         }

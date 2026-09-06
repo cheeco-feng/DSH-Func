@@ -1,6 +1,6 @@
 {
   "name": "@cheeco/dsh-web-ui-WindowSlot-Panel",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "dsh-web-ui-WindowSlot-Panel（槽位窗口管理面板）: ①在聊天输入框工具行注入「引用」按钮 + 弹出窗口；②在对话视图区新增「监控」tab（内页为子 tab 结构：缺省页显示「当前未安装相关的面板」，另有「命令监视」子 tab）；③在会话「…」菜单底部新增「更多」菜单项，点击弹出卡片页（不放 tab，放卡片；卡片内容来自**外置配置** /more-cards/config（DSH-More-Cards-config.json），WindowSlot-Panel 直接渲染，含「复制链接」复制当前会话深链接、「打开当前会话」新窗口打开；无卡片时显示「暂无更多可用菜单」）。显隐分别由 DSH功能包「功能管理→功能开关」的「显示引用功能按钮」（features.showQuoteButton）「显示监控面版」（features.showMonitorPanel）与「显示会话的『更多』菜单」（features.showMoreMenu）控制。",
   "type": "module",
   "main": "lib/index.js",
