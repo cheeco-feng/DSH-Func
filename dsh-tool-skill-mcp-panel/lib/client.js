@@ -3143,10 +3143,9 @@ window.__ModuleLoader__.load({
                 testMcp: (payload) => callMcp("test", payload),
                 reloadMcp: () => callMcp("reload")
             });
-            // 不再注册独立的「技能」「MCP」设置栏，也不做独立的「能力包」侧边栏；改为注入
-            // DSH功能包（dsh-web-ui-FuncPackagePanel）的子 slot，作为功能包内的 tab 页。
-            //   技能(管理) → dsh-func-package.skill
-            //   MCP 管理    → dsh-func-package.mcp
+            // 技能/常驻 → DSH功能包子 slot（管理 tab，供功能包内显示）。
+            // 技能(管理) → dsh-func-package.skill
+            // MCP 管理    → dsh-func-package.mcp
             // 子 slot 名必须与 FuncPackagePanel 的 baseChildren 声明保持一致。
             ctx.slots.inject("dsh-func-package.skill", () => ctx.slots.register({
                 name: "dsh-func-package.skill",
@@ -3166,45 +3165,34 @@ window.__ModuleLoader__.load({
                 ...mcpSectionFace(),
                 t: mt
             })));
-            // 输入框左侧「能力」按钮（conversation.input.left）：点击弹出 技能/常驻 选择弹窗。
-            // 复用上面的 SkillQuickTab / AutoStartTab 作为弹窗内容。
-            const AbilityButton = () => {
-                if (typeof document !== "undefined" && !document.querySelector('style[data-plugin="dsh-tool-skill-ability"]')) {
-                    const st = document.createElement("style");
-                    st.dataset.plugin = "dsh-tool-skill-ability";
-                    st.textContent = cssAbility;
-                    document.head.appendChild(st);
-                }
-                const [open, setOpen] = react.useState(false);
-                const [tab, setTab] = react.useState("ability");
-                const listSkills = () => callRemote("list", currentSessionId());
-                return (0, react_jsx_runtime.jsxs)(react.Fragment, {
-                    children: [
-                        (0, react_jsx_runtime.jsx)("button", { type: "button", className: "__dsp_ability_btn", title: "选择能力/技能", onClick: () => setOpen(true), children: "能力" }),
-                        open ? (0, react_jsx_runtime.jsxs)("div", { className: "__dsp_ability_overlay", onClick: () => setOpen(false), children: [
-                            (0, react_jsx_runtime.jsxs)("div", { className: "__dsp_ability_panel", onClick: (e) => e.stopPropagation(), children: [
-                                (0, react_jsx_runtime.jsxs)("div", { className: "__dsp_ability_head", children: [
-                                    (0, react_jsx_runtime.jsx)("span", { children: "能力 / 技能" }),
-                                    (0, react_jsx_runtime.jsx)("button", { className: "__dsp_ability_close", onClick: () => setOpen(false), children: "\u00d7" })
-                                ] }),
-                                (0, react_jsx_runtime.jsxs)("div", { className: "__dsp_ability_tabs", children: [
-                                    (0, react_jsx_runtime.jsx)("button", { className: "__dsp_ability_tab", "data-on": tab === "ability", onClick: () => setTab("ability"), children: "技能" }),
-                                    (0, react_jsx_runtime.jsx)("button", { className: "__dsp_ability_tab", "data-on": tab === "auto", onClick: () => setTab("auto"), children: "常驻技能列表" })
-                                ] }),
-                                (0, react_jsx_runtime.jsxs)("div", { className: "__dsp_ability_body", children: [
-                                    tab === "ability" ? (0, react_jsx_runtime.jsx)(SkillQuickTab, { ctx: ctx, currentSessionId: currentSessionId, listSkills: listSkills }) : (0, react_jsx_runtime.jsx)(AutoStartTab, { ctx: ctx, currentSessionId: currentSessionId, listSkills: listSkills })
-                                ] })
-                            ] })
-                        ] }) : null
-                    ]
-                });
-            };
-            // 输入框左侧（Full access 旁）显示「能力」按钮。
-            ctx.slots.inject("conversation.input.left", () => ctx.slots.register({
-                name: "conversation.input.left",
-                id: "ability-button",
-                order: 100
-            }, () => (0, react_jsx_runtime.jsx)(AbilityButton, {})));
+            // 技能选择/常驻 → 「引用」弹窗宿主（dsh-web-ui-WindowSlot-Panel）的子 slot。
+            //   技能(选择)      → dswp-ability
+            //   常驻技能列表    → dswp-auto
+            // 子 slot 名必须与 WindowSlot-Panel 的 baseChildren 声明保持一致。
+            const abilityFace = () => ({
+                currentSessionId,
+                listSkills: () => callRemote("list", currentSessionId())
+            });
+            ctx.slots.inject("dswp-ability", () => ctx.slots.register({
+                name: "dswp-ability",
+                id: "ability",
+                order: 10
+            }, (props) => (0, react_jsx_runtime.jsx)(SkillQuickTab, {
+                ...props,
+                ctx,
+                currentSessionId,
+                listSkills: abilityFace().listSkills
+            })));
+            ctx.slots.inject("dswp-auto", () => ctx.slots.register({
+                name: "dswp-auto",
+                id: "auto",
+                order: 11
+            }, (props) => (0, react_jsx_runtime.jsx)(AutoStartTab, {
+                ...props,
+                ctx,
+                currentSessionId,
+                listSkills: abilityFace().listSkills
+            })));
         }
         bundleModule.exports.NS = NS;
         bundleModule.exports.apply = apply;

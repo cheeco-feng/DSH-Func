@@ -1,7 +1,7 @@
 {
   "name": "@cheeco/dsh-tool-skill-mcp-panel",
   "version": "0.1.0",
-  "description": "dsh-tool-skill-mcp-panel: 保留 dsh-skill-mcp-panel 全部功能（技能管理 + MCP 管理 + dsh-panel CLI），并集成「技能(选择)/常驻技能列表」两个 tab，注入「能力」包（dsh-web-ui-PowerPackagePanel）的子 slot。",
+  "description": "dsh-tool-skill-mcp-panel（技能/MCP能力面板）: 保留 dsh-skill-mcp-panel 全部功能（技能管理 + MCP 管理 + dsh-panel CLI），并向「引用」弹窗宿主（dsh-web-ui-WindowSlot-Panel）的子 slot 注入「技能选择/常驻技能列表」两个 tab。",
   "type": "module",
   "main": "lib/index.js",
   "exports": {

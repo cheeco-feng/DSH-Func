@@ -71,7 +71,7 @@ function renderConfigFile(v) {
 		"  // 该设置页（DSH功能包）在侧边栏的名字；留空用默认「DSH功能包」",
 		`  "label": ${s(v.label)},`,
 		"  // 功能开关（会话搜索 / DSH功能命令；功能包「功能管理」tab 读写）",
-		`  "features": { "sessionSearch": ${feats.sessionSearch !== false}, "dshCommand": ${feats.dshCommand !== false} },`,
+		`  "features": { "sessionSearch": ${feats.sessionSearch !== false}, "dshCommand": ${feats.dshCommand !== false}, "showQuoteButton": ${feats.showQuoteButton !== false} },`,
 		"  // DSH 信息（宿主自动维护：当前工作台名 / DSH_HOME / 插件与 dsh 版本；用于识别与排查）",
 		`  "dsh": { "profileName": ${s(dsh.profileName)}, "dshHome": ${s(dsh.dshHome)}, "pluginVersion": ${s(dsh.pluginVersion)}, "dshVersion": ${s(dsh.dshVersion)} }`,
 		"}"
@@ -79,7 +79,7 @@ function renderConfigFile(v) {
 }
 
 /** 与 package.json 同步，供 config 记录产生它的插件版本。 */
-const PLUGIN_VERSION = "0.1.7";
+const PLUGIN_VERSION = "0.1.8";
 
 /** 解析 dsh CLI 包版本（来自 @deepseek-ai/dsh/package.json）。 */
 function dshVersion() {
@@ -94,7 +94,7 @@ function ensureConfigMetadata(configFile) {
 	if (existsSync(configFile)) return;
 	const value = {
 		label: "",
-		features: { sessionSearch: true, dshCommand: true },
+		features: { sessionSearch: true, dshCommand: true, showQuoteButton: true },
 		dsh: {
 			profileName: resolveProfileName(),
 			dshHome: process.env.DSH_HOME || "",

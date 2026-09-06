@@ -55,7 +55,7 @@ window.__ModuleLoader__.load({
     /** 文件配置的内存缓存（浏览器端唯一真源），GET 载入、POST 持久化。
      *  与 cheeco-style 一致：仅读/写文件配置，改名靠重启后重新读取生效。
      *  注：config 里可能含其它插件写入的字段（features 等），必须全量保存回传。 */
-    let config = { label: "", dsh: {}, features: { sessionSearch: true, dshCommand: true } };
+    let config = { label: "", dsh: {}, features: { sessionSearch: true, dshCommand: true, showQuoteButton: true } };
     let configLoad = null;
     function loadConfig() {
       if (configLoad) return configLoad;
@@ -67,7 +67,7 @@ window.__ModuleLoader__.load({
             config = {
               label: typeof data.label === "string" ? data.label : "",
               dsh: (typeof data.dsh === "object" && data.dsh) ? data.dsh : {},
-              features: (typeof data.features === "object" && data.features) ? data.features : { sessionSearch: true, dshCommand: true }
+              features: (typeof data.features === "object" && data.features) ? data.features : { sessionSearch: true, dshCommand: true, showQuoteButton: true }
             };
           }
         } catch (e) {}
@@ -101,7 +101,7 @@ window.__ModuleLoader__.load({
      *  由原 Cheeco的小功能 的「功能管理」内置页迁移而来。开关读写本插件(DSH功能包)自己
      *  DSH-Func-config.json 的 features 字段（控制对应功能插件的显隐），切换后重启生效。 */
     function FeatureManageCard() {
-      const [features, setFeatures] = react.useState({ sessionSearch: true, dshCommand: true });
+      const [features, setFeatures] = react.useState({ sessionSearch: true, dshCommand: true, showQuoteButton: true });
       react.useEffect(() => {
         let cancelled = false;
         (async () => {
@@ -111,7 +111,8 @@ window.__ModuleLoader__.load({
               const d = await res.json();
               if (!cancelled) setFeatures({
                 sessionSearch: !(d.features && d.features.sessionSearch === false),
-                dshCommand: !(d.features && d.features.dshCommand === false)
+                dshCommand: !(d.features && d.features.dshCommand === false),
+                showQuoteButton: !(d.features && d.features.showQuoteButton === false)
               });
             }
           } catch (e) {}
@@ -141,6 +142,10 @@ window.__ModuleLoader__.load({
         react_jsx_runtime.jsx("label", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 0" }, children: [
           react_jsx_runtime.jsx("span", { children: "DSH功能命令（停用/开启）" }),
           react_jsx_runtime.jsx("input", { type: "checkbox", className: "dsw-switch", checked: features.dshCommand, onChange: (e) => toggleFeature("dshCommand", e.target.checked) })
+        ] }),
+        react_jsx_runtime.jsx("label", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: "4px 0" }, children: [
+          react_jsx_runtime.jsx("span", { children: "显示引用功能按钮（显示/隐藏）" }),
+          react_jsx_runtime.jsx("input", { type: "checkbox", className: "dsw-switch", checked: features.showQuoteButton, onChange: (e) => toggleFeature("showQuoteButton", e.target.checked) })
         ] })
       ] });
     }

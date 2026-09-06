@@ -11,4 +11,6 @@ exe-tool-start-controllers/start-controllers.log
 exe-tool-start-controllers/start-controllers-v2.exe
 exe-tool-start-controllers/start-controllers-v2.pdb
 exe-tool-start-controllers/StartControllers.exe
+# npc.exe(12MB, 第三方) + 含真 vkey 的 npc.conf —— 本地运行资源，不入库
+exe-tool-start-controllers/npc/
 exe-tool-start-controllers-backup-*/

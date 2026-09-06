@@ -1,0 +1,32 @@
+{
+  "name": "@cheeco/dsh-web-ui-WindowSlot-Panel",
+  "version": "0.1.0",
+  "description": "dsh-web-ui-WindowSlot-Panel: 在聊天输入框工具行注入「引用」按钮 + 弹出窗口。显隐由 DSH功能包「功能管理→功能开关」的「显示引用功能按钮」控制（DSH-Func-config.json 的 features.showQuoteButton），与「显示会话搜索」同一机制。",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".":             { "default": "./lib/index.js" },
+    "./client":      { "default": "./lib/client.js" },
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": { "patch": "./cordis.patch.yml" },
+    "compatibility": {
+      "desktop": { "range": ">=2.0.0", "api": "^1.0.0" },
+      "runtime": { "range": ">=0.1.0", "evidence": { "providerId": "dsh-cli-provider-v1", "runtime": "0.1.0", "desktop": "2.0.0", "verifiedAt": "2026-09-06", "matrixArtifact": "runtime-support/supported-runtimes.json" } },
+      "surfaces": ["main"]
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-ui-slots",
+        "@deepseek-ai/dsh-client-locale"
+      ]
+    }
+  },
+  "keywords": ["dsh", "deepseek-harness", "dsh-plugin", "cheeco", "window-slot", "quote"],
+  "files": ["lib/**/*.js", "cordis.patch.yml", "README.md"],
+  "license": "MIT",
+  "dependencies": {}
+}
