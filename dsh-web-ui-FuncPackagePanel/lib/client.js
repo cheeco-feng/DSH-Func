@@ -59,9 +59,10 @@ window.__ModuleLoader__.load({
     const DEFAULT_FEATURE_SWITCHES = [
       { key: "sessionSearch", label: "会话搜索功能（隐藏/显示）" },
       { key: "dshCommand", label: "DSH功能命令（停用/开启）" },
-      { key: "showQuoteButton", label: "显示引用功能按钮（显示/隐藏）" }
+      { key: "showQuoteButton", label: "显示引用功能按钮（显示/隐藏）" },
+      { key: "showMonitorPanel", label: "显示监控面版（显示/隐藏）" }
     ];
-    const DEFAULT_FEATURES = { sessionSearch: true, dshCommand: true, showQuoteButton: true };
+    const DEFAULT_FEATURES = { sessionSearch: true, dshCommand: true, showQuoteButton: true, showMonitorPanel: true };
 
     /** 文件配置的内存缓存（浏览器端唯一真源），GET 载入、POST 持久化。
      *  与 cheeco-style 一致：仅读/写文件配置，改名靠重启后重新读取生效。

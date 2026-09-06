@@ -66,6 +66,7 @@ const META = {
   "dsh-web-setting-BrandPanel":  { id: "brand", label: "cheeco 品牌设置", pkg: "@cheeco/dsh-web-setting-BrandPanel" },
   "dsh-tool-skill-mcp-panel": { id: "skill-mcp", label: "cheeco 技能/MCP 能力", pkg: "@cheeco/dsh-tool-skill-mcp-panel" },
   "dsh-client-ui-webgate":       { id: "webgate", label: "cheeco 会话控制台", pkg: "@cheeco/dsh-client-ui-webgate" },
+  "dsh-web-ui-WindowSlot-Panel": { id: "window-slot", label: "cheeco 槽位窗口管理面板", pkg: "@cheeco/dsh-web-ui-WindowSlot-Panel" },
 };
 
 // ---- 参数解析 --------------------------------------------------------------

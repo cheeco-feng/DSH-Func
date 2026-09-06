@@ -85,7 +85,7 @@ function renderConfigFile(v) {
 }
 
 /** 与 package.json 同步，供 config 记录产生它的插件版本。 */
-const PLUGIN_VERSION = "0.1.9";
+const PLUGIN_VERSION = "0.2.0";
 
 /** 解析 dsh CLI 包版本（来自 @deepseek-ai/dsh/package.json）。 */
 function dshVersion() {
@@ -100,11 +100,12 @@ function ensureConfigMetadata(configFile) {
 	if (existsSync(configFile)) return;
 	const value = {
 		label: "",
-		features: { sessionSearch: true, dshCommand: true, showQuoteButton: true },
+		features: { sessionSearch: true, dshCommand: true, showQuoteButton: true, showMonitorPanel: true },
 		featureSwitches: [
 			{ key: "sessionSearch", label: "会话搜索功能（隐藏/显示）" },
 			{ key: "dshCommand", label: "DSH功能命令（停用/开启）" },
-			{ key: "showQuoteButton", label: "显示引用功能按钮（显示/隐藏）" }
+			{ key: "showQuoteButton", label: "显示引用功能按钮（显示/隐藏）" },
+			{ key: "showMonitorPanel", label: "显示监控面版（显示/隐藏）" }
 		],
 		dsh: {
 			profileName: resolveProfileName(),

@@ -1,14 +1,16 @@
-// @cheeco/dsh-web-ui-WindowSlot-Panel — browser half（「引用」按钮 + 空宿主）。
+// @cheeco/dsh-web-ui-WindowSlot-Panel — browser half（「引用」按钮 + 「监控」对话视图 tab）。
 //
-// 在聊天输入框工具行注入一个「引用」按钮（conversation.input.left，order 110，
-// 排在「能力」order 100 的右侧），点击弹出引用窗口。
+// 1) 在聊天输入框工具行注入一个「引用」按钮（conversation.input.left，order 110，
+//    排在「能力」order 100 的右侧），点击弹出引用窗口。
+// 2) 在对话视图区（conversation.view）注入「监控」tab（order 40，排在「调度」order 30 右侧），
+//    内页为「子 tab」结构，与「引用」弹窗同一渲染机制（子 slot + renderSlot），未注入时显示「缺省页」占位。
 //
-// 本插件是一个「引用」弹窗宿主：弹窗为 tab 结构，tab 内容由其它插件经子 slot
-// 注入（dswp-ability：技能选择 / dswp-auto：常驻技能列表）。未注入时显示空占位 tab。
-// （技能内容由 dsh-tool-skill-mcp-panel 注入，见其 client.js。）
+// 「引用」弹窗与「监控」tab 均为宿主：内容由其它插件经子 slot 注入
+//（dswp-ability：技能选择 / dswp-auto：常驻技能列表 / dswp-monitor.default：监控缺省页）。
+//（技能内容由 dsh-tool-skill-mcp-panel 注入，见其 client.js。）
 //
-// 显隐由 DSH功能包「功能管理→功能开关」的「显示引用功能按钮」控制：
-//   读 /dsh-func/config 的 features.showQuoteButton（与「显示会话搜索」同一机制）。
+// 显隐由 DSH功能包「功能管理→功能开关」控制：读 /dsh-func/config 的
+//   features.showQuoteButton（显示引用功能按钮）与 features.showMonitorPanel（显示监控）。
 //   文件不存在 / 解析失败一律视为开启（默认显示）。
 window.__ModuleLoader__.load({
   id: "@cheeco/dsh-web-ui-WindowSlot-Panel",
@@ -33,7 +35,8 @@ window.__ModuleLoader__.load({
         + ".dswp-tabs{display:flex;gap:4px;border-bottom:1px solid var(--dsw-alias-border-l2)}"
         + ".dswp-tab{cursor:pointer;padding:6px 14px;font-size:13px;color:var(--dsw-alias-label-secondary);background:0 0;border:none;border-bottom:2px solid transparent}"
         + ".dswp-tab[data-on=true]{color:var(--dsw-alias-label-primary);font-weight:600;border-bottom-color:var(--dsw-alias-state-business-primary)}"
-        + ".dswp-body{display:flex;flex-direction:column;gap:8px;flex:1;overflow:auto;color:var(--dsw-alias-label-secondary);font-size:13px;line-height:20px;padding:8px 0}";
+        + ".dswp-body{display:flex;flex-direction:column;gap:8px;flex:1;overflow:auto;color:var(--dsw-alias-label-secondary);font-size:13px;line-height:20px;padding:8px 0}"
+        + ".dswp-monitor{display:flex;flex-direction:column;gap:12px;flex:1;min-height:0;padding:16px 20px 24px;color:var(--dsw-alias-label-primary)}";
       var tag = document.createElement("style");
       tag.dataset.plugin = "dsh-web-ui-window-slot-panel";
       tag.textContent = css;
@@ -42,7 +45,7 @@ window.__ModuleLoader__.load({
 
     /** 本插件字典命名空间。 */
     const NS = "dsh-web-ui-window-slot-panel";
-    const zh = { quote: "引用" };
+    const zh = { quote: "引用", "monitor.tab": "监控" };
 
     /** 本插件的「引用」弹窗 tab（占位，实际内容由子 slot 注入）。 */
     const TABS = [
@@ -98,11 +101,56 @@ window.__ModuleLoader__.load({
       });
     }
 
+    /** 本插件「监控」对话视图 tab 的内页子 tab（缺省页占位，实际内容由子 slot 注入）。 */
+    const MONITOR_TABS = [
+      { slot: "dswp-monitor.default", label: "缺省页" }
+    ];
+
+    /** 「监控」对话视图 tab 声明的子 slot：供其它插件向内页注入内容（同「引用」弹窗机制）。 */
+    const MONITOR_CHILDREN = {
+      "dswp-monitor.default": { kind: "single", scope: "root" }
+    };
+
+    /** 「监控」对话视图 tab：内页为「子 tab」结构（同「引用」弹窗，用 renderSlot 渲染注入内容；
+     *  未注入时显示「缺省页」占位）。与「引用」弹出页不同——这是一棵常驻对话视图 tab，不是弹出页。 */
+    function MonitorView(props) {
+      const renderSlot = props && props.renderSlot;
+      const [active, setActive] = react.useState(MONITOR_TABS[0].slot);
+      const placeholder = react_jsx_runtime.jsx("p", { children: "当前未安装相关的面板" });
+      // 逐个子 slot 渲染：无 occupant 时用槽系统自身的 fallback 渲染占位文案
+      // （不要用 Children.toArray 判空——declared 但无 occupant 时 renderSlot 返回
+      //  <Fragment>{null}</Fragment>，toArray 会误判为非空，导致渲染空白容器）。
+      const rendered = MONITOR_TABS.map((t) => ({
+        slot: t.slot,
+        label: t.label,
+        out: typeof renderSlot === "function" ? renderSlot(t.slot, {}, { fallback: placeholder }) : placeholder
+      }));
+      const current = rendered.some((r) => r.slot === active) ? active : (rendered[0] ? rendered[0].slot : "");
+      const tabBtn = (key, label) => react_jsx_runtime.jsx("button", {
+        type: "button",
+        className: "dswp-tab",
+        "data-on": current === key,
+        onClick: () => setActive(key),
+        children: label
+      });
+      const activeTab = rendered.find((r) => r.slot === current);
+      return react_jsx_runtime.jsxs("div", {
+        className: "dswp-monitor",
+        children: [
+          react_jsx_runtime.jsxs("div", { className: "dswp-tabs", children: rendered.map((r) => tabBtn(r.slot, r.label)) }),
+          react_jsx_runtime.jsx("div", { className: "dswp-body", children: [
+            activeTab ? activeTab.out : placeholder
+          ] })
+        ]
+      });
+    }
+
     /** 所需服务（cordis fiber inject）：slot 系统与 locale。 */
     const inject = ["slots", "locale"];
 
-    /** 注册「引用」按钮。显隐由功能包的 features.showQuoteButton 决定。
-     *  声明子 slot children，使本组件能拿到 renderSlot 渲染注入内容。 */
+    /** 注册「引用」按钮 + 「监控面版」对话视图 tab。
+     *  显隐分别由功能包的 features.showQuoteButton / features.showMonitorPanel 决定。
+     *  均声明子 slot children，使组件能拿到 renderSlot 渲染注入内容。 */
     function apply(ctx) {
       ctx.effect(() => ctx.locale.register(NS, { zh, en: zh }), "dsh-web-ui-window-slot-panel: dictionaries");
       const baseChildren = {
@@ -110,19 +158,32 @@ window.__ModuleLoader__.load({
         "dswp-auto": { kind: "single", scope: "root" }
       };
       (async () => {
-        let enabled = true;
+        let quote = true;
+        let monitor = true;
         try {
           const r = await fetch("/dsh-func/config", { cache: "no-store" });
           const j = await r.json();
-          enabled = !(j.features && j.features.showQuoteButton === false);
-        } catch (e) { enabled = true; }
-        if (!enabled) return;
-        ctx.slots.inject("conversation.input.left", () => ctx.slots.register({
+          const f = j.features || {};
+          quote = !(f.showQuoteButton === false);
+          monitor = !(f.showMonitorPanel === false);
+        } catch (e) { quote = true; monitor = true; }
+        // 「引用」按钮：注入聊天输入框工具行（order 110，排「能力」右侧）。
+        if (quote) ctx.slots.inject("conversation.input.left", () => ctx.slots.register({
           name: "conversation.input.left",
           id: "window-slot-panel-quote",
           order: 110,
           children: baseChildren
         }, (props) => react_jsx_runtime.jsx(QuoteButton, { ...props })));
+        // 「监控面版」对话视图 tab：注入 conversation.view，放在「调度」(order 30) 右侧（order 40）。
+        // 内页为子 tab 结构，经子 slot 注入；无注入时显示占位子 tab。
+        if (monitor) ctx.slots.inject("conversation.view", () => ctx.slots.register({
+          name: "conversation.view",
+          id: "monitor",
+          order: 40,
+          label: () => ctx.locale.bind(NS)("monitor.tab"),
+          locale: NS,
+          children: MONITOR_CHILDREN
+        }, MonitorView));
       })();
     }
 
