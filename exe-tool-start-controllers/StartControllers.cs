@@ -17,14 +17,28 @@ using Microsoft.Win32;
 
 namespace StartControllers
 {
+    // 一次「目录扫描」检测到的 profile：记录它属于哪个 DSH 实例（多实例同名 profile 需要归属区分）
+    public class DetectedProfile
+    {
+        public string Install;   // 实例名
+        public string Profile;   // profile 目录名
+    }
+
     // ============ 工作台（dsh web 实例）============
     public class Workbench
     {
         public string Name, Profile, Port, Url, Desc, Args;
+        public string Install;   // 所属 DSH 实例名（空=主实例）
+        public string NodeExe;   // node.exe（全局同值，仅便于展示/兜底）
+        public string DshHome;   // 启动时 DSH_HOME（该实例的数据主页）
+        public string BinJs;     // 该实例的 bin.js（启动命令 {binJs} 展开用）
+        public string WorkDir;   // 该实例的启动工作目录
         public bool Participate = true;   // 是否参与「全部启动/全部停止」（对应「一键开关控制」小勾，持久化到 config）
-        public Workbench(string name, string profile, string port, string url, string desc, string args)
+        public Workbench(string name, string profile, string port, string url, string desc, string args,
+            string install, string dshHome, string binJs, string workDir)
         {
             Name = name; Profile = profile; Port = port; Url = url; Desc = desc; Args = args;
+            Install = install ?? ""; DshHome = dshHome ?? ""; BinJs = binJs ?? ""; WorkDir = workDir ?? "";
         }
         public bool IsRunning() { return Tool.IsPortOpen(Port); }
         public Process[] FindProcesses() { return Tool.FindDshWeb(Port); }
@@ -56,6 +70,18 @@ namespace StartControllers
         public string DshHome { get; set; }
         public string NpcDir { get; set; }
         public string ProfilesConfig { get; set; }   // profile 统一档案 profiles-config.json 路径
+        public List<InstallCfg> Installs { get; set; }   // 额外 DSH 实例（多目录 profiles）；主实例由上方旧字段表达
+    }
+
+    // DSH 实例 = 一套独立的 DSH 安装（各自的 profiles 目录 + bin.js + 工作目录 + DSH_HOME）。
+    // 多实例时每个工作台按 Name 归属某个实例；主实例名固定为「主实例」（由 PathCfg 旧字段合成）。
+    public class InstallCfg
+    {
+        public string Name { get; set; }               // 实例标签，如「新版」「旧版」
+        public string DshHome { get; set; }            // 数据主页（含 \profiles）
+        public string BinJs { get; set; }              // 该实例的 bin.js
+        public string WorkDir { get; set; }            // 启动工作目录
+        public string ProfilesConfig { get; set; }     // 可选；空则默认 <DshHome>\profiles\profiles-config.json
     }
     public class WbCfg
     {
@@ -66,6 +92,7 @@ namespace StartControllers
         public string Args { get; set; }
         public bool Enabled { get; set; }
         public bool? Participate { get; set; }   // 一键开关控制（是否参与全部启动/停止），持久化
+        public string Install { get; set; }      // 所属 DSH 实例名；空 = 主实例
     }
     public class NpsCfg
     {
@@ -119,41 +146,127 @@ namespace StartControllers
             File.WriteAllText(ConfigFile, jss.Serialize(cfg), Encoding.UTF8);
         }
 
-        // 读取统一档案 profiles-config.json 的 profile 列表（含端口/参数；文件不存在返回空列表）
-        // 唯一真源：严格只用 config.json 的 paths.profilesConfig 读档案；为空直接返回空（不自动回退、不猜）
+        // ---- 多实例辅助 ----
+        public const string DefaultInstallName = "主实例";
+
+        // 解析出「有效实例列表」：主实例（由 PathCfg 旧字段合成，保持单实例兼容）+ 额外实例（paths.installs）
+        public static List<InstallCfg> ResolveInstalls(AppConfig cfg)
+        {
+            var list = new List<InstallCfg>();
+            if (cfg == null || cfg.Paths == null) return list;
+            var p = cfg.Paths;
+            // 主实例（永远存在；字段可能为空，作为兜底）
+            list.Add(new InstallCfg()
+            {
+                Name = DefaultInstallName,
+                DshHome = p.DshHome ?? "",
+                BinJs = p.BinJs ?? "",
+                WorkDir = p.WorkDir ?? "",
+                ProfilesConfig = p.ProfilesConfig ?? ""
+            });
+            // 额外实例
+            if (p.Installs != null)
+            {
+                foreach (var inst in p.Installs)
+                {
+                    if (inst == null) continue;
+                    if (string.IsNullOrEmpty(inst.Name)) inst.Name = "实例 " + (list.Count);
+                    list.Add(inst);
+                }
+            }
+            return list;
+        }
+
+        // 实例的 profiles 根目录（<DshHome>\profiles）；DshHome 为空返回空串
+        public static string ProfilesRootFor(InstallCfg inst)
+        {
+            if (inst == null || string.IsNullOrEmpty(inst.DshHome)) return "";
+            return Path.Combine(inst.DshHome, "profiles");
+        }
+
+        // 实例的 profile 统一档案路径：优先 ProfilesConfig 显式值，否则 <DshHome>\profiles\profiles-config.json
+        public static string ProfilesConfigFor(InstallCfg inst)
+        {
+            if (inst == null) return "";
+            if (!string.IsNullOrEmpty(inst.ProfilesConfig)) return inst.ProfilesConfig;
+            if (string.IsNullOrEmpty(inst.DshHome)) return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "profiles-config.json");
+            return Path.Combine(inst.DshHome, "profiles", "profiles-config.json");
+        }
+
+        // 按名字找实例；找不到返回 null。空名视为「主实例」（列表首项）。
+        public static InstallCfg FindInstall(List<InstallCfg> installs, string installName)
+        {
+            if (installs == null || installs.Count == 0) return null;
+            if (string.IsNullOrEmpty(installName)) installName = DefaultInstallName;
+            if (installName == DefaultInstallName) return installs[0];
+            foreach (var inst in installs)
+                if (inst != null && inst.Name == installName) return inst;
+            return null;
+        }
+
+        // 工作台显示名：默认用 w.Name；多实例时补上实例标签，避免 tab/字典键重复
+        public static string DisplayName(WbCfg w, List<InstallCfg> installs)
+        {
+            string baseName = string.IsNullOrEmpty(w.Name) ? ("工作台 · " + (w.Profile ?? "")) : w.Name;
+            if (installs != null && installs.Count > 1 && !string.IsNullOrEmpty(w.Name))
+                return baseName + "（" + (string.IsNullOrEmpty(w.Install) ? DefaultInstallName : w.Install) + "）";
+            return baseName;
+        }
+
+        // 读取全部实例的统一档案 profiles-config.json，合并为一个列表（每个元素打上 Install 归属标签）
         public static List<WbCfg> LoadCanonicalWorkbenches()
         {
             var list = new List<WbCfg>();
             try
             {
-                string profilesConfig = "";
-                try
-                {
-                    var c = new JavaScriptSerializer().Deserialize<AppConfig>(File.ReadAllText(ConfigFile));
-                    if (c != null && c.Paths != null) profilesConfig = c.Paths.ProfilesConfig ?? "";
-                }
+                AppConfig c = null;
+                try { c = new JavaScriptSerializer().Deserialize<AppConfig>(File.ReadAllText(ConfigFile)); }
                 catch { }
-                if (string.IsNullOrEmpty(profilesConfig)) return list;   // 为空 → 空
-                if (File.Exists(profilesConfig))
+                var installs = ResolveInstalls(c);
+                foreach (var inst in installs)
                 {
-                    var wbs = new JavaScriptSerializer().Deserialize<List<WbCfg>>(File.ReadAllText(profilesConfig));
-                    if (wbs != null) list = wbs;
+                    string p = ProfilesConfigFor(inst);
+                    if (string.IsNullOrEmpty(p)) continue;
+                    if (!File.Exists(p)) continue;
+                    var wbs = new JavaScriptSerializer().Deserialize<List<WbCfg>>(File.ReadAllText(p));
+                    if (wbs == null) continue;
+                    foreach (var w in wbs)
+                    {
+                        if (w == null) continue;
+                        if (string.IsNullOrEmpty(w.Install)) w.Install = inst.Name;   // 打上实例归属
+                        if (string.IsNullOrEmpty(w.Name)) w.Name = "工作台 · " + (w.Profile ?? "");
+                        list.Add(w);
+                    }
                 }
             }
             catch { }
             return list;
         }
 
-        // 判断 profilesConfig 是否未配置（为空）
-        public static bool IsProfilesConfigEmpty()
+        // 是否已配置至少一个实例（其档案路径存在，或 DshHome 非空）
+        public static bool HasAnyConfiguredInstall()
         {
             try
             {
-                var c = new JavaScriptSerializer().Deserialize<AppConfig>(File.ReadAllText(ConfigFile));
-                if (c != null && c.Paths != null) return string.IsNullOrEmpty(c.Paths.ProfilesConfig);
+                AppConfig c = null;
+                try { c = new JavaScriptSerializer().Deserialize<AppConfig>(File.ReadAllText(ConfigFile)); }
+                catch { }
+                var installs = ResolveInstalls(c);
+                foreach (var inst in installs)
+                {
+                    string p = ProfilesConfigFor(inst);
+                    if (!string.IsNullOrEmpty(p) && File.Exists(p)) return true;
+                    if (!string.IsNullOrEmpty(inst.DshHome)) return true;
+                }
             }
             catch { }
-            return true;
+            return false;
+        }
+
+        // 判断是否毫无已配置实例（无档案、无 DshHome）；用于提示「请先配置实例」
+        public static bool IsProfilesConfigEmpty()
+        {
+            return !HasAnyConfiguredInstall();
         }
 
         // 内置默认：空占位（去敏——不在二进制里内嵌任何机器路径），真正值来自 config.json
@@ -167,7 +280,8 @@ namespace StartControllers
                 BinJs = "",
                 WorkDir = "",
                 DshHome = "",
-                NpcDir = ""
+                NpcDir = "",
+                Installs = new List<InstallCfg>()
             };
             cfg.Workbenches = new List<WbCfg>()
             {
@@ -182,9 +296,19 @@ namespace StartControllers
         {
             if (cfg == null) return;
             if (cfg.Paths == null) cfg.Paths = new PathCfg();
+            if (cfg.Paths.Installs == null) cfg.Paths.Installs = new List<InstallCfg>();
             if (cfg.Workbenches == null) cfg.Workbenches = new List<WbCfg>();
             if (cfg.Nps == null) cfg.Nps = new NpsCfg();
             if (cfg.Ui == null) cfg.Ui = new UiCfg();
+            foreach (var inst in cfg.Paths.Installs)
+            {
+                if (inst == null) continue;
+                if (inst.Name == null) inst.Name = "";
+                if (inst.DshHome == null) inst.DshHome = "";
+                if (inst.BinJs == null) inst.BinJs = "";
+                if (inst.WorkDir == null) inst.WorkDir = "";
+                if (inst.ProfilesConfig == null) inst.ProfilesConfig = "";
+            }
             foreach (var w in cfg.Workbenches)
             {
                 if (w.Name == null) w.Name = "";
@@ -192,6 +316,7 @@ namespace StartControllers
                 if (w.Port == null) w.Port = "";
                 if (w.Desc == null) w.Desc = "";
                 if (w.Args == null) w.Args = "";
+                if (w.Install == null) w.Install = "";
                 if (w.Participate == null) w.Participate = true;
             }
             if (cfg.Nps.Participate == null) cfg.Nps.Participate = true;
@@ -201,7 +326,7 @@ namespace StartControllers
         public static string ExampleTemplate()
         {
             var cfg = new AppConfig();
-            cfg.Paths = new PathCfg() { NodeExe = "", EngineHome = "", BinJs = "", WorkDir = "", DshHome = "", NpcDir = "" };
+            cfg.Paths = new PathCfg() { NodeExe = "", EngineHome = "", BinJs = "", WorkDir = "", DshHome = "", NpcDir = "", Installs = new List<InstallCfg>() };
             cfg.Workbenches = new List<WbCfg>()
             {
                 new WbCfg(){ Name="工作台 1 · Web", Profile="web", Port="49982", Desc="主工作台", Args="{binJs} web --port {port} --no-open", Enabled=true }
@@ -235,12 +360,13 @@ namespace StartControllers
                 BinJs = Path.Combine(cfg.Paths.EngineHome, "node_modules", "@deepseek-ai", "dsh", "lib", "bin.js");
         }
 
-        // 展开工作台启动命令里的占位符（去敏：不在源码里硬编码路径）
-        public static string BuildArgs(string template, WbCfg w)
+        // 展开工作台启动命令里的占位符（去敏：不在源码里硬编码路径）。binJs 为工作台所属实例的 bin.js。
+        public static string BuildArgs(string template, WbCfg w, string binJs)
         {
             if (string.IsNullOrEmpty(template)) return template;
+            string b = string.IsNullOrEmpty(binJs) ? (BinJs ?? "") : binJs;
             return template
-                .Replace("{binJs}", "\"" + BinJs + "\"")
+                .Replace("{binJs}", "\"" + b + "\"")
                 .Replace("{profile}", w.Profile == null ? "" : w.Profile)
                 .Replace("{port}", w.Port == null ? "" : w.Port);
         }
@@ -308,6 +434,29 @@ namespace StartControllers
             return list.ToArray();
         }
 
+        // 扫描全部实例的 profiles 根目录，返回带实例归属的检测结果（多目录聚合；同 profile 名可归于不同实例）
+        public static List<DetectedProfile> DetectProfilesAll(List<InstallCfg> installs)
+        {
+            var result = new List<DetectedProfile>();
+            if (installs == null) return result;
+            foreach (var inst in installs)
+            {
+                if (inst == null) continue;
+                string root = Config.ProfilesRootFor(inst);
+                string scanDir = Directory.Exists(root) ? root : (inst.DshHome ?? "");
+                if (!Directory.Exists(scanDir)) continue;
+                foreach (var d in Directory.GetDirectories(scanDir))
+                {
+                    string n = Path.GetFileName(d);
+                    if (string.IsNullOrEmpty(n)) continue;
+                    if (n.StartsWith(".")) continue;
+                    if (n.StartsWith("node_modules", StringComparison.OrdinalIgnoreCase)) continue;
+                    result.Add(new DetectedProfile { Install = string.IsNullOrEmpty(inst.Name) ? Config.DefaultInstallName : inst.Name, Profile = n });
+                }
+            }
+            return result;
+        }
+
         public static Process[] FindDshWeb(string port)
         {
             var list = new List<Process>();
@@ -352,15 +501,19 @@ namespace StartControllers
             try
             {
                 if (w.IsRunning()) { Log(w.Name + " 已在运行"); return true; }
-                if (!File.Exists(NodeExe)) { Log(w.Name + " 未找到 node.exe " + NodeExe); return false; }
+                // 工作台各自归属实例：bin.js 已展开进 w.Args；DSH_HOME / WorkDir 用实例值（空则回退全局）
+                string node = string.IsNullOrEmpty(w.NodeExe) ? NodeExe : w.NodeExe;
+                string dshHome = string.IsNullOrEmpty(w.DshHome) ? DshHome : w.DshHome;
+                string workDir = string.IsNullOrEmpty(w.WorkDir) ? WorkDir : w.WorkDir;
+                if (!File.Exists(node)) { Log(w.Name + " 未找到 node.exe " + node); return false; }
                 var p = new Process();
-                p.StartInfo.FileName = NodeExe;
+                p.StartInfo.FileName = node;
                 p.StartInfo.Arguments = w.Args;
-                p.StartInfo.WorkingDirectory = WorkDir;
+                p.StartInfo.WorkingDirectory = workDir;
                 p.StartInfo.UseShellExecute = false;
                 p.StartInfo.CreateNoWindow = true;
                 p.StartInfo.WindowStyle = ProcessWindowStyle.Hidden;
-                p.StartInfo.EnvironmentVariables["DSH_HOME"] = DshHome;
+                p.StartInfo.EnvironmentVariables["DSH_HOME"] = dshHome;
                 p.Start();
                 for (int i = 0; i < 40; i++) { System.Threading.Thread.Sleep(500); if (w.IsRunning()) { Log(w.Name + " 已开启"); return true; } }
                 Log(w.Name + " 启动失败：端口未能就绪（检查 profile 是否存在）");
@@ -670,6 +823,11 @@ namespace StartControllers
         private Label lblRealtimeStatus;
         private System.Windows.Forms.Timer monitorTimer;
 
+        // ---- DSH 实例管理页控件 ----
+        private System.Windows.Forms.ListBox installList;
+        private System.Windows.Forms.TextBox txtInstName, txtInstDshHome, txtInstBinJs, txtInstWorkDir, txtInstProfilesConfig;
+        private Label lblInstStatus;
+
         public MainForm()
         {
             appConfig = Config.Load();
@@ -756,6 +914,21 @@ namespace StartControllers
             RecomputeTabSize(tc, tabHeight);
         }
 
+        // 子 tab（工作台）多行：每个 tab 保持一个最小宽度，超出可视宽度时自动换到下一行。
+        // 不调用均分占满的 RecomputeTabSize；保留自绘样式（Tabs_DrawItem 用 e.Bounds，多行时仍正确）。
+        private void StyleTabsWrap(TabControl tc, int tabHeight, int minWidth)
+        {
+            tc.Alignment = TabAlignment.Top;
+            tc.DrawMode = TabDrawMode.OwnerDrawFixed;
+            tc.SizeMode = TabSizeMode.Fixed;
+            tc.Multiline = true;               // 允许多行/自动换行
+            tc.BackColor = Color.White;
+            tc.Padding = new Point(0, 0);
+            tc.Font = new Font("Microsoft YaHei", 11F);
+            tc.DrawItem += Tabs_DrawItem;
+            tc.ItemSize = new Size(minWidth, tabHeight);   // 固定最小宽，放不下就换行
+        }
+
         // 平均分布：把 tab 宽度设为"整行宽 / tab 数 - 缝隙"，让几个 tab 占满一行
         private bool recomputingTab;
         private void RecomputeTabSize(TabControl tc, int tabHeight)
@@ -832,13 +1005,25 @@ namespace StartControllers
             var list = new List<Workbench>();
             if (cfg != null && cfg.Workbenches != null)
             {
+                var installs = Config.ResolveInstalls(cfg);
+                var usedNames = new HashSet<string>();   // 保证显示名唯一（同名时追加实例标签）
                 foreach (var w in cfg.Workbenches)
                 {
                     if (!w.Enabled) continue;
                     if (string.IsNullOrEmpty(w.Profile)) continue;
-                    string args = Tool.BuildArgs(w.Args, w);
+                    var inst = Config.FindInstall(installs, w.Install);
+                    string binJs = (inst != null && !string.IsNullOrEmpty(inst.BinJs)) ? inst.BinJs : Tool.BinJs;
+                    string dshHome = (inst != null && !string.IsNullOrEmpty(inst.DshHome)) ? inst.DshHome : Tool.DshHome;
+                    string workDir = (inst != null && !string.IsNullOrEmpty(inst.WorkDir)) ? inst.WorkDir : Tool.WorkDir;
+                    string args = Tool.BuildArgs(w.Args, w, binJs);
                     string url = "http://127.0.0.1:" + w.Port;
-                    Workbench wb = new Workbench(w.Name, w.Profile, w.Port, url, w.Desc, args);
+                    string displayName = Config.DisplayName(w, installs);
+                    if (usedNames.Contains(displayName)) displayName = displayName + "（" + (string.IsNullOrEmpty(w.Profile) ? "" : w.Profile) + "）";
+                    usedNames.Add(displayName);
+                    Workbench wb = new Workbench(displayName, w.Profile, w.Port, url, w.Desc, args,
+                        string.IsNullOrEmpty(w.Install) ? Config.DefaultInstallName : w.Install,
+                        dshHome, binJs, workDir);
+                    wb.NodeExe = Tool.NodeExe;
                     wb.Participate = w.Participate ?? true;
                     list.Add(wb);
                 }
@@ -874,6 +1059,7 @@ namespace StartControllers
             inner.Dock = DockStyle.Fill;
             StyleTabs(inner, 42);
             inner.TabPages.Add(BuildSettingsPathPage());
+            inner.TabPages.Add(BuildInstallsPage());
             inner.TabPages.Add(BuildOtherSettingsPage());
             RecomputeTabSize(inner, 42);
             page.Controls.Add(inner);
@@ -989,6 +1175,173 @@ namespace StartControllers
             return page;
         }
 
+        // 子 tab 2：DSH 实例（多目录 profiles / 多套 DSH 安装管理）
+        private TabPage BuildInstallsPage()
+        {
+            TabPage page = new TabPage("DSH 实例");
+            page.Padding = new Padding(24);
+            page.BackColor = Color.White;
+
+            Label title = new Label();
+            title.Text = "DSH 实例（多目录 profiles）"; title.AutoSize = true;
+            title.Font = new Font("Microsoft YaHei", 20F, FontStyle.Bold);
+            title.ForeColor = Color.FromArgb(30, 40, 70);
+            title.Location = new Point(28, 20);
+            page.Controls.Add(title);
+
+            Label hint = new Label();
+            hint.Text = "「运行环境」页对应主实例；这里可新增其它 DSH 安装（如新版），每套各有自己的 profiles 目录 / bin.js / 工作目录。";
+            hint.AutoSize = true;
+            hint.Font = new Font("Microsoft YaHei", 10F);
+            hint.ForeColor = Color.FromArgb(120, 125, 135);
+            hint.Location = new Point(28, 58);
+            page.Controls.Add(hint);
+
+            Label listLab = new Label();
+            listLab.Text = "其它实例"; listLab.AutoSize = true;
+            listLab.Font = new Font("Microsoft YaHei", 12F);
+            listLab.ForeColor = Color.FromArgb(60, 72, 96);
+            listLab.Location = new Point(28, 92);
+            page.Controls.Add(listLab);
+
+            installList = new System.Windows.Forms.ListBox();
+            installList.Font = new Font("Microsoft YaHei", 11F);
+            installList.Location = new Point(28, 116);
+            installList.Size = new Size(230, 190);
+            installList.SelectedIndexChanged += (s, e) => LoadInstallFields();
+            page.Controls.Add(installList);
+
+            RoundedButton btnAddInst = NiceButton("新增实例", 28, 322, 106, 40, true);
+            btnAddInst.Click += (s, e) => AddInstall();
+            page.Controls.Add(btnAddInst);
+
+            RoundedButton btnDelInst = NiceButton("删除实例", 142, 322, 106, 40, false);
+            btnDelInst.Click += (s, e) => DeleteSelectedInstall();
+            page.Controls.Add(btnDelInst);
+
+            RoundedButton btnSaveInst = NiceButton("保存当前实例", 256, 322, 130, 40, true);
+            btnSaveInst.Click += (s, e) => SaveSelectedInstall();
+            page.Controls.Add(btnSaveInst);
+
+            RoundedButton btnReseed = NiceButton("从实例导入", 394, 322, 140, 40, false);
+            btnReseed.Click += (s, e) => { SaveSelectedInstall(); ImportProfiles(); if (lblInstStatus != null) lblInstStatus.Text = "已按实例重扫并导入工作台"; };
+            page.Controls.Add(btnReseed);
+
+            // 右侧字段
+            int lx = 280, tx = 480, y = 116, lh = 34;
+            txtInstName = AddInstRow(page, "实例名", tx, y); y += lh + 8;
+            txtInstDshHome = AddInstRow(page, "DSH 数据目录", tx, y); y += lh + 8;
+            txtInstBinJs = AddInstRow(page, "bin.js", tx, y); y += lh + 8;
+            txtInstWorkDir = AddInstRow(page, "工作目录", tx, y); y += lh + 8;
+            txtInstProfilesConfig = AddInstRow(page, "profile 档案(可空)", tx, y); y += lh + 8;
+
+            lblInstStatus = new Label();
+            lblInstStatus.AutoSize = true;
+            lblInstStatus.Font = new Font("Microsoft YaHei", 11F);
+            lblInstStatus.ForeColor = Color.FromArgb(70, 90, 120);
+            // 放到按钮行(322, 高40)下方，避免被「保存当前实例/从实例导入」遮住
+            lblInstStatus.Location = new Point(lx, 322 + 46);
+            lblInstStatus.Text = "";
+            page.Controls.Add(lblInstStatus);
+
+            ReloadInstallList();
+            return page;
+        }
+
+        // 实例页字段行：label + 输入框（宽度自适应，避免超右越界）
+        private System.Windows.Forms.TextBox AddInstRow(TabPage page, string labelText, int tx, int y)
+        {
+            Label lab = new Label();
+            lab.Text = labelText; lab.AutoSize = true;
+            lab.Font = new Font("Microsoft YaHei", 12F);
+            lab.ForeColor = Color.FromArgb(60, 72, 96);
+            lab.Location = new Point(280, y);
+            page.Controls.Add(lab);
+
+            System.Windows.Forms.TextBox tb = new System.Windows.Forms.TextBox();
+            tb.Font = new Font("Microsoft YaHei", 11F);
+            tb.Width = 380;
+            tb.Top = y - 2;
+            tb.Left = tx;
+            tb.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
+            page.Controls.Add(tb);
+            return tb;
+        }
+
+        private void ReloadInstallList()
+        {
+            if (installList == null) return;
+            installList.Items.Clear();
+            if (appConfig.Paths.Installs == null) appConfig.Paths.Installs = new List<InstallCfg>();
+            foreach (var inst in appConfig.Paths.Installs)
+                installList.Items.Add(string.IsNullOrEmpty(inst.Name) ? "（未命名实例）" : inst.Name);
+            if (installList.Items.Count == 0)
+            {
+                if (lblInstStatus != null) lblInstStatus.Text = "暂无其它实例；点「新增实例」添加第二套 DSH。";
+            }
+            else installList.SelectedIndex = 0;
+        }
+
+        private void LoadInstallFields()
+        {
+            int idx = installList != null ? installList.SelectedIndex : -1;
+            if (idx < 0 || appConfig.Paths.Installs == null || idx >= appConfig.Paths.Installs.Count)
+            {
+                txtInstName.Text = txtInstDshHome.Text = txtInstBinJs.Text = txtInstWorkDir.Text = txtInstProfilesConfig.Text = "";
+                return;
+            }
+            var inst = appConfig.Paths.Installs[idx];
+            txtInstName.Text = inst.Name ?? "";
+            txtInstDshHome.Text = inst.DshHome ?? "";
+            txtInstBinJs.Text = inst.BinJs ?? "";
+            txtInstWorkDir.Text = inst.WorkDir ?? "";
+            txtInstProfilesConfig.Text = inst.ProfilesConfig ?? "";
+        }
+
+        private void AddInstall()
+        {
+            if (appConfig.Paths.Installs == null) appConfig.Paths.Installs = new List<InstallCfg>();
+            var inst = new InstallCfg { Name = "实例 " + (appConfig.Paths.Installs.Count + 1) };
+            appConfig.Paths.Installs.Add(inst);
+            Config.Save(appConfig);
+            ReloadInstallList();
+            installList.SelectedIndex = installList.Items.Count - 1;
+            LoadInstallFields();
+            if (lblInstStatus != null) lblInstStatus.Text = "已新增实例：" + inst.Name + "，请填写字段后保存。";
+            Tool.Log("已新增 DSH 实例：" + inst.Name);
+        }
+
+        private void DeleteSelectedInstall()
+        {
+            int idx = installList != null ? installList.SelectedIndex : -1;
+            if (idx < 0 || appConfig.Paths.Installs == null || idx >= appConfig.Paths.Installs.Count) return;
+            string name = appConfig.Paths.Installs[idx].Name;
+            appConfig.Paths.Installs.RemoveAt(idx);
+            Config.Save(appConfig);
+            ReloadInstallList();
+            if (lblInstStatus != null) lblInstStatus.Text = "已删除实例：" + name;
+            Tool.Log("已删除 DSH 实例：" + name);
+        }
+
+        private void SaveSelectedInstall()
+        {
+            int idx = installList != null ? installList.SelectedIndex : -1;
+            if (idx < 0 || appConfig.Paths.Installs == null || idx >= appConfig.Paths.Installs.Count)
+            { if (lblInstStatus != null) lblInstStatus.Text = "请先选中一个实例"; return; }
+            var inst = appConfig.Paths.Installs[idx];
+            inst.Name = txtInstName.Text.Trim();
+            inst.DshHome = txtInstDshHome.Text.Trim();
+            inst.BinJs = txtInstBinJs.Text.Trim();
+            inst.WorkDir = txtInstWorkDir.Text.Trim();
+            inst.ProfilesConfig = txtInstProfilesConfig.Text.Trim();
+            if (string.IsNullOrEmpty(inst.Name)) inst.Name = "实例 " + (idx + 1);
+            Config.Save(appConfig);
+            ReloadInstallList();
+            installList.SelectedIndex = idx;
+            if (lblInstStatus != null) lblInstStatus.Text = "已保存实例：" + inst.Name + "（重启程序后生效）";
+            Tool.Log("已保存 DSH 实例：" + inst.Name);
+        }
+
         // 开启/关闭实时监测
         private void SetMonitor(bool on)
         {
@@ -1092,10 +1445,18 @@ namespace StartControllers
                 pcfg = Path.Combine(dsh, "profiles", "profiles-config.json");
             if (!string.IsNullOrEmpty(pcfg)) { txtProfilesConfig.Text = pcfg; sb.AppendLine("profile 档案 -> " + pcfg); }
 
-            // 5) profiles
-            string[] profs = Tool.DetectProfiles(dsh);
-            string root = dsh == "" ? "" : Path.Combine(dsh, "profiles");
-            sb.AppendLine("profiles（来自 " + root + "）: " + profs.Length + (profs.Length > 0 ? "  (" + string.Join(", ", profs) + ")" : ""));
+            // 5) profiles（多实例聚合扫描：列出每个实例的 profiles 根目录与其下 profile）
+            var installs = Config.ResolveInstalls(appConfig);
+            var detectAll = Tool.DetectProfilesAll(installs);
+            sb.AppendLine("profiles（多实例扫描）:");
+            foreach (var inst in installs)
+            {
+                string root = Config.ProfilesRootFor(inst);
+                string label = string.IsNullOrEmpty(inst.Name) ? Config.DefaultInstallName : inst.Name;
+                var profs = detectAll.FindAll(x => NormInstall(x.Install) == NormInstall(label));
+                sb.AppendLine("  [" + label + "] " + (root == "" ? "(未配置目录)" : root) + ": " + profs.Count
+                    + (profs.Count > 0 ? "  (" + string.Join(", ", profs.ConvertAll(x => x.Profile).ToArray()) + ")" : ""));
+            }
 
             sb.AppendLine("已按「检测结果 + 已加载配置」填写全部输入框");
             txtDetectOut.Text = sb.ToString() + txtDetectOut.Text;
@@ -1106,8 +1467,14 @@ namespace StartControllers
         {
             if (appConfig == null || appConfig.Workbenches == null) return null;
             foreach (var w in appConfig.Workbenches)
-                if (w.Profile == b.Profile && w.Port == b.Port) return w;
+                if (w.Profile == b.Profile && w.Port == b.Port && NormInstall(w.Install) == NormInstall(b.Install)) return w;
             return null;
+        }
+
+        private static string NormInstall(string s)
+        {
+            if (string.IsNullOrEmpty(s)) return Config.DefaultInstallName;
+            return s;
         }
 
         // 勾选「一键开关控制」改变时，自动写回 config（无需手动点保存配置）
@@ -1148,7 +1515,8 @@ namespace StartControllers
                 WorkDir = txtWorkDir.Text.Trim(),
                 DshHome = txtDshHome.Text.Trim(),
                 NpcDir = txtNpcDir.Text.Trim(),
-                ProfilesConfig = txtProfilesConfig.Text.Trim()
+                ProfilesConfig = txtProfilesConfig.Text.Trim(),
+                Installs = (appConfig.Paths != null && appConfig.Paths.Installs != null) ? appConfig.Paths.Installs : new List<InstallCfg>()
             };
             // 持久化「一键开关控制」勾选状态（写回 config，重开恢复到上次状态）
             foreach (var b in benches)
@@ -1315,6 +1683,11 @@ namespace StartControllers
 
             page.Controls.Add(MakeSep(28, ny + 128, 906));   // 分隔线：距按钮底20px
 
+            // 工作台行数多时内容会超出可视区：启用垂直滚动条，容纳所有工作台行 + NPS 行
+            page.AutoScroll = true;
+            int contentBottom = ny + 160;
+            page.AutoScrollMinSize = new Size(0, Math.Max(contentBottom, page.ClientSize.Height));
+
             return page;
         }
 
@@ -1327,9 +1700,8 @@ namespace StartControllers
 
             wbTabs = new TabControl();
             wbTabs.Dock = DockStyle.Fill;
-            StyleTabs(wbTabs, 44);
+            StyleTabsWrap(wbTabs, 44, 200);   // 每个 tab 最小宽 200；超出自动换行
             foreach (Workbench b in benches) wbTabs.TabPages.Add(BuildWorkbenchTab(b));
-            RecomputeTabSize(wbTabs, 44);
             page.Controls.Add(wbTabs);   // Fill，先加（占满余下空间）
 
             // 外层最下方：全部启动 + 全部停止
@@ -1384,47 +1756,50 @@ namespace StartControllers
         private void DeleteCurrentWorkbench()
         {
             if (wbTabs == null || wbTabs.SelectedIndex < 0) { Tool.Log("请先选中要删除的工作台子 tab"); return; }
-            TabPage page = wbTabs.TabPages[wbTabs.SelectedIndex];
-            string name = page.Text;
-            var target = appConfig.Workbenches.Find(w => w.Name == name);
+            int idx = wbTabs.SelectedIndex;
+            if (idx < 0 || idx >= benches.Length) { Tool.Log("请先选中要删除的工作台子 tab"); return; }
+            Workbench b = benches[idx];
+            var target = FindWbCfg(b);   // 多实例下按 Profile+Port+Install 匹配，避免显示名带实例标签而查不到
             if (target != null)
             {
                 appConfig.Workbenches.Remove(target);
                 Config.Save(appConfig);
-                Tool.Log("已删除工作台：" + name);
+                Tool.Log("已删除工作台：" + b.Name);
                 ReloadWorkbenchTabs();
             }
         }
 
         private void ImportProfiles()
         {
-            // 唯一真源：config.json 的 profilesConfig 若为空 → 直接报空，不处理
+            // 多实例：只要没有任何实例配置（无档案、无 DshHome）→ 提示，不处理
             if (Config.IsProfilesConfigEmpty())
             {
-                Tool.Log("profile 档案未配置：config.json 的 profilesConfig 为空，请到「设置 → 运行环境」填「profile 档案」路径并点保存配置");
-                MessageBox.Show("profile 档案未配置：config.json 的 profilesConfig 为空。\n请到「设置 → 运行环境」填「profile 档案」路径并点「保存配置」。", "StartControllers", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                Tool.Log("DSH 实例未配置：config.json 的 paths（dshHome/binJs/profilesConfig）为空或均无效，请到「设置 → DSH 实例」新增实例并保存配置");
+                MessageBox.Show("DSH 实例未配置：请在「设置 → DSH 实例」新增你的 DSH 实例（填 DSH 数据目录 / bin.js / 工作目录），或到「设置 → 运行环境」填好并点「保存配置」。", "StartControllers", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
-            // 读统一档案 profiles-config.json（profile 参数 + 端口的唯一定义），把它们拉进来（不弹窗）
+            var installs = Config.ResolveInstalls(appConfig);
+            // 读全部实例的统一档案 profiles-config.json（profile 参数 + 端口的唯一定义），拉进来（不弹窗）
             var canonical = Config.LoadCanonicalWorkbenches();
             int added = 0;
             foreach (var cw in canonical)
             {
-                if (appConfig.Workbenches.Exists(zz => zz.Profile == cw.Profile)) continue;
+                if (appConfig.Workbenches.Exists(zz => zz.Profile == cw.Profile && NormInstall(zz.Install) == NormInstall(cw.Install))) continue;
                 appConfig.Workbenches.Add(cw);
                 added++;
             }
-            // profiles 目录里存在、但 profiles-config.json 未定义的 → 真正新 profile，才由用户弹窗设端口
-            foreach (var p in Tool.DetectProfiles(appConfig.Paths != null ? appConfig.Paths.DshHome : Tool.DshHome))
+            // profiles 目录里存在、但对应实例的 profiles-config.json 未定义 → 真正新 profile，才由用户弹窗设端口
+            foreach (var dp in Tool.DetectProfilesAll(installs))
             {
-                if (canonical.Exists(c => c.Profile == p)) continue;
-                if (appConfig.Workbenches.Exists(zz => zz.Profile == p)) continue;
-                using (var dlg = new PortPromptDialog(p, NextPort()))
+                if (canonical.Exists(c => c.Profile == dp.Profile && NormInstall(c.Install) == NormInstall(dp.Install))) continue;
+                if (appConfig.Workbenches.Exists(zz => zz.Profile == dp.Profile && NormInstall(zz.Install) == NormInstall(dp.Install))) continue;
+                using (var dlg = new PortPromptDialog(dp.Profile, NextPort()))
                 {
                     if (dlg.ShowDialog(this) != DialogResult.OK) continue;
                     var wb = new WbCfg();
-                    wb.Name = "工作台 · " + p; wb.Profile = p; wb.Port = dlg.Port;
+                    wb.Name = "工作台 · " + dp.Profile; wb.Profile = dp.Profile; wb.Port = dlg.Port;
                     wb.Desc = "（从 profiles 导入）"; wb.Args = "{binJs} --profile {profile} --port {port} --no-open"; wb.Enabled = true;
+                    wb.Install = dp.Install;
                     appConfig.Workbenches.Add(wb);
                     added++;
                 }
@@ -1433,7 +1808,7 @@ namespace StartControllers
             {
                 Config.Save(appConfig);
                 ReloadWorkbenchTabs();
-                Tool.Log("已导入 " + added + " 个工作台");
+                Tool.Log("已导入 " + added + " 个工作台（多实例）");
             }
             else Tool.Log("工作台已存在于列表（无新增）");
         }

@@ -5,7 +5,17 @@
     "binJs": "",
     "workDir": "",
     "dshHome": "",
-    "npcDir": ""
+    "npcDir": "",
+    "profilesConfig": "",
+    "installs": [
+      {
+        "name": "新版",
+        "dshHome": "",
+        "binJs": "",
+        "workDir": "",
+        "profilesConfig": ""
+      }
+    ]
   },
   "workbenches": [
     { "name": "工作台 1 · Web", "profile": "web", "port": "49982", "desc": "主工作台", "args": "{binJs} web --port {port} --no-open", "enabled": true, "participate": true }
